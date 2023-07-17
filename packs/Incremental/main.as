@@ -29,7 +29,10 @@ void Main()
 void OnSimulationBegin(SimulationManager@ simManager)
 {
     string controller = GetVariableString(CONTROLLER);
-    if (controller != ID) return; // different guy
+    if (controller != ID)
+    {
+        @funcs = GetScriptFuncs(none.name);
+    }
 
     funcs.begin(simManager);
 }
