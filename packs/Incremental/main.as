@@ -18,20 +18,18 @@ void Main()
     sd.RegisterFuncs();
     wh.RegisterFuncs();
 
-    RegisterUI();
+    SetupSettings();
 
-    RegisterValidationHandler(
-        ID, NAME,
-        @RenderValidationHandlerSettings(DrawSettings)
-    );
+    RegisterValidationHandler(ID, NAME, DrawSettings);
 }
 
 void OnSimulationBegin(SimulationManager@ simManager)
 {
+    // Do not execute unless we are the controller
     string controller = GetVariableString(CONTROLLER);
     if (controller != ID)
     {
-        @funcs = GetScriptFuncs(none.name);
+        @funcs = GetScriptFuncs(MODE_NONE);
     }
 
     funcs.begin(simManager);
@@ -44,4 +42,6 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 
 void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 {
+    string mode = GetVariableString(MODE);
+    @funcs = GetScriptFuncs(mode);
 }
