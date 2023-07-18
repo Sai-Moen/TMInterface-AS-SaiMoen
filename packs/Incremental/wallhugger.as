@@ -1,16 +1,36 @@
 // Wallhugger Script
 
-class WallHugger : MScript
+namespace WH
 {
-    string name { get const { return "Wallhugger"; } }
-
-    void OnSimulationBegin(SimulationManager@ simManager)
+    void OnSimulationBegin()
     {
     }
 
-    void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
+    void OnSimulationStep(SimulationManager@ simManager)
     {
     }
 }
 
-WallHugger wh;
+class Wallhugger : MScript
+{
+    const string GetName()
+    {
+        return "Wallhugger";
+    }
+
+    void OnSimulationBegin(SimulationManager@ simManager)
+    {
+        simManager.RemoveStateValidation();
+
+        WH::OnSimulationBegin();
+    }
+
+    void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
+    {
+        if (userCancelled) return;
+
+        WH::OnSimulationStep(simManager);
+    }
+}
+
+Wallhugger wh;
