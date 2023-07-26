@@ -2,35 +2,37 @@
 
 namespace WH
 {
-    void OnSimulationBegin()
+    const string PrefixVar(const string &in var)
     {
+        return ::PrefixVar("wh_" + var);
     }
 
-    void OnSimulationStep(SimulationManager@ simManager)
+    class Wallhugger : Script
     {
+        const string GetName() const
+        {
+            return "Wallhugger";
+        }
+
+        const string GetDescription() const
+        {
+            return "Hugs close to a given wall.";
+        }
+
+        void OnRegister() const
+        {
+        }
+
+        void OnSettings() const
+        {
+        }
+
+        void OnSimulationBegin(SimulationManager@ simManager) const
+        {
+        }
+
+        void OnSimulationStep(SimulationManager@ simManager) const
+        {
+        }
     }
 }
-
-class Wallhugger : MScript
-{
-    const string GetName()
-    {
-        return "Wallhugger";
-    }
-
-    void OnSimulationBegin(SimulationManager@ simManager)
-    {
-        simManager.RemoveStateValidation();
-
-        WH::OnSimulationBegin();
-    }
-
-    void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
-    {
-        if (userCancelled) return;
-
-        WH::OnSimulationStep(simManager);
-    }
-}
-
-Wallhugger wh;
