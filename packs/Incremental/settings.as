@@ -1,12 +1,17 @@
-// Settings/vars/ui Script
+// Settings/vars/ui Script, extension of common
 
-const string VAR_PREFIX = "saimoen_";
+const string PrefixVar(const string &in var)
+{
+    return "saimoen_" + var;
+}
 
-// General vars
-const string MODE      = VAR_PREFIX + "mode";
-const string TIME_FROM = VAR_PREFIX + "time_from";
-const string TIME_TO   = VAR_PREFIX + "time_to";
-const string DIRECTION = VAR_PREFIX + "direction";
+const string MODE       = PrefixVar("mode");
+const string MODE_NONE = "None";
+
+const string EVAL_RANGE = PrefixVar("eval_range");
+const string EVAL_TO    = PrefixVar("eval_to");
+const string TIME_FROM  = PrefixVar("time_from");
+const string TIME_TO    = PrefixVar("time_to");
 
 enum Direction
 {
@@ -15,51 +20,108 @@ enum Direction
 }
 
 string mode;
-int timeFrom;
-int timeTo;
-int direction;
+array<string> modes;
 
-void SetupSettings()
+bool evalRange;
+ms evalTo;
+ms timeFrom;
+ms timeTo;
+
+void OnRegister()
 {
+    // Register
     RegisterVariable(MODE, MODE_NONE);
+
+    RegisterVariable(EVAL_RANGE, false);
+    RegisterVariable(EVAL_TO, 0);
     RegisterVariable(TIME_FROM, 0);
     RegisterVariable(TIME_TO, 10000);
-    RegisterVariable(DIRECTION, 0);
 
+    // Register sub-modes
+    ScriptRegister(None());
+
+    ScriptRegister(SD::SDRailgun());
+    ScriptRegister(WH::Wallhugger());
+
+    // Init
     mode = GetVariableString(MODE);
-    @funcs = GetScriptFuncs(mode);
+    ScriptDispatch();
 
-    modes = funcMap.GetKeys();
+    modes = scriptMap.GetKeys();
     modes.SortAsc();
+
+    evalRange = GetVariableBool(EVAL_RANGE);
+    evalTo    = ms(GetVariableDouble(EVAL_TO));
+    timeFrom  = ms(GetVariableDouble(TIME_FROM));
+    timeTo    = ms(GetVariableDouble(TIME_TO));
 }
 
-void DrawSettings()
+void OnSettings()
 {
     if (UI::CollapsingHeader("General"))
     {
-        timeFrom  = UI::InputTimeVar("Time to start at", TIME_FROM);
-        timeTo    = UI::InputTimeVar("Time to stop at", TIME_TO);
-        direction = UI::SliderIntVar("Direction", DIRECTION, Direction::left, Direction::right, "");
-        direction = direction == Direction::left ? -1 : 1;
+        evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
+        if (evalRange)
+        {
+            timeFrom = UI::InputTimeVar("Minimum evaluation time", TIME_FROM);
+            evalTo = UI::InputTimeVar("Maximum evaluation time", EVAL_TO);
+            CapMax(EVAL_TO, timeFrom, evalTo);
+            CapMax(TIME_TO, evalTo, timeTo);
+        }
+        else
+        {
+            timeFrom = UI::InputTimeVar("Time to start at", TIME_FROM);
+        }
+        timeTo = UI::InputTimeVar("Time to stop at", TIME_TO);
+        CapMax(TIME_TO, timeFrom, timeTo);
     }
 
     if (UI::CollapsingHeader("Modes"))
     {
-        if (UI::BeginCombo("Mode", mode))
+        if (ComboHelper("Mode", mode, modes, ChangeMode))
         {
-            for (uint i = 0; i < modes.Length; i++)
-            {
-                string newMode = modes[i];
-                if (UI::Selectable(newMode, mode == newMode))
-                {
-                    SetVariable(MODE, newMode);
-                    mode = newMode;
-                    @funcs = GetScriptFuncs(newMode);
-                }
-            }
-
-            UI::EndCombo();
+            DescribeModes("Modes:", modes, scriptMap);
         }
-        funcs.settings();
+
+        UI::Separator();
+
+        script.OnSettings();
     }
+}
+
+void CapMax(const string &in variableName, const ms tfrom, const ms tto)
+{
+    SetVariable(variableName, Math::Max(tfrom, tto));
+}
+
+void ChangeMode(const string &in newMode)
+{
+    SetVariable(MODE, newMode);
+    mode = newMode;
+    ScriptDispatch(newMode);
+}
+
+funcdef void OnNewMode(const string &in newMode);
+
+bool ComboHelper(
+    const string &in label,
+    const string &in currentMode,
+    const array<string> &in allModes,
+    const OnNewMode@ const onNewMode)
+{
+    const bool isOpen = UI::BeginCombo(label, currentMode);
+    if (isOpen)
+    {
+        for (uint i = 0; i < allModes.Length; i++)
+        {
+            const string newMode = allModes[i];
+            if (UI::Selectable(newMode, currentMode == newMode))
+            {
+                onNewMode(newMode);
+            }
+        }
+
+        UI::EndCombo();
+    }
+    return isOpen;
 }
