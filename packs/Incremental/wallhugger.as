@@ -9,14 +9,14 @@ namespace WH
 
     class Wallhugger : Script
     {
-        const string GetName() const
+        const string name
         {
-            return "Wallhugger";
+            get const { return "Wallhugger"; }
         }
 
-        const string GetDescription() const
+        const string description
         {
-            return "Hugs close to a given wall.";
+            get const { return "Hugs close to a given wall."; }
         }
 
         void OnRegister() const
