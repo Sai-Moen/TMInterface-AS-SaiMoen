@@ -20,14 +20,14 @@ void OnSimulationBegin(SimulationManager@ simManager)
 {
     if (IsOtherController())
     {
-        ScriptDispatch(MODE_NONE);
+        ScriptDispatch(MODE_NONE, scriptMap, script);
 
         // Not the controller, execute an empty lambda
         @step = function(simManager, userCancelled) {};
         return;
     }
 
-    ScriptDispatch();
+    ScriptDispatch(mode, scriptMap, script);
 
     if (evalRange)
     {
@@ -53,17 +53,31 @@ void OnSimulationBegin(SimulationManager@ simManager)
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 {
+    @eventBuffer = simManager.InputEvents;
     step(simManager, userCancelled);
 }
 
 void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 {
+    InputEventBuffer@ const buffer = eventBuffer;
+    @eventBuffer = null;
     if (IsOtherController()) return;
 
-    // get inputs
+    CommandList commands;
+    commands.Content = buffer.ToCommandsText();
+    if (commands.Save(FILENAME))
+    {
+        log("Inputs saved!", Severity::Success);
+    }
+    else
+    {
+        log("Inputs not saved.", Severity::Error);
+    }
 }
 
 // You are now leaving the TMInterface API
+
+InputEventBuffer@ eventBuffer;
 
 bool IsOtherController()
 {
@@ -77,7 +91,7 @@ ms FirstFromRange()
     return first;
 }
 
-// SimStep stuff
+// OnSimStep stuff
 ms inputTime;
 SimulationState@ rangeStart;
 array<ms> rangeOfTime;
@@ -93,7 +107,7 @@ void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
 {
     if (userCancelled) return;
 
-    const ms time = simManager.get_RaceTime();
+    const ms time = simManager.RaceTime;
     if (time == timeFrom - TWO_TICKS)
     {
         @rangeStart = simManager.SaveState();
