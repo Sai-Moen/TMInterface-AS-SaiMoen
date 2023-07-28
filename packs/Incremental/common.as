@@ -1,42 +1,39 @@
 // Common Script, defines many common elements or constants.
 
-// Game constants
+// Game
 typedef int ms;
 const ms TICK = 10;
 const ms TWO_TICKS = TICK << 1;
 
-// API constants/vars
+const int FULLSTEER = 0x10000;
+const int STEER_MIN = -FULLSTEER;
+const int STEER_MAX = FULLSTEER;
+const int STEER_RATE = int(Math::Ceil(FULLSTEER / 5.f));
+
+// API
 const string CONTROLLER = "controller";
 
-funcdef void SimStep(SimulationManager@ simManager, bool userCancelled);
-const SimStep@ step;
+funcdef void OnSimStep(SimulationManager@ simManager, bool userCancelled);
+const OnSimStep@ step;
 
-// Script constants
+// Script
 const string ID = "saimoen_incremental";
 const string NAME = "SaiMoen's Incremental pack";
+const string FILENAME = ID + ".txt";
 
 const string INFO_NAME = "Incremental pack";
 const string INFO_AUTHOR = "SaiMoen";
 const string INFO_VERSION = "v1.5.0";
 const string INFO_DESCRIPTION = "Contains: SD, Wallhug, ...";
 
-// Script Dispatch
+// Dispatch
 dictionary scriptMap;
 const Script@ script;
 
-void ScriptDispatch(const string key = mode)
+interface Describable
 {
-    if (scriptMap.Get(key, @script)) return;
-
-    // Should only come up while debugging, not in release!
-    log("Cannot dispatch to: " + key, Severity::Error);
-    @script = cast<Script>(scriptMap[MODE_NONE]);
-}
-
-void ScriptRegister(const Script@ const script)
-{
-    @scriptMap[script.GetName()] = script;
-    script.OnRegister();
+    const string name { get const; }
+    const string description { get const; }
 }
 
 void DescribeModes(
@@ -48,16 +45,10 @@ void DescribeModes(
     UI::Text(label);
     for (uint i = 0; i < modes.Length; i++)
     {
-        const Describable@ desc = cast<Describable>(map[modes[i]]);
-        UI::Text(desc.GetName() + " - " + desc.GetDescription());
+        const Describable@ const desc = cast<Describable>(map[modes[i]]);
+        UI::Text(desc.name + " - " + desc.description);
     }
     UI::EndTooltip();
-}
-
-interface Describable
-{
-    const string GetName() const;
-    const string GetDescription() const;
 }
 
 interface Script : Describable
@@ -69,17 +60,58 @@ interface Script : Describable
     void OnSimulationStep(SimulationManager@ simManager) const;
 }
 
+void ScriptRegister(
+    dictionary& map,
+    const Script@ const handle)
+{
+    @map[handle.name] = handle;
+    handle.OnRegister();
+}
+
+bool ScriptDispatch(
+    const string &in key,
+    const dictionary &in map,
+    const Script@& handle)
+{
+    return map.Get(key, @handle);
+}
+
+interface ScriptClass : Describable
+{
+    void OnRegister();
+    void OnSettings();
+
+    void OnSimulationBegin(SimulationManager@ simManager);
+    void OnSimulationStep(SimulationManager@ simManager);
+}
+
+void ScriptClassRegister(
+    dictionary& map,
+    ScriptClass@ const handle)
+{
+    @map[handle.name] = handle;
+    handle.OnRegister();
+}
+
+bool ScriptClassDispatch(
+    const string &in key,
+    const dictionary &in map,
+    const ScriptClass@& handle)
+{
+    return map.Get(key, @handle);
+}
+
 // Special implementation to dispatch to by default
 class None : Script
 {
-    const string GetName() const
+    const string name
     {
-        return MODE_NONE;
+        get const { return MODE_NONE; }
     }
 
-    const string GetDescription() const
+    const string description
     {
-        return "Mainly used for debugging, ignore.";
+        get const { return "Mainly used for debugging, ignore."; }
     }
 
     void OnRegister() const {}
