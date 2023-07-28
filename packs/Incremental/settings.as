@@ -38,14 +38,14 @@ void OnRegister()
     RegisterVariable(TIME_TO, 10000);
 
     // Register sub-modes
-    ScriptRegister(None());
+    ScriptRegister(scriptMap, None());
 
-    ScriptRegister(SD::SDRailgun());
-    ScriptRegister(WH::Wallhugger());
+    ScriptRegister(scriptMap, SD::SDRailgun());
+    ScriptRegister(scriptMap, WH::Wallhugger());
 
     // Init
     mode = GetVariableString(MODE);
-    ScriptDispatch();
+    ScriptDispatch(mode, scriptMap, script);
 
     modes = scriptMap.GetKeys();
     modes.SortAsc();
@@ -96,9 +96,9 @@ void CapMax(const string &in variableName, const ms tfrom, const ms tto)
 
 void ChangeMode(const string &in newMode)
 {
+    ScriptDispatch(newMode, scriptMap, script);
     SetVariable(MODE, newMode);
     mode = newMode;
-    ScriptDispatch(newMode);
 }
 
 funcdef void OnNewMode(const string &in newMode);
