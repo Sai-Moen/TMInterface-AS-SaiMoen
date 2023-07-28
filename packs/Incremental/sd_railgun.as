@@ -14,56 +14,30 @@ namespace SD
     string mode;
     array<string> modes;
 
-    IMode@ sdMode;
+    ScriptClass@ sdMode;
     dictionary sdMap;
 
-    void ModeDispatch(const string key = mode)
-    {
-        @sdMode = cast<IMode>(sdMap[key]);
-    }
-
-    void ModeRegister(IMode@ const sdMode)
-    {
-        @sdMap[sdMode.GetName()] = sdMode;
-        sdMode.OnRegister();
-    }
-    
     // SimpleStep
     funcdef void SimpleStep(SimulationManager@ simManager);
     const SimpleStep@ step;
 
-    // Seek
-    const string AUTO_SEEK = PrefixVar("auto_seek");
-    const string SEEK      = PrefixVar("seek");
+    SimulationState@ saved;
 
-    const ms SEEK_MAX = 240;
-
-    funcdef bool OnSeek();
-        
-    bool autoSeek;
-    ms seek;
-
-    // Normal
-    const string DIRECTION = PrefixVar("direction");
-
-    // Wiggle
-    const string WIGGLE_A = PrefixVar("wiggle_a");
-    const string WIGGLE_X = PrefixVar("wiggle_x");
-    const string WIGGLE_Y = PrefixVar("wiggle_y");
-    const string WIGGLE_Z = PrefixVar("wiggle_z");
-
+    ms time;
+    int steer;
+    
     // Main classes
 
     class SDRailgun : Script
     {
-        const string GetName() const
+        const string name
         {
-            return "SD Railgun";
+            get const { return "SD Railgun"; }
         }
 
-        const string GetDescription() const
+        const string description
         {
-            return "SpeedDrift script, needs to start already drifting.";
+            get const { return "SpeedDrift script, needs to start already drifting."; }
         }
 
         void OnRegister() const
@@ -71,33 +45,20 @@ namespace SD
             // Register
             RegisterVariable(MODE, MODE_DEFAULT);
 
-            RegisterVariable(AUTO_SEEK, true);
-            RegisterVariable(SEEK, 120);
-
             // Register sub-modes
-            ModeRegister(ModeNormal());
-            ModeRegister(ModeWiggle());
+            ScriptClassRegister(sdMap, ModeNormal());
+            ScriptClassRegister(sdMap, ModeWiggle());
 
             // Init
             mode = GetVariableString(MODE);
-            ModeDispatch();
+            ScriptClassDispatch(mode, sdMap, sdMode);
 
             modes = sdMap.GetKeys();
             modes.SortAsc();
-
-            autoSeek = GetVariableBool(AUTO_SEEK);
-            seek = ms(GetVariableDouble(SEEK));
         }
 
         void OnSettings() const
         {
-            autoSeek = UI::CheckboxVar("Use automatic seek?", AUTO_SEEK);
-            UI::BeginDisabled(autoSeek);
-            seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
-            UI::EndDisabled();
-
-            UI::Separator();
-
             if (ComboHelper("SD Mode", mode, modes, @OnNewMode(ChangeMode)))
             {
                 DescribeModes("SD Modes:", modes, sdMap);
@@ -108,73 +69,35 @@ namespace SD
 
         void ChangeMode(const string &in newMode) const
         {
+            ScriptClassDispatch(newMode, sdMap, sdMode);
             SetVariable(MODE, newMode);
             mode = newMode;
-            ModeDispatch();
         }
 
         void OnSimulationBegin(SimulationManager@ simManager) const
         {
-            ModeDispatch();
-            @step = @SimpleStep(sdMode.OnSimulationStep);
-            sdMode.ChooseSeek(autoSeek);
         }
 
         void OnSimulationStep(SimulationManager@ simManager) const
         {
-            step(simManager);
+            sdMode.OnSimulationStep(simManager);
         }
     }
 
-    interface IMode : Describable
+    // Normal
+    const string DIRECTION = PrefixVar("direction");
+
+    class ModeNormal : ScriptClass
     {
-        void OnRegister();
-        void OnSettings();
-
-        void ChooseSeek(const bool autoSeek);
-        void OnSimulationStep(SimulationManager@ simManager);
-    }
-
-    mixin class MMode : IMode
-    {
-        const SimulationState@ saved;
-        const SimulationState@ current;
-
-        ms time;
-        int steer;
-
-        // Determine if looked ahead far enough
-        const OnSeek@ onSeek;
-
-        void ChooseSeek(const bool autoSeek)
+        const string name
         {
-            @onSeek = autoSeek ? @OnSeek(OnAutoSeek) : @OnSeek(OnManualSeek);
+            get const { return MODE_DEFAULT; }
         }
 
-        bool OnAutoSeek() const
+        const string description
         {
-            return true;
+            get const { return "Goes in the given direction."; }
         }
-
-        bool OnManualSeek() const
-        {
-            return time == inputTime + seek;
-        }
-    }
-
-    class ModeNormal : MMode
-    {
-        const string GetName() const
-        {
-            return MODE_DEFAULT;
-        }
-
-        const string GetDescription() const
-        {
-            return "Goes in the given direction.";
-        }
-
-        int direction;
 
         void OnRegister()
         {
@@ -186,48 +109,77 @@ namespace SD
         void OnSettings()
         {
             direction = UI::SliderIntVar("Direction", DIRECTION, Direction::left, Direction::right, "");
-            direction = direction == Direction::left ? -1 : 1;
+
             UI::SameLine();
             UI::TextWrapped("= " + direction);
+        }
+
+        int _direction;
+        int direction
+        {
+            get { return _direction; }
+            set { _direction = value == Direction::left ? -1 : 1; }
+        }
+
+        int testTime;
+        array<int> steerRange;
+
+        void OnSimulationBegin(SimulationManager@ simManager)
+        {
+            Reset();
         }
 
         void OnSimulationStep(SimulationManager@ simManager)
         {
             const ms timeMin = inputTime - TICK;
 
-            time = simManager.get_TickTime();
+            time = simManager.TickTime;
             if (time < timeMin) return;
             else if (time == timeMin)
             {
                 @saved = simManager.SaveState();
+                return;
             }
-            else if (time == inputTime)
+            
+            if (time >= inputTime)
             {
-                steer = GetSteer();
+                simManager.SetInputState(InputType::Steer, steer);
             }
-            else if (time == inputTime + TWO_TICKS)
+            
+            if (time == testTime)
             {
-                @current = simManager.SaveState();
+                // Eval
+                simManager.RewindToState(saved);
             }
         }
 
-        int GetSteer()
+        void Reset()
         {
-            return 0;
+            testTime = inputTime + TWO_TICKS;
+            steerRange = {};
         }
     }
 
-    class ModeWiggle : MMode
+    // Wiggle
+    const string WIGGLE_A = PrefixVar("wiggle_a");
+    const string WIGGLE_X = PrefixVar("wiggle_x");
+    const string WIGGLE_Y = PrefixVar("wiggle_y");
+    const string WIGGLE_Z = PrefixVar("wiggle_z");
+
+    class ModeWiggle : ScriptClass
     {
-        const string GetName() const
+        const string name
         {
-            return "Wiggle";
+            get const { return "Wiggle"; }
         }
 
-        const string GetDescription() const
+        const string description
         {
-            return "Goes in the direction of the point,"
-                + " switching directions when facing too far away.";
+            get const
+            {
+                return "Goes in the direction of the point,"
+                    + " switching directions when facing too far away.";
+            }
         }
 
         Wiggle wiggle;
@@ -252,6 +204,10 @@ namespace SD
             wiggle.x = UI::InputFloatVar("Point x-position", WIGGLE_X);
             wiggle.y = UI::InputFloatVar("Point y-position", WIGGLE_Y);
             wiggle.z = UI::InputFloatVar("Point z-position", WIGGLE_Z);
+        }
+
+        void OnSimulationBegin(SimulationManager@ simManager)
+        {
         }
 
         void OnSimulationStep(SimulationManager@ simManager)
