@@ -82,14 +82,14 @@ void OnSettings()
     }
 }
 
-void CapMax(const string &in variableName, const ms tfrom, const ms tto)
-{
-    SetVariable(variableName, Math::Max(tfrom, tto));
-}
-
 void ChangeMode(const string &in newMode)
 {
     ModeDispatch(newMode, modeMap, mode);
     SetVariable(MODE, newMode);
     modeStr = newMode;
+}
+
+void CapMax(const string &in variableName, const ms tfrom, const ms tto)
+{
+    SetVariable(variableName, Math::Max(tfrom, tto));
 }
