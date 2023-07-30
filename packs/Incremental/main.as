@@ -3,10 +3,10 @@
 PluginInfo@ GetPluginInfo()
 {
     PluginInfo info;
-    info.name = INFO_NAME;
-    info.author = INFO_AUTHOR;
-    info.version = INFO_VERSION;
-    info.description = INFO_DESCRIPTION;
+    info.Author = INFO_AUTHOR;
+    info.Name = INFO_NAME;
+    info.Description = INFO_DESCRIPTION;
+    info.Version = INFO_VERSION;
     return info;
 }
 
@@ -20,14 +20,18 @@ void OnSimulationBegin(SimulationManager@ simManager)
 {
     if (IsOtherController())
     {
-        ScriptDispatch(MODE_NONE, scriptMap, script);
+        ModeDispatch(MODE_NONE_NAME, modeMap, mode);
 
         // Not the controller, execute an empty lambda
-        @step = function(simManager, userCancelled) {};
+        @step = function(simManager, userCancelled){};
         return;
     }
 
-    ScriptDispatch(mode, scriptMap, script);
+    // simManager.RemoveStateValidation();
+
+    @eventBuffer = simManager.InputEvents;
+    
+    ModeDispatch(modeStr, modeMap, mode);
 
     if (evalRange)
     {
@@ -37,7 +41,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
         rangeOfTime.Resize(0);
         for (ms i = evalTo; i >= timeFrom; i -= TICK)
         {
-            rangeOfTime.InsertLast(i);
+            rangeOfTime.Add(i);
         }
         inputTime = FirstFromRange();
     }
@@ -48,23 +52,27 @@ void OnSimulationBegin(SimulationManager@ simManager)
         inputTime = timeFrom;
     }
 
-    script.OnSimulationBegin(simManager);
+    mode.OnSimulationBegin(simManager);
 }
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 {
-    @eventBuffer = simManager.InputEvents;
     step(simManager, userCancelled);
 }
 
 void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 {
-    InputEventBuffer@ const buffer = eventBuffer;
+    TM::InputEventBuffer@ const buffer = eventBuffer;
     @eventBuffer = null;
     if (IsOtherController()) return;
 
     CommandList commands;
     commands.Content = buffer.ToCommandsText();
+
+    // What is this
+    auto option = CommandListProcessOption(0);
+    commands.Process(option);
+
     if (commands.Save(FILENAME))
     {
         log("Inputs saved!", Severity::Success);
@@ -77,7 +85,10 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 
 // You are now leaving the TMInterface API
 
-InputEventBuffer@ eventBuffer;
+dictionary modeMap;
+const Mode@ mode;
+
+TM::InputEventBuffer@ eventBuffer;
 
 bool IsOtherController()
 {
@@ -96,11 +107,14 @@ ms inputTime;
 SimulationState@ rangeStart;
 array<ms> rangeOfTime;
 
+funcdef void OnSimStep(SimulationManager@ simManager, bool userCancelled);
+const OnSimStep@ step;
+
 void OnSimStepSingle(SimulationManager@ simManager, bool userCancelled)
 {
     if (userCancelled || inputTime > timeTo) return;
 
-    script.OnSimulationStep(simManager);
+    mode.OnSimulationStep(simManager);
 }
 
 void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
@@ -111,11 +125,11 @@ void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
     if (time == timeFrom - TWO_TICKS)
     {
         @rangeStart = simManager.SaveState();
-        @step = OnSimStepRange;
+        @step = OnSimStepRangeMain;
     }
 }
 
-void OnSimStepRange(SimulationManager@ simManager, bool userCancelled)
+void OnSimStepRangeMain(SimulationManager@ simManager, bool userCancelled)
 {
     if (userCancelled) return;
     else if (inputTime > timeTo)
@@ -127,5 +141,5 @@ void OnSimStepRange(SimulationManager@ simManager, bool userCancelled)
         return;
     }
 
-    script.OnSimulationStep(simManager);
+    mode.OnSimulationStep(simManager);
 }
