@@ -7,32 +7,27 @@ namespace WH
         return ::PrefixVar("wh_" + var);
     }
 
-    class Wallhugger : Script
+    const string NAME = "Wallhugger";
+    const string DESCRIPTION = "Hugs close to a given wall.";
+    const Mode@ const mode = Mode(
+        NAME, DESCRIPTION,
+        OnRegister, OnSettings,
+        OnSimulationBegin, OnSimulationStep
+    );
+
+    void OnRegister()
     {
-        const string name
-        {
-            get const { return "Wallhugger"; }
-        }
+    }
 
-        const string description
-        {
-            get const { return "Hugs close to a given wall."; }
-        }
+    void OnSettings()
+    {
+    }
 
-        void OnRegister() const
-        {
-        }
+    void OnSimulationBegin(SimulationManager@ simManager)
+    {
+    }
 
-        void OnSettings() const
-        {
-        }
-
-        void OnSimulationBegin(SimulationManager@ simManager) const
-        {
-        }
-
-        void OnSimulationStep(SimulationManager@ simManager) const
-        {
-        }
+    void OnSimulationStep(SimulationManager@ simManager)
+    {
     }
 }
