@@ -15,10 +15,13 @@ const string TIME_TO    = PrefixVar("time_to");
 string modeStr;
 array<string> modes;
 
-bool evalRange;
-ms evalTo;
-ms timeFrom;
-ms timeTo;
+namespace Settings
+{
+    bool evalRange;
+    ms evalTo;
+    ms timeFrom;
+    ms timeTo;
+}
 
 void OnRegister()
 {
@@ -34,7 +37,7 @@ void OnRegister()
     ModeRegister(modeMap, none);
 
     ModeRegister(modeMap, SD::mode);
-    ModeRegister(modeMap, WH::mode);
+    //ModeRegister(modeMap, WH::mode);
 
     // Init
     modeStr = GetVariableString(MODE);
@@ -43,30 +46,31 @@ void OnRegister()
     modes = modeMap.GetKeys();
     modes.SortAsc();
 
-    evalRange = GetVariableBool(EVAL_RANGE);
-    evalTo    = ms(GetVariableDouble(EVAL_TO));
-    timeFrom  = ms(GetVariableDouble(TIME_FROM));
-    timeTo    = ms(GetVariableDouble(TIME_TO));
+    Settings::evalRange = GetVariableBool(EVAL_RANGE);
+    Settings::evalTo    = ms(GetVariableDouble(EVAL_TO));
+    Settings::timeFrom  = ms(GetVariableDouble(TIME_FROM));
+    Settings::timeTo    = ms(GetVariableDouble(TIME_TO));
 }
 
 void OnSettings()
 {
     if (UI::CollapsingHeader("General"))
     {
-        evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
-        if (evalRange)
+        Settings::evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
+        if (Settings::evalRange)
         {
-            timeFrom = UI::InputTimeVar("Minimum evaluation time", TIME_FROM);
-            CapMax(EVAL_TO, timeFrom, evalTo);
-            evalTo = UI::InputTimeVar("Maximum evaluation time", EVAL_TO);
-            CapMax(TIME_TO, evalTo, timeTo);
+            Settings::timeFrom = UI::InputTimeVar("Minimum evaluation time", TIME_FROM);
+            CapMax(EVAL_TO, Settings::timeFrom, Settings::evalTo);
+
+            Settings::evalTo = UI::InputTimeVar("Maximum evaluation time", EVAL_TO);
+            CapMax(TIME_TO, Settings::evalTo, Settings::timeTo);
         }
         else
         {
-            timeFrom = UI::InputTimeVar("Time to start at", TIME_FROM);
+            Settings::timeFrom = UI::InputTimeVar("Time to start at", TIME_FROM);
         }
-        CapMax(TIME_TO, timeFrom, timeTo);
-        timeTo = UI::InputTimeVar("Time to stop at", TIME_TO);
+        CapMax(TIME_TO, Settings::timeFrom, Settings::timeTo);
+        Settings::timeTo = UI::InputTimeVar("Time to stop at", TIME_TO);
     }
 
     if (UI::CollapsingHeader("Modes"))
@@ -75,8 +79,6 @@ void OnSettings()
         {
             DescribeModes("Modes:", modes, modeMap);
         }
-
-        UI::Separator();
 
         mode.OnSettings();
     }
@@ -87,9 +89,4 @@ void ChangeMode(const string &in newMode)
     ModeDispatch(newMode, modeMap, mode);
     SetVariable(MODE, newMode);
     modeStr = newMode;
-}
-
-void CapMax(const string &in variableName, const ms tfrom, const ms tto)
-{
-    SetVariable(variableName, Math::Max(tfrom, tto));
 }
