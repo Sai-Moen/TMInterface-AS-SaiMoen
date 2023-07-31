@@ -3,10 +3,10 @@
 PluginInfo@ GetPluginInfo()
 {
     PluginInfo info;
-    info.Author = INFO_AUTHOR;
-    info.Name = INFO_NAME;
-    info.Description = INFO_DESCRIPTION;
-    info.Version = INFO_VERSION;
+    info.Author = INFO::AUTHOR;
+    info.Name = INFO::NAME;
+    info.Description = INFO::DESCRIPTION;
+    info.Version = INFO::VERSION;
     return info;
 }
 
@@ -27,29 +27,29 @@ void OnSimulationBegin(SimulationManager@ simManager)
         return;
     }
 
-    // simManager.RemoveStateValidation();
+    simManager.RemoveStateValidation();
 
-    @eventBuffer = simManager.InputEvents;
+    @Eval::buffer = simManager.InputEvents;
     
     ModeDispatch(modeStr, modeMap, mode);
 
-    if (evalRange)
+    if (Settings::evalRange)
     {
         @step = OnSimStepRangePre;
 
         // Evaluating in descending order because that's easier to cleanup (do nothing)
         rangeOfTime.Resize(0);
-        for (ms i = evalTo; i >= timeFrom; i -= TICK)
+        for (ms i = Settings::evalTo; i >= Settings::timeFrom; i -= TICK)
         {
             rangeOfTime.Add(i);
         }
-        inputTime = FirstFromRange();
+        Eval::inputTime = FirstFromRange();
     }
     else
     {
         @step = OnSimStepSingle;
 
-        inputTime = timeFrom;
+        Eval::inputTime = Settings::timeFrom;
     }
 
     mode.OnSimulationBegin(simManager);
@@ -62,17 +62,20 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 
 void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 {
-    TM::InputEventBuffer@ const buffer = eventBuffer;
-    @eventBuffer = null;
     if (IsOtherController()) return;
 
+    const ms finalTime = Settings::timeTo + Eval::SEEK_MAX;
+    for (ms i = Settings::timeFrom; i <= finalTime; i += TICK)
+    {
+        array<uint>@ indices = Eval::buffer.Find(i, InputType::Steer);
+        for (int j = indices.Length - 2; j >= 0; j--)
+        {
+            Eval::buffer.RemoveAt(indices[j]);
+        }
+    }
+
     CommandList commands;
-    commands.Content = buffer.ToCommandsText();
-
-    // What is this
-    auto option = CommandListProcessOption(0);
-    commands.Process(option);
-
+    commands.Content = Eval::buffer.ToCommandsText();
     if (commands.Save(FILENAME))
     {
         log("Inputs saved!", Severity::Success);
@@ -84,11 +87,6 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 }
 
 // You are now leaving the TMInterface API
-
-dictionary modeMap;
-const Mode@ mode;
-
-TM::InputEventBuffer@ eventBuffer;
 
 bool IsOtherController()
 {
@@ -103,7 +101,22 @@ ms FirstFromRange()
 }
 
 // OnSimStep stuff
-ms inputTime;
+namespace Eval
+{
+    const ms SEEK_MAX = 1200;
+
+    ms inputTime;
+    TM::InputEventBuffer@ buffer;
+
+    bool TimeLimitExceeded()
+    {
+        return inputTime > Settings::timeTo;
+    }
+}
+
+dictionary modeMap;
+const Mode@ mode;
+
 SimulationState@ rangeStart;
 array<ms> rangeOfTime;
 
@@ -112,7 +125,7 @@ const OnSimStep@ step;
 
 void OnSimStepSingle(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled || inputTime > timeTo) return;
+    if (userCancelled || Eval::TimeLimitExceeded()) return;
 
     mode.OnSimulationStep(simManager);
 }
@@ -121,8 +134,8 @@ void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
 {
     if (userCancelled) return;
 
-    const ms time = simManager.RaceTime;
-    if (time == timeFrom - TWO_TICKS)
+    const ms time = simManager.TickTime;
+    if (time == Settings::timeFrom - TWO_TICKS)
     {
         @rangeStart = simManager.SaveState();
         @step = OnSimStepRangeMain;
@@ -132,10 +145,10 @@ void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
 void OnSimStepRangeMain(SimulationManager@ simManager, bool userCancelled)
 {
     if (userCancelled) return;
-    else if (inputTime > timeTo)
+    else if (Eval::TimeLimitExceeded())
     {
         if (rangeOfTime.Length == 0) return;
-        inputTime = FirstFromRange();
+        Eval::inputTime = FirstFromRange();
 
         simManager.RewindToState(rangeStart);
         return;
