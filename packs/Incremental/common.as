@@ -1,25 +1,33 @@
 // Common Script, defines many common elements or constants.
 
-// Game
 typedef int ms;
 const ms TICK = 10;
 const ms TWO_TICKS = TICK << 1;
 
-const int FULLSTEER = 0x10000;
-const int STEER_MIN = -FULLSTEER;
-const int STEER_MAX = FULLSTEER;
+namespace STEER
+{
+    const int FULL = 0x10000;
+    const int HALF = FULL >> 1;
+    const int MIN  = -FULL;
+    const int MAX  = FULL;
 
-const float STEER_RATE_F = .2f;
-const int STEER_RATE = int(Math::Ceil(FULLSTEER * STEER_RATE_F));
+    const int RATE = int(Math::Ceil(FULL * RATE_F));
+    const float RATE_F = .2f;
+}
 
 int ClampSteer(const int steer)
 {
-    return Math::Clamp(steer, STEER_MIN, STEER_MAX);
+    return Math::Clamp(steer, STEER::MIN, STEER::MAX);
 }
 
-float NextTurningRate(const float inputSteer, const float turningRate)
+int NextTurningRate(const float inputSteer, const float turningRate)
 {
-    return Math::Clamp(inputSteer, turningRate - STEER_RATE_F, turningRate + STEER_RATE_F);
+    return int(STEER::FULL * NextTurningRateF(inputSteer, turningRate));
+}
+
+float NextTurningRateF(const float inputSteer, const float turningRate)
+{
+    return Math::Clamp(inputSteer, turningRate - STEER::RATE_F, turningRate + STEER::RATE_F);
 }
 
 // API
@@ -30,10 +38,13 @@ const string ID = "saimoen_incremental";
 const string NAME = "SaiMoen's Incremental pack";
 const string FILENAME = ID + ".txt";
 
-const string INFO_NAME = "Incremental pack";
-const string INFO_AUTHOR = "SaiMoen";
-const string INFO_VERSION = "v1.5.0";
-const string INFO_DESCRIPTION = "Contains: SD, Wallhug, ...";
+namespace INFO
+{
+    const string AUTHOR = "SaiMoen";
+    const string NAME = "Incremental pack";
+    const string DESCRIPTION = "Contains: SD, Wallhug, ...";
+    const string VERSION = "v1.5.0.patch_0";
+}
 
 // UI utils
 funcdef void OnNewMode(const string &in newMode);
@@ -80,6 +91,11 @@ void DescribeModes(
         UI::Text(desc.Name + " - " + desc.Description);
     }
     UI::EndTooltip();
+}
+
+void CapMax(const string &in variableName, const ms tfrom, const ms tto)
+{
+    SetVariable(variableName, Math::Max(tfrom, tto));
 }
 
 // Dispatch utils
@@ -164,14 +180,29 @@ const Mode@ const none = Mode(
 
 // General Utils
 
-void MakeRange(const uint size = 0) {}
-
-array<int> MakeRangeExcl(const int start, const int end, const uint step = 1)
+void log(const uint u, Severity severity = Severity::Info)
 {
-    if (start >= end) return array<int>(0);
+    log("" + u, severity);
+}
 
-    uint len = (end - start) / step;
-    auto range = array<int>(len);
+void log(const int i, Severity severity = Severity::Info)
+{
+    log("" + i, severity);
+}
+
+void log(const float f, Severity severity = Severity::Info)
+{
+    log("" + f, severity);
+}
+
+void log(const double d, Severity severity = Severity::Info)
+{
+    log("" + d, severity);
+}
+
+array<int> MakeRangeLen(const int start, const uint len, const uint step = 1)
+{
+    array<int> range = array<int>(len);
     for (uint i = 0; i < len; i++)
     {
         range[i] = start + step * i;
@@ -179,15 +210,18 @@ array<int> MakeRangeExcl(const int start, const int end, const uint step = 1)
     return range;
 }
 
+array<int> MakeRangeExcl(const int start, const int end, const uint step = 1)
+{
+    if (start >= end) return array<int>(0);
+
+    const uint len = (end - start) / step;
+    return MakeRangeLen(start, len, step);
+}
+
 array<int> MakeRangeIncl(const int start, const int end, const uint step = 1)
 {
     if (start >= end) return array<int>(0);
     
-    uint len = (end - start) / step + 1;
-    auto range = array<int>(len);
-    for (uint i = 0; i < len; i++)
-    {
-        range[i] = start + step * i;
-    }
-    return range;
+    const uint len = (end - start) / step + 1;
+    return MakeRangeLen(start, len, step);
 }
