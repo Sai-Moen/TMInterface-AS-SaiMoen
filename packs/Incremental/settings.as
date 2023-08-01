@@ -12,6 +12,8 @@ const string EVAL_TO    = PrefixVar("eval_to");
 const string TIME_FROM  = PrefixVar("time_from");
 const string TIME_TO    = PrefixVar("time_to");
 
+const string RANGE_MODE = PrefixVar("range_mode");
+
 string modeStr;
 array<string> modes;
 
@@ -21,6 +23,43 @@ namespace Settings
     ms evalTo;
     ms timeFrom;
     ms timeTo;
+
+    string rangeModeStr;
+    const Eval::IsBetter@ isBetter;
+}
+
+namespace Range
+{
+    dictionary map =
+    {
+        {"Speed", Speed},
+        {"Horizontal Speed", HSpeed},
+        {"Forwards Force", FForce}
+    };
+    array<string> modes = map.GetKeys();
+
+    void ChangeMode(const string &in newMode)
+    {
+        @Settings::isBetter = cast<Eval::IsBetter>(map[newMode]);
+        Settings::rangeModeStr = newMode;
+    }
+
+    bool Speed(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
+    {
+        return other.finalState.CurrentLocalSpeed.LengthSquared() > best.finalState.CurrentLocalSpeed.LengthSquared();
+    }
+
+    bool HSpeed(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
+    {
+        const vec3 vBest = best.finalState.CurrentLocalSpeed;
+        const vec3 vOther = other.finalState.CurrentLocalSpeed;
+        return vOther.x * vOther.z > vBest.x * vBest.z;
+    }
+
+    bool FForce(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
+    {
+        return other.finalState.TotalCentralForceAdded.z > best.finalState.TotalCentralForceAdded.z;
+    }
 }
 
 void OnRegister()
@@ -33,11 +72,13 @@ void OnRegister()
     RegisterVariable(TIME_FROM, 0);
     RegisterVariable(TIME_TO, 10000);
 
+    RegisterVariable(RANGE_MODE, Range::modes[0]);
+
     // Register sub-modes
     ModeRegister(modeMap, none);
 
     ModeRegister(modeMap, SD::mode);
-    //ModeRegister(modeMap, WH::mode);
+    //ModeRegister(modeMap, WH::mode); Not yet implemented
 
     // Init
     modeStr = GetVariableString(MODE);
@@ -50,6 +91,9 @@ void OnRegister()
     Settings::evalTo    = ms(GetVariableDouble(EVAL_TO));
     Settings::timeFrom  = ms(GetVariableDouble(TIME_FROM));
     Settings::timeTo    = ms(GetVariableDouble(TIME_TO));
+
+    Settings::rangeModeStr = GetVariableString(RANGE_MODE);
+    Range::ChangeMode(Settings::rangeModeStr);
 }
 
 void OnSettings()
@@ -64,6 +108,11 @@ void OnSettings()
 
             Settings::evalTo = UI::InputTimeVar("Maximum evaluation time", EVAL_TO);
             CapMax(TIME_TO, Settings::evalTo, Settings::timeTo);
+
+            ComboHelper(
+                "Prioritize ... on final tick",
+                Settings::rangeModeStr, Range::modes, Range::ChangeMode
+            );
         }
         else
         {
