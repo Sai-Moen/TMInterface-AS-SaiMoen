@@ -33,6 +33,11 @@ float NextTurningRateF(const float inputSteer, const float turningRate)
 // API
 const string CONTROLLER = "controller";
 
+bool IsOtherController()
+{
+    return ID != GetVariableString(CONTROLLER);
+}
+
 // Script
 const string ID = "saimoen_incremental";
 const string NAME = "SaiMoen's Incremental pack";
@@ -43,7 +48,7 @@ namespace INFO
     const string AUTHOR = "SaiMoen";
     const string NAME = "Incremental pack";
     const string DESCRIPTION = "Contains: SD, Wallhug, ...";
-    const string VERSION = "v1.5.0.patch_0";
+    const string VERSION = "v2.0.0.0";
 }
 
 // UI utils
@@ -161,12 +166,15 @@ void ModeRegister(
     handle.OnRegister();
 }
 
-bool ModeDispatch(
+void ModeDispatch(
     const string &in key,
     const dictionary &in map,
     const Mode@& handle)
 {
-    return map.Get(key, @handle);
+    if (map.Get(key, @handle)) return;
+
+    // If a new version of the script tries to use an old key
+    @handle = cast<Mode>(map[map.GetKeys()[0]]);
 }
 
 // Special implementation to dispatch to by default
