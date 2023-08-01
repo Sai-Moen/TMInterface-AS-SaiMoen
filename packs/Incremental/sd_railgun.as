@@ -19,7 +19,7 @@ namespace SD
     
     void OnRegister()
     {
-        RegisterVariable(MODE, Normal::NAME);
+        RegisterVariable(MODE, Classic::NAME);
 
         //ModeRegister(sdMap, Normal::mode);
         ModeRegister(sdMap, Classic::mode);
@@ -239,7 +239,8 @@ namespace SD::Normal
             evalBest = bestSoFar;
             if (steerRange.IsDone)
             {
-                Eval::buffer.Add(Eval::inputTime, InputType::Steer, evalBest.steer);
+                simManager.InputEvents.Add(Eval::inputTime, InputType::Steer, evalBest.steer);
+                Eval::AddInput(Eval::inputTime, InputType::Steer, evalBest.steer);
                 Eval::inputTime += TICK;
                 Reset(simManager);
                 return;
@@ -258,11 +259,11 @@ namespace SD::Normal
 
     void Reset(SimulationManager@ simManager)
     {
-        const auto@ const car = simManager.SceneVehicleCar;
-        evalBest.steer = NextTurningRate(car.InputSteer, car.TurningRate);
-
         timeMin = Eval::inputTime - TICK;
         evalTime = Eval::inputTime + TWO_TICKS;
+
+        const auto@ const car = simManager.SceneVehicleCar;
+        evalBest.steer = NextTurningRate(car.InputSteer, car.TurningRate);
 
         const int midpoint = evalBest.steer;
         const uint deviation = 0x2000;
@@ -338,11 +339,8 @@ namespace SD::Classic
         Reset();
     }
 
-    uint counter = 0;
     void OnSimulationStep(SimulationManager@ simManager)
     {
-        //if (counter++ == 0x10000) simManager.ForceFinish();
-
         const ms time = simManager.TickTime;
         if (time < timeMin) return;
         else if (time == timeMin)
@@ -391,7 +389,8 @@ namespace SD::Classic
             }
             else
             {
-                Eval::buffer.Add(Eval::inputTime, InputType::Steer, evalBest.steer);
+                simManager.InputEvents.Add(Eval::inputTime, InputType::Steer, evalBest.steer);
+                Eval::AddInput(Eval::inputTime, InputType::Steer, evalBest.steer);
                 Eval::inputTime += TICK;
                 Reset();
             }
@@ -408,7 +407,9 @@ namespace SD::Classic
     {
         timeMin = Eval::inputTime - TICK;
         evalTime = Eval::inputTime + seek;
-        
+
+        evalBest = Result();
+
         const int midpoint = STEER::HALF * direction;
         steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION);
 
