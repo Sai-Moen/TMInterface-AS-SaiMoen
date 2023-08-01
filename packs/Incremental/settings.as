@@ -100,8 +100,8 @@ void OnSettings()
 {
     if (UI::CollapsingHeader("General"))
     {
-        Settings::evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
-        if (Settings::evalRange)
+        //Settings::evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
+        if (false && Settings::evalRange) // Enable timerange eventually
         {
             Settings::timeFrom = UI::InputTimeVar("Minimum evaluation time", TIME_FROM);
             CapMax(EVAL_TO, Settings::timeFrom, Settings::evalTo);
