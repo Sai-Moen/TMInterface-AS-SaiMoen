@@ -47,8 +47,8 @@ namespace INFO
 {
     const string AUTHOR = "SaiMoen";
     const string NAME = "Incremental pack";
-    const string DESCRIPTION = "Contains: SD, Wallhug, ...";
-    const string VERSION = "v2.0.0.0";
+    const string DESCRIPTION = "Contains: SD, Wallhug at some point, ...";
+    const string VERSION = "v2.0.0.1";
 }
 
 // UI utils
