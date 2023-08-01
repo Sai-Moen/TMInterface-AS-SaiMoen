@@ -28,9 +28,8 @@ void OnSimulationBegin(SimulationManager@ simManager)
     }
 
     simManager.RemoveStateValidation();
+    Eval::cmdlist.Content += simManager.InputEvents.ToCommandsText() + "\n\n";
 
-    @Eval::buffer = simManager.InputEvents;
-    
     ModeDispatch(modeStr, modeMap, mode);
 
     if (Settings::evalRange)
@@ -43,12 +42,14 @@ void OnSimulationBegin(SimulationManager@ simManager)
         {
             rangeOfTime.Add(i);
         }
-        Eval::inputTime = FirstFromRange();
+        Eval::inputsResults.Resize(rangeOfTime.Length);
+        Eval::inputTime = PopFromRange();
     }
     else
     {
         @step = OnSimStepSingle;
 
+        Eval::inputsResults.Resize(1);
         Eval::inputTime = Settings::timeFrom;
     }
 
@@ -64,19 +65,8 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 {
     if (IsOtherController()) return;
 
-    const ms finalTime = Settings::timeTo + Eval::SEEK_MAX;
-    for (ms i = Settings::timeFrom; i <= finalTime; i += TICK)
-    {
-        array<uint>@ indices = Eval::buffer.Find(i, InputType::Steer);
-        for (int j = indices.Length - 2; j >= 0; j--)
-        {
-            Eval::buffer.RemoveAt(indices[j]);
-        }
-    }
-
-    CommandList commands;
-    commands.Content = Eval::buffer.ToCommandsText();
-    if (commands.Save(FILENAME))
+    Eval::cmdlist.Content += Eval::GetBestInputs();
+    if (Eval::cmdlist.Save(FILENAME))
     {
         log("Inputs saved!", Severity::Success);
     }
@@ -84,48 +74,111 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
     {
         log("Inputs not saved.", Severity::Error);
     }
+
+    Eval::Reset();
 }
 
 // You are now leaving the TMInterface API
 
-bool IsOtherController()
-{
-    return ID != GetVariableString(CONTROLLER);
-}
-
-ms FirstFromRange()
-{
-    ms first = rangeOfTime[0];
-    rangeOfTime.RemoveAt(0);
-    return first;
-}
-
-// OnSimStep stuff
 namespace Eval
 {
-    const ms SEEK_MAX = 1200;
+    CommandList cmdlist;
 
     ms inputTime;
-    TM::InputEventBuffer@ buffer;
-
     bool TimeLimitExceeded()
     {
         return inputTime > Settings::timeTo;
+    }
+    bool isEnded;
+
+    class InputsResult
+    {
+        array<InputCommand> inputs;
+        TM::SceneVehicleCar@ finalState;
+
+        void AddInputCommand(const InputCommand &in cmd)
+        {
+            inputs.Add(cmd);
+        }
+
+        string ToString() const
+        {
+            string builder;
+            for (uint i = 0; i < inputs.Length; i++)
+            {
+                builder += inputs[i].ToScript() + "\n";
+            }
+            return builder;
+        }
+    }
+
+    uint irIndex = 0;
+    array<InputsResult> inputsResults;
+
+    void Next()
+    {
+        irIndex++;
+        Eval::inputTime = PopFromRange();
+    }
+
+    void Reset()
+    {
+        cmdlist.Content = "";
+        Eval::isEnded = false;
+
+        irIndex = 0;
+        inputsResults.Clear();
+    }
+
+    void AddInput(ms timestamp, InputType type, int state)
+    {
+        InputCommand cmd;
+        cmd.Timestamp = timestamp;
+        cmd.Type = type;
+        cmd.State = state;
+        inputsResults[irIndex].AddInputCommand(cmd);
+    }
+
+    funcdef bool IsBetter(const InputsResult@ const best, const InputsResult@ const other);
+    string GetBestInputs()
+    {
+        const InputsResult@ best = inputsResults[0];
+        for (uint i = 1; i < inputsResults.Length; i++)
+        {
+            const InputsResult@ const other = inputsResults[i];
+            if (Settings::isBetter(best, other))
+            {
+                @best = other;
+            }
+        }
+        return best.ToString();
     }
 }
 
 dictionary modeMap;
 const Mode@ mode;
 
-SimulationState@ rangeStart;
 array<ms> rangeOfTime;
+SimulationState@ rangeStart;
+
+ms PopFromRange()
+{
+    ms first = rangeOfTime[0];
+    rangeOfTime.RemoveAt(0);
+    return first;
+}
 
 funcdef void OnSimStep(SimulationManager@ simManager, bool userCancelled);
 const OnSimStep@ step;
 
 void OnSimStepSingle(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled || Eval::TimeLimitExceeded()) return;
+    if (userCancelled || Eval::isEnded) return;
+    else if (Eval::TimeLimitExceeded())
+    {
+        Eval::isEnded = true;
+        return;
+    }
 
     mode.OnSimulationStep(simManager);
 }
@@ -144,11 +197,16 @@ void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
 
 void OnSimStepRangeMain(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled) return;
+    if (userCancelled || Eval::isEnded) return;
     else if (Eval::TimeLimitExceeded())
     {
-        if (rangeOfTime.Length == 0) return;
-        Eval::inputTime = FirstFromRange();
+        if (rangeOfTime.IsEmpty())
+        {
+            Eval::isEnded = true;
+            return;
+        }
+
+        Eval::Next();
 
         simManager.RewindToState(rangeStart);
         return;
