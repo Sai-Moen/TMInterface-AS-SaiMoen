@@ -11,7 +11,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = NAME;
     info.Description = "Use " + COMMAND + " to open a text editor in-game";
-    info.Version = "v2.0.0.0";
+    info.Version = "v2.0.0.1";
     return info;
 }
 
@@ -57,6 +57,8 @@ void Render()
         }
     }
     UI::SameLine();
+    const bool saveFile = UI::Button("Save");
+    UI::SameLine();
     const bool closeFile = UI::Button("Close");
 
     if (UI::BeginTabBar("Files"))
@@ -64,7 +66,8 @@ void Render()
         uint closeIndex = Math::UINT_MAX;
         for (uint i = 0; i < files.Length; i++)
         {
-            if (OnFile(files[i], closeFile))
+            CommandList@ const file = files[i];
+            if (OnFile(file) && OnSelectedFile(file, saveFile, closeFile))
             {
                 closeIndex = i;
             }
@@ -81,11 +84,12 @@ void Render()
     UI::End();
 }
 
-bool OnFile(CommandList@ const file, const bool closeFile)
+const bool OnFile(CommandList@ const file)
 {
-    if (!UI::BeginTabItem(file.Filename))
+    const bool selected = UI::BeginTabItem(file.Filename);
+    if (!selected)
     {
-        return false;
+        return selected;
     }
 
     const array<string>@ const lines = file.Content.Split(NEWLINE);
@@ -109,7 +113,13 @@ bool OnFile(CommandList@ const file, const bool closeFile)
     }
     file.Content = Text::Join(content, NEWLINE);
 
-    if (UI::Button("Save"))
+    UI::EndTabItem();
+    return selected;
+}
+
+const bool OnSelectedFile(CommandList@ const file, const bool saveFile, const bool closeFile)
+{
+    if (saveFile)
     {
         if (file.Save(file.Filename))
         {
@@ -121,6 +131,5 @@ bool OnFile(CommandList@ const file, const bool closeFile)
         }
     }
 
-    UI::EndTabItem();
     return closeFile;
 }
