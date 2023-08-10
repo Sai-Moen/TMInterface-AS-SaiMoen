@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "Calculator";
     info.Description = "Can calculate expressions and deal with time";
-    info.Version = "v2.0.0.0";
+    info.Version = "v2.0.0.1";
     return info;
 }
 
