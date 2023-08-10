@@ -384,6 +384,12 @@ bool Parse()
 {
     program.Resize(0);
 
+    if (tokens.IsEmpty())
+    {
+        log("No Tokens!", Severity::Error);
+        return false;
+    }
+
     Stack opstack;
 
     for (uint i = 0; i < tokens.Length; i++)
@@ -456,7 +462,6 @@ number Run()
     for (uint i = 0; i < program.Length; i++)
     {
         const Token::Token token = program[i];
-
         switch (token.type)
         {
         case Token::Type::NUMBER:
