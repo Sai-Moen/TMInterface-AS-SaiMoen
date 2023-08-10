@@ -27,7 +27,7 @@ void OnExpression(
     const array<string> &in args)
 {
     @FromText = function(text) { return Text::ParseFloat(text); };
-    log("expr = " + Text::FormatFloat(Calculate(args)));
+    log("expr = " + Calculate(args));
 }
 
 void OnTime(
