@@ -94,66 +94,6 @@ namespace SD
     uint evalIndex;
     array<Result> evalResults;
 
-    class SteeringRange
-    {
-        int midpoint;
-        uint step;
-        uint deviation;
-        bool IsDone { get const { return step == 1 || deviation == 1; } }
-
-        uint len;
-        array<int> range;
-        bool IsEmpty { get const { return range.IsEmpty(); } }
-
-        SteeringRange() {}
-
-        SteeringRange(const int _midpoint, const uint _step, const uint _deviation)
-        {
-            midpoint = _midpoint;
-            step = _step;
-            deviation = _deviation;
-
-            len = (_deviation / _step + 1) << 1;
-
-            Create();
-        }
-
-        void Create()
-        {
-            int prevL = Math::INT_MAX;
-            int prevR = Math::INT_MAX;
-
-            uint i = 0;
-            range = array<int>(len);
-            for (int offset = deviation; offset > 0; offset -= step)
-            {
-                const int steerL = ClampSteer(midpoint - offset);
-                if (steerL != prevL) range[i++] = steerL;
-                prevL = steerL;
-
-                const int steerR = ClampSteer(midpoint + offset);
-                if (steerR != prevR) range[i++] = steerR;
-                prevR = steerR;
-            }
-        }
-
-        void Magnify(const int _midpoint)
-        {
-            midpoint = _midpoint;
-            step >>= 1;
-            deviation >>= 1;
-
-            Create();
-        }
-
-        int Pop()
-        {
-            int pop = range[0];
-            range.RemoveAt(0);
-            return pop;
-        }
-    }
-
     int steer;
     SteeringRange steerRange;
 }
@@ -224,7 +164,7 @@ namespace SD::Normal
             if (current.result > bestSoFar.result)
             {
                 bestSoFar = current;
-                bestCounter = 1;
+                bestCounter = 0;
             }
             else if (current.result == bestSoFar.result && current.steer != bestSoFar.steer)
             {
@@ -234,14 +174,12 @@ namespace SD::Normal
         evalResults.Resize(0);
 
         // Save best one and goto next, or retry on the next tick if no distinct best
-        if (bestCounter == 1)
+        if (bestCounter == 0)
         {
             evalBest = bestSoFar;
             if (steerRange.IsDone)
             {
-                simManager.InputEvents.Add(Eval::inputTime, InputType::Steer, evalBest.steer);
-                Eval::AddInput(Eval::inputTime, InputType::Steer, evalBest.steer);
-                Eval::inputTime += TICK;
+                Eval::Advance(simManager, Eval::inputTime, InputType::Steer, evalBest.steer);
                 Reset(simManager);
                 return;
             }
@@ -266,8 +204,8 @@ namespace SD::Normal
         evalBest.steer = NextTurningRate(car.InputSteer, car.TurningRate);
 
         const int midpoint = evalBest.steer;
-        const uint deviation = 0x2000;
-        const uint step = deviation >> 2;
+        const uint deviation = 0x3000;
+        const uint step = 0x1000;
         steerRange = SteeringRange(midpoint, step, deviation);
     }
 }
@@ -385,15 +323,18 @@ namespace SD::Classic
                 isNormalDirection = false;
 
                 const int midpoint = -STEER::HALF * direction;
-                steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION);
+                steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION, 2);
             }
             else
             {
-                simManager.InputEvents.Add(Eval::inputTime, InputType::Steer, evalBest.steer);
-                Eval::AddInput(Eval::inputTime, InputType::Steer, evalBest.steer);
-                Eval::inputTime += TICK;
+                Eval::Advance(simManager, Eval::inputTime, InputType::Steer, evalBest.steer);
                 Reset();
             }
+        }
+        else if (steerRange.step < 4)
+        {
+            const int midpoint = STEER::HALF * direction;
+            steerRange = SteeringRange(midpoint, 1, 16);
         }
         else
         {
@@ -411,7 +352,7 @@ namespace SD::Classic
         evalBest = Result();
 
         const int midpoint = STEER::HALF * direction;
-        steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION);
+        steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION, 2);
 
         isNormalDirection = true;
     }
