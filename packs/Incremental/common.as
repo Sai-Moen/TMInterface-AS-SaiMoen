@@ -53,7 +53,7 @@ namespace INFO
     const string AUTHOR = "SaiMoen";
     const string NAME = "Incremental module";
     const string DESCRIPTION = "Contains: SD, Wallhug at some point, ...";
-    const string VERSION = "v2.0.0.1";
+    const string VERSION = "v2.0.0.2";
 }
 
 // UI utils
