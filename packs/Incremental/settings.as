@@ -35,7 +35,7 @@ namespace Settings
         string printable = script;
         if (showInfo)
         {
-            printable += " -> " + simManager.SceneVehicleCar.CurrentLocalSpeed.Length();
+            printable += " -> " + simManager.SceneVehicleCar.CurrentLocalSpeed.Length() + " m/s";
         }
         print(printable);
     }
