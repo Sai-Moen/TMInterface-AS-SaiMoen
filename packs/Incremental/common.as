@@ -4,6 +4,11 @@ typedef int ms;
 const ms TICK = 10;
 const ms TWO_TICKS = TICK << 1;
 
+uint GetTickDiff(const ms start, const ms end)
+{
+    return (end - start) / TICK;
+}
+
 namespace STEER
 {
     const int FULL = 0x10000;
@@ -22,7 +27,7 @@ int ClampSteer(const int steer)
 
 int NextTurningRate(const float inputSteer, const float turningRate)
 {
-    return int(STEER::FULL * NextTurningRateF(inputSteer, turningRate));
+    return int(NextTurningRateF(inputSteer, turningRate) * STEER::FULL);
 }
 
 float NextTurningRateF(const float inputSteer, const float turningRate)
@@ -40,13 +45,13 @@ bool IsOtherController()
 
 // Script
 const string ID = "saimoen_incremental";
-const string NAME = "SaiMoen's Incremental pack";
+const string NAME = "SaiMoen's Incremental module";
 const string FILENAME = ID + ".txt";
 
 namespace INFO
 {
     const string AUTHOR = "SaiMoen";
-    const string NAME = "Incremental pack";
+    const string NAME = "Incremental module";
     const string DESCRIPTION = "Contains: SD, Wallhug at some point, ...";
     const string VERSION = "v2.0.0.1";
 }
@@ -178,13 +183,16 @@ void ModeDispatch(
 }
 
 // Special implementation to dispatch to by default
-const string MODE_NONE_NAME = "None";
-const string MODE_NONE_DESCRIPTION = "Mainly used for debugging, ignore.";
-const Mode@ const none = Mode(
-    MODE_NONE_NAME, MODE_NONE_DESCRIPTION,
-    null, null,
-    null, null
-);
+namespace NONE
+{
+    const string NAME = "None";
+    const string DESCRIPTION = "Mainly used for debugging, ignore.";
+    const Mode@ const mode = Mode(
+        NAME, DESCRIPTION,
+        null, null,
+        null, null
+    );
+}
 
 // General Utils
 
@@ -206,6 +214,26 @@ void log(const float f, Severity severity = Severity::Info)
 void log(const double d, Severity severity = Severity::Info)
 {
     log("" + d, severity);
+}
+
+void print(const uint u, Severity severity = Severity::Info)
+{
+    print("" + u, severity);
+}
+
+void print(const int i, Severity severity = Severity::Info)
+{
+    print("" + i, severity);
+}
+
+void print(const float f, Severity severity = Severity::Info)
+{
+    print("" + f, severity);
+}
+
+void print(const double d, Severity severity = Severity::Info)
+{
+    print("" + d, severity);
 }
 
 array<int> MakeRangeLen(const int start, const uint len, const uint step = 1)
