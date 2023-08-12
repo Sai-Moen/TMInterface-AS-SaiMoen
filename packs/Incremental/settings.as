@@ -65,7 +65,7 @@ namespace Range
 void OnRegister()
 {
     // Register
-    RegisterVariable(MODE, MODE_NONE_NAME);
+    RegisterVariable(MODE, NONE::NAME);
 
     RegisterVariable(EVAL_RANGE, false);
     RegisterVariable(EVAL_TO, 0);
@@ -75,10 +75,12 @@ void OnRegister()
     RegisterVariable(RANGE_MODE, Range::modes[0]);
 
     // Register sub-modes
-    ModeRegister(modeMap, none);
+    ModeRegister(modeMap, NONE::mode);
 
     ModeRegister(modeMap, SD::mode);
     //ModeRegister(modeMap, WH::mode); Not yet implemented
+
+    Entry::OnRegister();
 
     // Init
     modeStr = GetVariableString(MODE);
