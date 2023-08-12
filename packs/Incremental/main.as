@@ -23,11 +23,13 @@ void OnSimulationBegin(SimulationManager@ simManager)
         ModeDispatch(NONE::NAME, modeMap, mode);
 
         // Not the controller, execute an empty lambda
-        @step = function(simManager, userCancelled){};
+        @step = function(simManager, userCancelled) {};
         return;
     }
 
     simManager.RemoveStateValidation();
+    ExecuteCommand(OPEN_EXTERNAL_CONSOLE);
+
     Eval::cmdlist.Content += simManager.InputEvents.ToCommandsText() + "\n\n";
 
     ModeDispatch(modeStr, modeMap, mode);
@@ -52,6 +54,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
         Eval::inputsResults.Resize(1);
         Eval::inputTime = Settings::timeFrom;
     }
+    @Eval::inputsResult = Eval::inputsResults[0];
 
     mode.OnSimulationBegin(simManager);
 }
@@ -64,6 +67,8 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 {
     if (IsOtherController()) return;
+
+    print("Simulation end", Severity::Success);
 
     Eval::cmdlist.Content += Eval::GetBestInputs();
     if (Eval::cmdlist.Save(FILENAME))
@@ -113,11 +118,12 @@ namespace Eval
     }
 
     uint irIndex = 0;
+    InputsResult@ inputsResult;
     array<InputsResult> inputsResults;
 
     void Next()
     {
-        irIndex++;
+        @inputsResult = inputsResults[++irIndex];
         Eval::inputTime = PopFromRange();
     }
 
@@ -127,16 +133,23 @@ namespace Eval
         Eval::isEnded = false;
 
         irIndex = 0;
+        @inputsResult = null;
         inputsResults.Clear();
     }
 
-    void AddInput(ms timestamp, InputType type, int state)
+    void Advance(SimulationManager@ simManager, ms timestamp, InputType type, int state)
     {
+        simManager.InputEvents.Add(timestamp, type, state);
+
         InputCommand cmd;
         cmd.Timestamp = timestamp;
         cmd.Type = type;
         cmd.State = state;
-        inputsResults[irIndex].AddInputCommand(cmd);
+        inputsResult.AddInputCommand(cmd);
+
+        Settings::PrintInfo(simManager, cmd.ToScript());
+
+        inputTime += TICK;
     }
 
     funcdef bool IsBetter(const InputsResult@ const best, const InputsResult@ const other);
@@ -173,7 +186,11 @@ const OnSimStep@ step;
 
 void OnSimStepSingle(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled || Eval::isEnded) return;
+    if (userCancelled || Eval::isEnded)
+    {
+        simManager.ForceFinish();
+        return;
+    }
     else if (Eval::TimeLimitExceeded())
     {
         Eval::isEnded = true;
@@ -185,7 +202,11 @@ void OnSimStepSingle(SimulationManager@ simManager, bool userCancelled)
 
 void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled) return;
+    if (userCancelled)
+    {
+        simManager.ForceFinish();
+        return;
+    }
 
     const ms time = simManager.TickTime;
     if (time == Settings::timeFrom - TWO_TICKS)
@@ -197,7 +218,11 @@ void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
 
 void OnSimStepRangeMain(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled || Eval::isEnded) return;
+    if (userCancelled || Eval::isEnded)
+    {
+        simManager.ForceFinish();
+        return;
+    }
     else if (Eval::TimeLimitExceeded())
     {
         if (rangeOfTime.IsEmpty())
