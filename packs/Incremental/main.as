@@ -2,7 +2,7 @@
 
 PluginInfo@ GetPluginInfo()
 {
-    PluginInfo info;
+    auto info = PluginInfo();
     info.Author = INFO::AUTHOR;
     info.Name = INFO::NAME;
     info.Description = INFO::DESCRIPTION;
@@ -20,7 +20,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
 {
     if (IsOtherController())
     {
-        ModeDispatch(MODE_NONE_NAME, modeMap, mode);
+        ModeDispatch(NONE::NAME, modeMap, mode);
 
         // Not the controller, execute an empty lambda
         @step = function(simManager, userCancelled){};
