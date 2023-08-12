@@ -14,6 +14,8 @@ const string TIME_TO    = PrefixVar("time_to");
 
 const string RANGE_MODE = PrefixVar("range_mode");
 
+const string SHOW_INFO = PrefixVar("show_info");
+
 string modeStr;
 array<string> modes;
 
@@ -26,6 +28,17 @@ namespace Settings
 
     string rangeModeStr;
     const Eval::IsBetter@ isBetter;
+
+    bool showInfo;
+    void PrintInfo(SimulationManager@ simManager, const string &in script)
+    {
+        string printable = script;
+        if (showInfo)
+        {
+            printable += " -> " + simManager.SceneVehicleCar.CurrentLocalSpeed.Length();
+        }
+        print(printable);
+    }
 }
 
 namespace Range
@@ -74,6 +87,8 @@ void OnRegister()
 
     RegisterVariable(RANGE_MODE, Range::modes[0]);
 
+    RegisterVariable(SHOW_INFO, true);
+
     // Register sub-modes
     ModeRegister(modeMap, NONE::mode);
 
@@ -96,6 +111,8 @@ void OnRegister()
 
     Settings::rangeModeStr = GetVariableString(RANGE_MODE);
     Range::ChangeMode(Settings::rangeModeStr);
+
+    Settings::showInfo = GetVariableBool(SHOW_INFO);
 }
 
 void OnSettings()
@@ -132,6 +149,11 @@ void OnSettings()
         }
 
         mode.OnSettings();
+    }
+
+    if (UI::CollapsingHeader("Misc"))
+    {
+        Settings::showInfo = UI::CheckboxVar("Show info during simulation?", SHOW_INFO);
     }
 }
 
