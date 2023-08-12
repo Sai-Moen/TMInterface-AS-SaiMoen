@@ -37,6 +37,7 @@ float NextTurningRateF(const float inputSteer, const float turningRate)
 
 // API
 const string CONTROLLER = "controller";
+const string OPEN_EXTERNAL_CONSOLE = "open_external_console";
 
 bool IsOtherController()
 {
@@ -53,7 +54,7 @@ namespace INFO
     const string AUTHOR = "SaiMoen";
     const string NAME = "Incremental module";
     const string DESCRIPTION = "Contains: SD, Wallhug at some point, ...";
-    const string VERSION = "v2.0.0.2";
+    const string VERSION = "v2.0.0.3";
 }
 
 // UI utils
@@ -149,7 +150,7 @@ OnEvent@ const NullCheckHandle(OnEvent@ const other)
 {
     if (other is null)
     {
-        return function(){};
+        return function() {};
     }
     return other;
 }
@@ -158,7 +159,7 @@ OnSim@ const NullCheckHandle(OnSim@ const other)
 {
     if (other is null)
     {
-        return function(simManager){};
+        return function(simManager) {};
     }
     return other;
 }
@@ -195,6 +196,72 @@ namespace NONE
 }
 
 // General Utils
+class SteeringRange
+{
+    int midpoint;
+    uint step;
+    uint deviation;
+    uint shift;
+    bool IsDone { get const { return step <= 1; } }
+    bool IsLast { get const { return step < uint(1 << shift); } }
+
+    uint len;
+    array<int> range;
+    bool IsEmpty { get const { return range.IsEmpty(); } }
+
+    SteeringRange() {}
+
+    SteeringRange(
+        const int _midpoint,
+        const uint _step,
+        const uint _deviation,
+        const uint _shift = 1)
+    {
+        midpoint = _midpoint;
+        step = _step;
+        deviation = _deviation;
+        shift = _shift;
+
+        len = (_deviation / _step + 1) << 1;
+
+        Create();
+    }
+
+    void Create()
+    {
+        int prevL = Math::INT_MAX;
+        int prevR = Math::INT_MAX;
+
+        uint i = 0;
+        range = array<int>(len);
+        for (int offset = deviation; offset > 0; offset -= step)
+        {
+            const int steerL = ClampSteer(midpoint - offset);
+            if (steerL != prevL) range[i++] = steerL;
+            prevL = steerL;
+
+            const int steerR = ClampSteer(midpoint + offset);
+            if (steerR != prevR) range[i++] = steerR;
+            prevR = steerR;
+        }
+    }
+
+    void Magnify(const int _midpoint)
+    {
+        midpoint = _midpoint;
+        step >>= shift;
+        deviation >>= shift;
+
+        Create();
+    }
+
+    int Pop()
+    {
+        int pop = range[0];
+        range.RemoveAt(0);
+        return pop;
+    }
+}
 
 void log(const uint u, Severity severity = Severity::Info)
 {
@@ -234,30 +301,4 @@ void print(const float f, Severity severity = Severity::Info)
 void print(const double d, Severity severity = Severity::Info)
 {
     print("" + d, severity);
-}
-
-array<int> MakeRangeLen(const int start, const uint len, const uint step = 1)
-{
-    array<int> range = array<int>(len);
-    for (uint i = 0; i < len; i++)
-    {
-        range[i] = start + step * i;
-    }
-    return range;
-}
-
-array<int> MakeRangeExcl(const int start, const int end, const uint step = 1)
-{
-    if (start >= end) return array<int>(0);
-
-    const uint len = (end - start) / step;
-    return MakeRangeLen(start, len, step);
-}
-
-array<int> MakeRangeIncl(const int start, const int end, const uint step = 1)
-{
-    if (start >= end) return array<int>(0);
-    
-    const uint len = (end - start) / step + 1;
-    return MakeRangeLen(start, len, step);
 }
