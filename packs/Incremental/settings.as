@@ -93,7 +93,7 @@ void OnRegister()
     ModeRegister(modeMap, NONE::mode);
 
     ModeRegister(modeMap, SD::mode);
-    //ModeRegister(modeMap, WH::mode); Not yet implemented
+    ModeRegister(modeMap, WH::mode);
 
     Entry::OnRegister();
 
