@@ -7,7 +7,7 @@ namespace SD
     const Mode@ const mode = Mode(
         NAME, DESCRIPTION,
         OnRegister, OnSettings,
-        OnSimulationBegin, OnSimulationStep
+        OnBegin, OnStep
     );
 
     const string PrefixVar(const string &in var)
@@ -16,14 +16,20 @@ namespace SD
     }
 
     const string MODE = PrefixVar("mode");
-    
+
+    string modeStr;
+    array<string> modes;
+
+    const Mode@ sdMode;
+    dictionary sdMap;
+
     void OnRegister()
     {
         RegisterVariable(MODE, Classic::NAME);
 
-        //ModeRegister(sdMap, Normal::mode);
+        //ModeRegister(sdMap, Normal::mode); not yet finished
         ModeRegister(sdMap, Classic::mode);
-        //ModeRegister(sdMap, Wiggle::mode);
+        //ModeRegister(sdMap, Wiggle::mode); not yet implemented
 
         modeStr = GetVariableString(MODE);
         ModeDispatch(modeStr, sdMap, sdMode);
@@ -49,45 +55,14 @@ namespace SD
         modeStr = newMode;
     }
 
-    void OnSimulationBegin(SimulationManager@ simManager)
+    void OnBegin(SimulationManager@ simManager)
     {
-        sdMode.OnSimulationBegin(simManager);
+        sdMode.OnBegin(simManager);
     }
 
-    void OnSimulationStep(SimulationManager@ simManager)
+    void OnStep(SimulationManager@ simManager)
     {
-        sdMode.OnSimulationStep(simManager);
-    }
-
-    string modeStr;
-    array<string> modes;
-
-    const Mode@ sdMode;
-    dictionary sdMap;
-
-    SimulationState@ saved;
-
-    ms timeMin;
-    ms evalTime;
-
-    typedef float score;
-    const score EVAL_SCORE_DEFAULT = -16;
-
-    class Result
-    {
-        int steer;
-        score result;
-
-        Result()
-        {
-            result = EVAL_SCORE_DEFAULT;
-        }
-
-        Result(const int _steer, const score _result)
-        {
-            steer = _steer;
-            result = _result;
-        }
+        sdMode.OnStep(simManager);
     }
 
     Result evalBest;
@@ -96,6 +71,166 @@ namespace SD
 
     int steer;
     SteeringRange steerRange;
+
+    typedef float score;
+    class Result
+    {
+        int steer;
+        score result;
+
+        Result()
+        {
+            result = -16;
+        }
+
+        Result(const int _steer, const score _result)
+        {
+            steer = _steer;
+            result = _result;
+        }
+    }
+}
+
+namespace SD::Classic
+{
+    const string NAME = "Classic";
+    const string DESCRIPTION = "The original sd_railgun normal sdmode, ported to AngelScript.";
+    const Mode@ const mode = Mode(
+        NAME, DESCRIPTION,
+        OnRegister, OnSettings,
+        OnBegin, OnStep
+    );
+
+    const string PrefixVar(const string &in var)
+    {
+        return SD::PrefixVar("classic_" + var);
+    }
+
+    const string SEEK = PrefixVar("seek");
+    const string DIRECTION = PrefixVar("direction");
+
+    namespace DEFAULT
+    {
+        const ms SEEK = 120;
+            
+        const uint STEP = 0x4000;
+        const uint DEVIATION = 0x6000;
+    }
+
+    ms seek;
+
+    enum Direction
+    {
+        left = -1,
+        right = 1,
+    }
+
+    Direction direction;
+    string directionStr;
+    const array<string> directions = {"Left", "Right"};
+
+    void OnRegister()
+    {
+        RegisterVariable(SEEK, DEFAULT::SEEK);
+        RegisterVariable(DIRECTION, directions[0]);
+
+        seek = ms(GetVariableDouble(SEEK));
+        directionStr = GetVariableString(DIRECTION);
+        direction = directions[0] == directionStr ? Direction::left : Direction::right;
+    }
+
+    void OnSettings()
+    {
+        seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
+
+        ComboHelper("Direction", directionStr, directions, ChangeMode);
+    }
+
+    void ChangeMode(const string &in newMode)
+    {
+        direction = directions[0] == newMode ? Direction::left : Direction::right;
+        directionStr = newMode;
+    }
+
+    bool isNormalDirection;
+
+    void OnBegin(SimulationManager@ simManager)
+    {
+        Reset();
+    }
+
+    void OnStep(SimulationManager@ simManager)
+    {
+        const ms time = simManager.TickTime;
+        if (Eval::IsInputTime(time))
+        {
+            steer = steerRange.Pop();
+        }
+        
+        if (Eval::IsEvalTime(time))
+        {
+            OnEval(simManager);
+        }
+        else
+        {
+            simManager.SetInputState(InputType::Steer, steer);
+        }
+    }
+
+    void OnEval(SimulationManager@ simManager)
+    {
+        // Get results
+        const score result = simManager.SceneVehicleCar.CurrentLocalSpeed.Length();
+        if (result > evalBest.result) evalBest = Result(steer, result);
+
+        // Rewind if not done collecting results
+        if (!steerRange.IsEmpty)
+        {
+            Eval::Rewind(simManager);
+            return;
+        }
+
+        // Goto next if end reached, or switch directions
+        if (steerRange.IsDone)
+        {
+            const bool switchDirection = isNormalDirection && evalBest.steer * direction < 0;
+            if (switchDirection)
+            {
+                isNormalDirection = false;
+
+                const int midpoint = -STEER::HALF * direction;
+                steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION, 2);
+            }
+            else
+            {
+                Eval::Advance(simManager, Eval::Time::input, InputType::Steer, evalBest.steer);
+                Reset();
+            }
+        }
+        else if (steerRange.IsLast)
+        {
+            const int midpoint = STEER::HALF * direction;
+            steerRange = SteeringRange(midpoint, 1, 16);
+        }
+        else
+        {
+            steerRange.Magnify(evalBest.steer);
+        }
+
+        Eval::Rewind(simManager);
+    }
+
+    void Reset()
+    {
+        Eval::Time::Update(seek);
+
+        evalBest = Result();
+
+        const int midpoint = STEER::HALF * direction;
+        steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION, 2);
+
+        isNormalDirection = true;
+    }
 }
 
 namespace SD::Normal
@@ -105,7 +240,7 @@ namespace SD::Normal
     const Mode@ const mode = Mode(
         NAME, DESCRIPTION,
         null, null,
-        OnSimulationBegin, OnSimulationStep
+        OnBegin, OnStep
     );
 
     const string PrefixVar(const string &in var)
@@ -113,26 +248,20 @@ namespace SD::Normal
         return SD::PrefixVar("normal_" + var);
     }
 
-    void OnSimulationBegin(SimulationManager@ simManager)
+    void OnBegin(SimulationManager@ simManager)
     {
         Reset(simManager);
     }
 
-    void OnSimulationStep(SimulationManager@ simManager)
+    void OnStep(SimulationManager@ simManager)
     {
         const ms time = simManager.TickTime;
-        if (time < timeMin) return;
-        else if (time == timeMin)
-        {
-            @saved = simManager.SaveState();
-            return;
-        }
-        else if (time == Eval::inputTime)
+        if (Eval::IsInputTime(time))
         {
             steer = steerRange.Pop();
         }
         
-        if (time == evalTime)
+        if (Eval::IsEvalTime(time))
         {
             OnEval(simManager);
         }
@@ -151,7 +280,7 @@ namespace SD::Normal
         // Continue until empty range
         if (!steerRange.IsEmpty)
         {
-            simManager.RewindToState(saved);
+            Eval::Rewind(simManager);
             return;
         }
 
@@ -179,7 +308,7 @@ namespace SD::Normal
             evalBest = bestSoFar;
             if (steerRange.IsDone)
             {
-                Eval::Advance(simManager, Eval::inputTime, InputType::Steer, evalBest.steer);
+                Eval::Advance(simManager, Eval::Time::input, InputType::Steer, evalBest.steer);
                 Reset(simManager);
                 return;
             }
@@ -188,17 +317,16 @@ namespace SD::Normal
         }
         else
         {
-            evalTime += TICK;
+            Eval::Time::eval += TICK;
             steerRange.Create();
         }
 
-        simManager.RewindToState(saved);
+        Eval::Rewind(simManager);
     }
 
     void Reset(SimulationManager@ simManager)
     {
-        timeMin = Eval::inputTime - TICK;
-        evalTime = Eval::inputTime + TWO_TICKS;
+        Eval::Time::Update(TWO_TICKS);
 
         const auto@ const car = simManager.SceneVehicleCar;
         evalBest.steer = NextTurningRate(car.InputSteer, car.TurningRate);
@@ -210,154 +338,6 @@ namespace SD::Normal
     }
 }
 
-namespace SD::Classic
-{
-    const string NAME = "Classic";
-    const string DESCRIPTION = "The original sd_railgun normal sdmode, ported to AngelScript.";
-    const Mode@ const mode = Mode(
-        NAME, DESCRIPTION,
-        OnRegister, OnSettings,
-        OnSimulationBegin, OnSimulationStep
-    );
-
-    const string PrefixVar(const string &in var)
-    {
-        return SD::PrefixVar("classic_" + var);
-    }
-
-    const string SEEK = PrefixVar("seek");
-    const string DIRECTION = PrefixVar("direction");
-
-    namespace DEFAULT
-    {
-        const ms SEEK = 120;
-            
-        const uint STEP = 0x4000;
-        const uint DEVIATION = 0x6000;
-    }
-
-    ms seek;
-
-    enum Direction
-    {
-        left = -1,
-        right = 1,
-    }
-
-    const array<string> directions = {"Left", "Right"};
-    string directionStr;
-    Direction direction;
-    bool isNormalDirection;
-
-    void OnRegister()
-    {
-        RegisterVariable(SEEK, DEFAULT::SEEK);
-        RegisterVariable(DIRECTION, directions[0]);
-
-        seek = ms(GetVariableDouble(SEEK));
-        directionStr = GetVariableString(DIRECTION);
-        direction = directions[0] == directionStr ? Direction::left : Direction::right;
-    }
-
-    void OnSettings()
-    {
-        seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
-
-        ComboHelper("Direction", directionStr, directions, ChangeMode);
-    }
-
-    void ChangeMode(const string &in newMode)
-    {
-        direction = directions[0] == newMode ? Direction::left : Direction::right;
-        directionStr = newMode;
-    }
-
-    void OnSimulationBegin(SimulationManager@ simManager)
-    {
-        Reset();
-    }
-
-    void OnSimulationStep(SimulationManager@ simManager)
-    {
-        const ms time = simManager.TickTime;
-        if (time < timeMin) return;
-        else if (time == timeMin)
-        {
-            @saved = simManager.SaveState();
-            return;
-        }
-        else if (time == Eval::inputTime)
-        {
-            steer = steerRange.Pop();
-        }
-        
-        if (time == evalTime)
-        {
-            OnEval(simManager);
-        }
-        else
-        {
-            simManager.SetInputState(InputType::Steer, steer);
-        }
-    }
-
-    void OnEval(SimulationManager@ simManager)
-    {
-        // Get results
-        const score result = simManager.SceneVehicleCar.CurrentLocalSpeed.Length();
-        if (result > evalBest.result) evalBest = Result(steer, result);
-
-        // Rewind if not done collecting results
-        if (!steerRange.IsEmpty)
-        {
-            simManager.RewindToState(saved);
-            return;
-        }
-
-        // Goto next if end reached, or switch directions
-        if (steerRange.IsDone)
-        {
-            const bool switchDirection = isNormalDirection && evalBest.steer * direction < 0;
-            if (switchDirection)
-            {
-                isNormalDirection = false;
-
-                const int midpoint = -STEER::HALF * direction;
-                steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION, 2);
-            }
-            else
-            {
-                Eval::Advance(simManager, Eval::inputTime, InputType::Steer, evalBest.steer);
-                Reset();
-            }
-        }
-        else if (steerRange.step < 4)
-        {
-            const int midpoint = STEER::HALF * direction;
-            steerRange = SteeringRange(midpoint, 1, 16);
-        }
-        else
-        {
-            steerRange.Magnify(evalBest.steer);
-        }
-
-        simManager.RewindToState(saved);
-    }
-
-    void Reset()
-    {
-        timeMin = Eval::inputTime - TICK;
-        evalTime = Eval::inputTime + seek;
-
-        evalBest = Result();
-
-        const int midpoint = STEER::HALF * direction;
-        steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION, 2);
-
-        isNormalDirection = true;
-    }
-}
-
 namespace SD::Wiggle
 {
     const string NAME = "Wiggle";
@@ -366,7 +346,7 @@ namespace SD::Wiggle
     const Mode@ const mode = Mode(
         NAME, DESCRIPTION,
         OnRegister, OnSettings,
-        OnSimulationBegin, OnSimulationStep
+        OnBegin, OnStep
     );
 
     const string PrefixVar(const string &in var)
@@ -416,11 +396,11 @@ namespace SD::Wiggle
         wiggle.z = v.z;
     }
 
-    void OnSimulationBegin(SimulationManager@ simManager)
+    void OnBegin(SimulationManager@ simManager)
     {
     }
 
-    void OnSimulationStep(SimulationManager@ simManager)
+    void OnStep(SimulationManager@ simManager)
     {
     }
 }
