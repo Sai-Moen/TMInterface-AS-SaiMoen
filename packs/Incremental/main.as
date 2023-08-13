@@ -3,10 +3,10 @@
 PluginInfo@ GetPluginInfo()
 {
     auto info = PluginInfo();
-    info.Author = INFO::AUTHOR;
-    info.Name = INFO::NAME;
-    info.Description = INFO::DESCRIPTION;
-    info.Version = INFO::VERSION;
+    info.Author = "SaiMoen";
+    info.Name = "Incremental module";
+    info.Description = "Contains: SD, Wallhug, maybe eventually something else in case of new ideas";
+    info.Version = "v2.0.0.4";
     return info;
 }
 
@@ -24,6 +24,9 @@ void OnSimulationBegin(SimulationManager@ simManager)
 
         // Not the controller, execute an empty lambda
         @step = function(simManager, userCancelled) {};
+        @end  = function(simManager, result) {};
+
+        @changed = function(simManager, current, target) {};
         return;
     }
 
@@ -38,6 +41,8 @@ void OnSimulationBegin(SimulationManager@ simManager)
     {
         @step = OnSimStepRangePre;
 
+        Eval::Time::pre = Settings::timeFrom - TWO_TICKS;
+
         // Evaluating in descending order because that's easier to cleanup (do nothing)
         rangeOfTime.Resize(0);
         for (ms i = Settings::evalTo; i >= Settings::timeFrom; i -= TICK)
@@ -45,18 +50,21 @@ void OnSimulationBegin(SimulationManager@ simManager)
             rangeOfTime.Add(i);
         }
         Eval::inputsResults.Resize(rangeOfTime.Length);
-        Eval::inputTime = PopFromRange();
+        Eval::Time::input = PopFromRange();
     }
     else
     {
         @step = OnSimStepSingle;
 
         Eval::inputsResults.Resize(1);
-        Eval::inputTime = Settings::timeFrom;
+        Eval::Time::input = Settings::timeFrom;
     }
+    @end = OnSimEndMain;
     @Eval::inputsResult = Eval::inputsResults[0];
 
-    mode.OnSimulationBegin(simManager);
+    @changed = OnGameFinishMain;
+
+    mode.OnBegin(simManager);
 }
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
@@ -66,21 +74,12 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 
 void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 {
-    if (IsOtherController()) return;
+    end(simManager, result);
+}
 
-    print("Simulation end", Severity::Success);
-
-    Eval::cmdlist.Content += Eval::GetBestInputs();
-    if (Eval::cmdlist.Save(FILENAME))
-    {
-        log("Inputs saved!", Severity::Success);
-    }
-    else
-    {
-        log("Inputs not saved.", Severity::Error);
-    }
-
-    Eval::Reset();
+void OnCheckpointCountChanged(SimulationManager@ simManager, int current, int target)
+{
+    changed(simManager, current, target);
 }
 
 // You are now leaving the TMInterface API
@@ -89,12 +88,55 @@ namespace Eval
 {
     CommandList cmdlist;
 
-    ms inputTime;
-    bool TimeLimitExceeded()
+    SimulationState@ minState; // The state saved when time equals min
+    SimulationState@ MinState { get { return minState; } }
+
+    void Rewind(SimulationManager@ simManager)
     {
-        return inputTime > Settings::timeTo;
+        simManager.RewindToState(minState);
     }
-    bool isEnded;
+
+    namespace Time
+    {
+        ms pre;   // When to save a state for a starting timerange
+        ms min;   // When to save a state in order to be able to rewind to input time
+        ms input; // When to do inputs for this iteration
+        ms eval;  // When to check the results of a sub-iteration,
+                  // may change within an iteration, but that is up to the implementing mode(s)
+
+        void Update(const ms evalOffset)
+        {
+            min = input - TICK;
+            eval = input + evalOffset;
+        }
+
+        bool LimitExceeded()
+        {
+            return input > Settings::timeTo;
+        }
+    }
+
+    bool BeforeInput(SimulationManager@ simManager)
+    {
+        const ms time = simManager.TickTime;
+        if (time < Time::min) return true;
+        else if (time == Time::min)
+        {
+            @minState = simManager.SaveState();
+            return true;
+        }
+        return false;
+    }
+
+    bool IsInputTime(const ms time)
+    {
+        return time == Time::input;
+    }
+
+    bool IsEvalTime(const ms time)
+    {
+        return time == Time::eval;
+    }
 
     class InputsResult
     {
@@ -109,9 +151,18 @@ namespace Eval
         string ToString() const
         {
             string builder;
-            for (uint i = 0; i < inputs.Length; i++)
+            if (inputs.IsEmpty()) return builder;
+
+            InputCommand prev = inputs[0];
+            builder += prev.ToScript() + "\n";
+            for (uint i = 1; i < inputs.Length; i++)
             {
-                builder += inputs[i].ToScript() + "\n";
+                InputCommand curr = inputs[i];
+                if (curr.Type != prev.Type || curr.State != prev.State)
+                {
+                    builder += curr.ToScript() + "\n";
+                }
+                prev = curr;
             }
             return builder;
         }
@@ -124,20 +175,19 @@ namespace Eval
     void Next()
     {
         @inputsResult = inputsResults[++irIndex];
-        Eval::inputTime = PopFromRange();
+        Eval::Time::input = PopFromRange();
     }
 
     void Reset()
     {
         cmdlist.Content = "";
-        Eval::isEnded = false;
 
         irIndex = 0;
         @inputsResult = null;
         inputsResults.Clear();
     }
 
-    void Advance(SimulationManager@ simManager, ms timestamp, InputType type, int state)
+    void Advance(SimulationManager@ simManager, const ms timestamp, const InputType type, const int state)
     {
         simManager.InputEvents.Add(timestamp, type, state);
 
@@ -149,7 +199,7 @@ namespace Eval
 
         Settings::PrintInfo(simManager, cmd.ToScript());
 
-        inputTime += TICK;
+        Time::input += TICK;
     }
 
     funcdef bool IsBetter(const InputsResult@ const best, const InputsResult@ const other);
@@ -186,18 +236,14 @@ const OnSimStep@ step;
 
 void OnSimStepSingle(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled || Eval::isEnded)
+    if (userCancelled || Eval::Time::LimitExceeded())
     {
         simManager.ForceFinish();
         return;
     }
-    else if (Eval::TimeLimitExceeded())
-    {
-        Eval::isEnded = true;
-        return;
-    }
+    else if (Eval::BeforeInput(simManager)) return;
 
-    mode.OnSimulationStep(simManager);
+    mode.OnStep(simManager);
 }
 
 void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
@@ -209,33 +255,62 @@ void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
     }
 
     const ms time = simManager.TickTime;
-    if (time == Settings::timeFrom - TWO_TICKS)
-    {
-        @rangeStart = simManager.SaveState();
-        @step = OnSimStepRangeMain;
-    }
+    if (time < Eval::Time::pre) return;
+
+    @rangeStart = simManager.SaveState();
+    @step = OnSimStepRangeMain;
 }
 
 void OnSimStepRangeMain(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled || Eval::isEnded)
+    if (userCancelled)
     {
         simManager.ForceFinish();
         return;
     }
-    else if (Eval::TimeLimitExceeded())
+    else if (Eval::BeforeInput(simManager)) return;
+    else if (Eval::Time::LimitExceeded())
     {
         if (rangeOfTime.IsEmpty())
         {
-            Eval::isEnded = true;
+            simManager.ForceFinish();
             return;
         }
 
         Eval::Next();
+        mode.OnBegin(simManager);
 
         simManager.RewindToState(rangeStart);
         return;
     }
 
-    mode.OnSimulationStep(simManager);
+    mode.OnStep(simManager);
+}
+
+funcdef void OnSimEnd(SimulationManager@ simManager, SimulationResult result);
+const OnSimEnd@ end;
+
+void OnSimEndMain(SimulationManager@ simManager, SimulationResult result)
+{
+    print("Simulation end", Severity::Success);
+
+    Eval::cmdlist.Content += Eval::GetBestInputs();
+    if (Eval::cmdlist.Save(FILENAME))
+    {
+        log("Inputs saved!", Severity::Success);
+    }
+    else
+    {
+        log("Inputs not saved.", Severity::Error);
+    }
+
+    Eval::Reset();
+}
+
+funcdef void OnGameFinish(SimulationManager@ simManager, int current, int target);
+const OnGameFinish@ changed;
+
+void OnGameFinishMain(SimulationManager@ simManager, int current, int target)
+{
+    simManager.PreventSimulationFinish();
 }
