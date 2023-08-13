@@ -49,14 +49,6 @@ const string ID = "saimoen_incremental";
 const string NAME = "SaiMoen's Incremental module";
 const string FILENAME = ID + ".txt";
 
-namespace INFO
-{
-    const string AUTHOR = "SaiMoen";
-    const string NAME = "Incremental module";
-    const string DESCRIPTION = "Contains: SD, Wallhug at some point, ...";
-    const string VERSION = "v2.0.0.3";
-}
-
 // UI utils
 funcdef void OnNewMode(const string &in newMode);
 
@@ -124,16 +116,16 @@ class Mode : Describable
     OnEvent@ OnRegister;
     OnEvent@ OnSettings;
 
-    OnSim@ OnSimulationBegin;
-    OnSim@ OnSimulationStep;
+    OnSim@ OnBegin;
+    OnSim@ OnStep;
 
     Mode(
         const string &in _name,
         const string &in _description,
         OnEvent@ const _OnRegister,
         OnEvent@ const _OnSettings,
-        OnSim@ const _OnSimulationBegin,
-        OnSim@ const _OnSimulationStep)
+        OnSim@ const _OnBegin,
+        OnSim@ const _OnStep)
     {
         name = _name;
         description = _description;
@@ -141,8 +133,8 @@ class Mode : Describable
         @OnRegister = NullCheckHandle(_OnRegister);
         @OnSettings = NullCheckHandle(_OnSettings);
 
-        @OnSimulationBegin = NullCheckHandle(_OnSimulationBegin);
-        @OnSimulationStep = NullCheckHandle(_OnSimulationStep);
+        @OnBegin = NullCheckHandle(_OnBegin);
+        @OnStep = NullCheckHandle(_OnStep);
     }
 }
 
