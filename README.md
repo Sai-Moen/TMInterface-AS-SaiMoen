@@ -11,7 +11,7 @@ You should end up with an AS file in the Plugins folder.
 
 ### Module
 In this case you should end up with all of the scripts from the module inside of a folder in the Plugins.
-If the module is distributed as a zip file, you should extract all the files into a normal folder, and then cut that folder and paste it in the Plugins folder.
+If the module is distributed as a zip file, you should extract all the files into a normal folder, and then move that folder into the Plugins folder.
 Extracting can be done with just Windows' builtin features, by right-clicking the zip file and clicking 'Extract All...' to extract the files to a folder.
 
 ## How to use
