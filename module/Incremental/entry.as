@@ -95,7 +95,8 @@ namespace Entry
 
     score GetScore(SimulationManager@ simManager)
     {
-        return simManager.SceneVehicleCar.TotalCentralForceAdded.z;
+        const auto@ const svc = simManager.SceneVehicleCar;
+        return svc.IsSliding ? svc.TotalCentralForceAdded.z : 0;
     }
 
     score GetAverageScore(const array<score> &in scores)
