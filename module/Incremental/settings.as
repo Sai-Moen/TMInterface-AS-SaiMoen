@@ -26,9 +26,6 @@ namespace Settings
     ms timeFrom;
     ms timeTo;
 
-    string rangeModeStr;
-    const Eval::IsBetter@ isBetter;
-
     bool showInfo;
     void PrintInfo(SimulationManager@ simManager, const string &in script)
     {
@@ -38,40 +35,6 @@ namespace Settings
             printable += " -> " + simManager.SceneVehicleCar.CurrentLocalSpeed.Length() + " m/s";
         }
         print(printable);
-    }
-}
-
-namespace Range
-{
-    dictionary map =
-    {
-        {"Speed", Speed},
-        {"Horizontal Speed", HSpeed},
-        {"Forwards Force", FForce}
-    };
-    array<string> modes = map.GetKeys();
-
-    void ChangeMode(const string &in newMode)
-    {
-        @Settings::isBetter = cast<Eval::IsBetter>(map[newMode]);
-        Settings::rangeModeStr = newMode;
-    }
-
-    bool Speed(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
-    {
-        return other.finalState.CurrentLocalSpeed.LengthSquared() > best.finalState.CurrentLocalSpeed.LengthSquared();
-    }
-
-    bool HSpeed(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
-    {
-        const vec3 vBest = best.finalState.CurrentLocalSpeed;
-        const vec3 vOther = other.finalState.CurrentLocalSpeed;
-        return vOther.x * vOther.z > vBest.x * vBest.z;
-    }
-
-    bool FForce(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
-    {
-        return other.finalState.TotalCentralForceAdded.z > best.finalState.TotalCentralForceAdded.z;
     }
 }
 
@@ -109,8 +72,8 @@ void OnRegister()
     Settings::timeFrom  = ms(GetVariableDouble(TIME_FROM));
     Settings::timeTo    = ms(GetVariableDouble(TIME_TO));
 
-    Settings::rangeModeStr = GetVariableString(RANGE_MODE);
-    Range::ChangeMode(Settings::rangeModeStr);
+    Range::mode = GetVariableString(RANGE_MODE);
+    Range::ChangeMode(Range::mode);
 
     Settings::showInfo = GetVariableBool(SHOW_INFO);
 }
@@ -119,8 +82,8 @@ void OnSettings()
 {
     if (UI::CollapsingHeader("General"))
     {
-        //Settings::evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
-        if (false && Settings::evalRange) // Enable timerange eventually
+        Settings::evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
+        if (Settings::evalRange)
         {
             Settings::timeFrom = UI::InputTimeVar("Minimum evaluation time", TIME_FROM);
             CapMax(EVAL_TO, Settings::timeFrom, Settings::evalTo);
@@ -130,7 +93,7 @@ void OnSettings()
 
             ComboHelper(
                 "Prioritize ... on final tick",
-                Settings::rangeModeStr, Range::modes, Range::ChangeMode
+                Range::mode, Range::modes, Range::ChangeMode
             );
         }
         else
