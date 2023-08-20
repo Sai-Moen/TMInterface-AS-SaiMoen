@@ -27,7 +27,7 @@ namespace SD
     {
         RegisterVariable(MODE, Classic::NAME);
 
-        //ModeRegister(sdMap, Normal::mode); not yet finished
+        //ModeRegister(sdMap, Normal::mode); thinking about it
         ModeRegister(sdMap, Classic::mode);
         //ModeRegister(sdMap, Wiggle::mode); not yet implemented
 
@@ -66,7 +66,6 @@ namespace SD
     }
 
     Result evalBest;
-    uint evalIndex;
     array<Result> evalResults;
 
     int steer;
@@ -148,6 +147,7 @@ namespace SD::Classic
 
     void ChangeMode(const string &in newMode)
     {
+        SetVariable(DIRECTION, newMode);
         direction = directions[0] == newMode ? Direction::left : Direction::right;
         directionStr = newMode;
     }
@@ -179,18 +179,15 @@ namespace SD::Classic
 
     void OnEval(SimulationManager@ simManager)
     {
-        // Get results
         const score result = simManager.SceneVehicleCar.CurrentLocalSpeed.Length();
         if (result > evalBest.result) evalBest = Result(steer, result);
 
-        // Rewind if not done collecting results
         if (!steerRange.IsEmpty)
         {
             Eval::Rewind(simManager);
             return;
         }
 
-        // Goto next if end reached, or switch directions
         if (steerRange.IsDone)
         {
             const bool switchDirection = isNormalDirection && evalBest.steer * direction < 0;
@@ -203,7 +200,7 @@ namespace SD::Classic
             }
             else
             {
-                Eval::Advance(simManager, Eval::Time::input, InputType::Steer, evalBest.steer);
+                Eval::Advance(simManager, evalBest.steer);
                 Reset();
             }
         }
@@ -248,12 +245,27 @@ namespace SD::Normal
         return SD::PrefixVar("normal_" + var);
     }
 
+    const OnSim@ step;
+
     void OnBegin(SimulationManager@ simManager)
     {
-        Reset(simManager);
+        Reset();
     }
 
-    void OnStep(SimulationManager@ simManager)
+    void OnStepPre(SimulationManager@ simManager)
+    {
+        const ms time = simManager.TickTime;
+        if (Eval::IsInputTime(time))
+        {
+            const auto@ const svc = simManager.SceneVehicleCar;
+            evalBest.steer = NextTurningRate(svc.InputSteer, svc.TurningRate);
+            steerRange.Midpoint = evalBest.steer;
+            steer = steerRange.Pop();
+            @step = OnStepMain;
+        }
+    }
+
+    void OnStepMain(SimulationManager@ simManager)
     {
         const ms time = simManager.TickTime;
         if (Eval::IsInputTime(time))
@@ -284,54 +296,18 @@ namespace SD::Normal
             return;
         }
 
-        // Check if the best value is not shared
-        Result bestSoFar = evalBest;
-        uint bestCounter = 0;
-        for (uint i = 0; i < evalResults.Length; i++)
-        {
-            const Result current = evalResults[i];
-            if (current.result > bestSoFar.result)
-            {
-                bestSoFar = current;
-                bestCounter = 0;
-            }
-            else if (current.result == bestSoFar.result && current.steer != bestSoFar.steer)
-            {
-                ++bestCounter;
-            }
-        }
-        evalResults.Resize(0);
+        // ??
 
-        // Save best one and goto next, or retry on the next tick if no distinct best
-        if (bestCounter == 0)
-        {
-            evalBest = bestSoFar;
-            if (steerRange.IsDone)
-            {
-                Eval::Advance(simManager, Eval::Time::input, InputType::Steer, evalBest.steer);
-                Reset(simManager);
-                return;
-            }
-
-            steerRange.Magnify(evalBest.steer);
-        }
-        else
-        {
-            Eval::Time::eval += TICK;
-            steerRange.Create();
-        }
-
-        Eval::Rewind(simManager);
+        // Profit
     }
 
-    void Reset(SimulationManager@ simManager)
+    void Reset()
     {
         Eval::Time::Update(TWO_TICKS);
 
-        const auto@ const car = simManager.SceneVehicleCar;
-        evalBest.steer = NextTurningRate(car.InputSteer, car.TurningRate);
+        @step = OnStepPre;
 
-        const int midpoint = evalBest.steer;
+        const int midpoint = 0;
         const uint deviation = 0x3000;
         const uint step = 0x1000;
         steerRange = SteeringRange(midpoint, step, deviation);
