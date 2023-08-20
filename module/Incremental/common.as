@@ -16,7 +16,6 @@ namespace STEER
     const int MIN  = -FULL;
     const int MAX  = FULL;
 
-    const int RATE = int(Math::Ceil(FULL * RATE_F));
     const float RATE_F = .2f;
 }
 
@@ -25,14 +24,49 @@ int ClampSteer(const int steer)
     return Math::Clamp(steer, STEER::MIN, STEER::MAX);
 }
 
-int NextTurningRate(const float inputSteer, const float turningRate)
-{
-    return int(NextTurningRateF(inputSteer, turningRate) * STEER::FULL);
-}
-
-float NextTurningRateF(const float inputSteer, const float turningRate)
+float ClampTurningRate(const float inputSteer, const float turningRate)
 {
     return Math::Clamp(inputSteer, turningRate - STEER::RATE_F, turningRate + STEER::RATE_F);
+}
+
+int NextTurningRate(const float inputSteer, const float turningRate)
+{
+    const float magnitude = ClampTurningRate(inputSteer, turningRate) * STEER::FULL;
+    const float direction = magnitude - turningRate * STEER::FULL;
+    return RoundAway(magnitude, direction);
+}
+
+enum Signum
+{
+    Negative = -1,
+    Zero = 0,
+    Positive = 1,
+}
+
+Signum Sign(const int num)
+{
+    return Signum((num > 0 ? 1 : 0) - (num < 0 ? 1 : 0));
+}
+
+Signum Sign(const float num)
+{
+    return Signum((num > 0 ? 1 : 0) - (num < 0 ? 1 : 0));
+}
+
+int RoundAway(const float magnitude, const Signum direction)
+{
+    switch (direction)
+    {
+    case Signum::Negative: return int(Math::Floor(magnitude));
+    case Signum::Zero: return int(magnitude);
+    case Signum::Positive: return int(Math::Ceil(magnitude));
+    default: return 0; // Unreachable
+    }
+}
+
+int RoundAway(const float magnitude, const float direction)
+{
+    return RoundAway(magnitude, Sign(direction));
 }
 
 // API
@@ -188,9 +222,88 @@ namespace NONE
 }
 
 // General Utils
+InputCommand MakeInputCommand(const ms timestamp, const InputType type, const int state)
+{
+    InputCommand cmd;
+    cmd.Timestamp = timestamp;
+    cmd.Type = type;
+    cmd.State = state;
+    return cmd;
+}
+
+bool DiffPreviousInput(
+    TM::InputEventBuffer@ const buffer,
+    const ms time,
+    const InputType type,
+    bool& current)
+{
+    const bool new = BufferGetLast(buffer, time, type, current);
+    const bool old = current;
+    current = new;
+    return new != old;
+}
+
+bool BufferGetLast(
+    TM::InputEventBuffer@ const buffer,
+    const ms time,
+    const InputType type,
+    const bool current)
+{
+    const auto@ const indices = buffer.Find(time, type);
+    if (indices.IsEmpty()) return current;
+
+    return buffer[indices[indices.Length - 1]].Value.Binary;
+}
+
+void BufferRemoveAll(
+    TM::InputEventBuffer@ const buffer,
+    const ms start,
+    const ms end,
+    const InputType type)
+{
+    for (ms i = start; i <= end; i += TICK)
+    {
+        BufferRemoveIndices(buffer, buffer.Find(i, type));
+    }
+}
+
+void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ const indices)
+{
+    if (indices.IsEmpty()) return;
+
+    const uint len = indices.Length;
+
+    uint contiguous = 1;
+    uint old = indices[len - 1];
+    for (int i = len - 2; i >= 0; i--)
+    {
+        const uint new = indices[i];
+        if (new == old - 1)
+        {
+            contiguous++;
+        }
+        else
+        {
+            buffer.RemoveAt(old, contiguous);
+            contiguous = 1;
+        }
+        old = new;
+    }
+    buffer.RemoveAt(old, contiguous);
+}
+
 class SteeringRange
 {
     int midpoint;
+    int Midpoint
+    {
+        set
+        {
+            midpoint = value;
+            Create();
+        }
+    }
+
     uint step;
     uint deviation;
     uint shift;
