@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "Incremental module";
     info.Description = "Contains: SD, Wallhug, maybe eventually something else in case of new ideas";
-    info.Version = "v2.0.0.4";
+    info.Version = "v2.0.0.5";
     return info;
 }
 
