@@ -85,10 +85,10 @@ void OnSettings()
         Settings::evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
         if (Settings::evalRange)
         {
-            Settings::timeFrom = UI::InputTimeVar("Minimum evaluation time", TIME_FROM);
+            Settings::timeFrom = UI::InputTimeVar("Minimum starting time", TIME_FROM);
             CapMax(EVAL_TO, Settings::timeFrom, Settings::evalTo);
 
-            Settings::evalTo = UI::InputTimeVar("Maximum evaluation time", EVAL_TO);
+            Settings::evalTo = UI::InputTimeVar("Maximum starting time", EVAL_TO);
             CapMax(TIME_TO, Settings::evalTo, Settings::timeTo);
 
             ComboHelper(
@@ -98,10 +98,10 @@ void OnSettings()
         }
         else
         {
-            Settings::timeFrom = UI::InputTimeVar("Time to start at", TIME_FROM);
+            Settings::timeFrom = UI::InputTimeVar("Minimum evaluation time", TIME_FROM);
         }
         CapMax(TIME_TO, Settings::timeFrom, Settings::timeTo);
-        Settings::timeTo = UI::InputTimeVar("Time to stop at", TIME_TO);
+        Settings::timeTo = UI::InputTimeVar("Maximum evaluation time", TIME_TO);
     }
 
     if (UI::CollapsingHeader("Modes"))
