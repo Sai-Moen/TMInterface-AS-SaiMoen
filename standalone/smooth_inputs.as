@@ -1,4 +1,4 @@
-// Smooth inputs 'port', with some creative liberties
+// Smooth inputs
 
 const string ID = "simu_smooth_inputs";
 const string NAME = "Inputs Smoother";
@@ -21,6 +21,11 @@ void Main()
 
 const string CONTROLLER = "controller";
 
+bool IsOtherController()
+{
+    return ID != GetVariableString(CONTROLLER);
+}
+
 const string PrefixVar(const string &in var)
 {
     return ID + "_" + var;
@@ -40,10 +45,7 @@ void OnSettings()
     savefile = UI::InputTextVar("File to save to", SAVEFILE);
 }
 
-funcdef void SimStep(SimulationManager@ simManager, bool userCancelled);
-const SimStep@ step;
-
-SmoothContext current;
+int duration;
 array<SmoothContext> context;
 
 void OnSimulationBegin(SimulationManager@ simManager)
@@ -51,90 +53,68 @@ void OnSimulationBegin(SimulationManager@ simManager)
     if (IsOtherController())
     {
         @step = function(simManager, userCancelled) {};
+        @end = function(simManager, result) {};
         return;
     }
 
     @step = OnStep;
+    @end = OnEnd;
+
+    duration = simManager.EventsDuration;
+    context.Resize((duration + 10) / 10);
 }
+
+funcdef void SimStep(SimulationManager@ simManager, bool userCancelled);
+const SimStep@ step;
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 {
     step(simManager, userCancelled);
 }
 
+funcdef void SimEnd(SimulationManager@ simManager, SimulationResult result);
+const SimEnd@ end;
+
 void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
 {
-    if (IsOtherController()) return;
-
-    CommandList output;
-    output.Content = ToScript();
-    if (output.Save(savefile))
-    {
-        log("Saved!", Severity::Success);
-    }
-    else
-    {
-        log("Could not save!", Severity::Error);
-    }
-
-    current = SmoothContext();
-    context.Resize(0);
-}
-
-bool IsOtherController()
-{
-    return ID != GetVariableString(CONTROLLER);
+    end(simManager, result);
 }
 
 void OnStep(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled)
+    const int time = simManager.RaceTime;
+    if (userCancelled || time > duration)
     {
         simManager.ForceFinish();
         return;
     }
-
-    const int time = simManager.RaceTime;
-    if (time > 0)
+    else if (time >= 0)
     {
-        SmoothContext ctx;
-        ctx.time = time - 10;
-        ctx.steer = DetermineSteer(simManager);
+        const uint index = time / 10;
+        context[index].time = time;
+
+        const bool indexGreaterEquals1 = index >= 1;
+        const bool indexGreaterEquals2 = index >= 2;
 
         const auto@ const buffer = simManager.InputEvents;
-        ctx.respawn = BufferGetBinary(buffer, ctx.time, InputType::Respawn, current.respawn);
-        ctx.up = BufferGetBinary(buffer, ctx.time, InputType::Up, current.up);
-        ctx.down = BufferGetBinary(buffer, ctx.time, InputType::Down, current.down);
+        SmoothContext prev = indexGreaterEquals1 ? context[index - 1] : SmoothContext();
+        context[index].respawn = BufferGetBinary(buffer, time, InputType::Respawn, prev.respawn);
+        context[index].up = BufferGetBinary(buffer, time, InputType::Up, prev.up);
+        context[index].down = BufferGetBinary(buffer, time, InputType::Down, prev.down);
 
-        current = ctx;
-        context.Add(ctx);
-    }
-}
+        const auto@ const svc = simManager.SceneVehicleCar;
 
-int DetermineSteer(SimulationManager@ simManager)
-{
-    const auto@ const svc = simManager.SceneVehicleCar;
-
-    const float inputSteer = svc.InputSteer;
-    int steer = NextTurningRate(inputSteer, svc.TurningRate);
-    if (IsAirtime(simManager))
-    {
-        const Signum sign = Sign(inputSteer);
-        if (sign == Signum::Zero)
+        if (indexGreaterEquals1)
         {
-            steer = 0;
+            context[index - 1].inputSteer = svc.InputSteer;
+            context[index - 1].airtime = IsAirtime(simManager);
         }
-        else
+
+        if (indexGreaterEquals2)
         {
-            float steerf = steer;
-            while (sign != Sign(steerf))
-            {
-                steerf += sign * STEER::RATE_F;
-            }
-            steer = RoundAway(steerf, sign);
+            context[index - 2].turningRate = svc.TurningRate;
         }
     }
-    return steer; // Shouldn't need to clamp it since NextTurningRate is implicitly clamped...
 }
 
 bool BufferGetBinary(
@@ -149,11 +129,27 @@ bool BufferGetBinary(
     return buffer[indices[indices.Length - 1]].Value.Binary;
 }
 
+void OnEnd(SimulationManager@ simManager, SimulationResult result)
+{
+    CommandList output;
+    output.Content = ToScript();
+    if (output.Save(savefile))
+    {
+        log("Saved!", Severity::Success);
+    }
+    else
+    {
+        log("Could not save!", Severity::Error);
+    }
+
+    context.Resize(0);
+}
+
 const string ToScript()
 {
     string script = "";
 
-    SmoothContext prev();
+    SmoothContext prev;
     for (uint i = 0; i < context.Length; i++)
     {
         const SmoothContext curr = context[i];
@@ -168,16 +164,27 @@ class SmoothContext
 {
     int time;
 
-    int steer;
+    float inputSteer;
+    float turningRate;
+    bool airtime;
+
     bool respawn;
     bool up;
     bool down;
+
+    SmoothContext()
+    {
+        time = -1;
+    }
 
     void opAssign(const SmoothContext &in other)
     {
         time = other.time;
 
-        steer = other.steer;
+        inputSteer = other.inputSteer;
+        turningRate = other.turningRate;
+        airtime = other.airtime;
+
         respawn = other.respawn;
         up = other.up;
         down = other.down;
@@ -202,7 +209,23 @@ class SmoothContext
             script += time + PressOrRel(down) + "down\n";
         }
 
-        if (steer != previous.steer)
+        const int NO_STEER = Math::INT_MAX;
+
+        int steer = NO_STEER;
+        if (airtime && inputSteer != previous.turningRate)
+        {
+            steer = ToSteer(inputSteer);
+        }
+        else if (turningRate < previous.turningRate)
+        {
+            steer = ToSteerFloor(turningRate);
+        }
+        else if (turningRate > previous.turningRate)
+        {
+            steer = ToSteerCeil(turningRate);
+        }
+
+        if (steer != NO_STEER)
         {
             script += time + " steer " + steer + "\n";
         }
@@ -218,6 +241,8 @@ const string PressOrRel(const bool pressed)
 
 bool IsAirtime(SimulationManager@ simManager)
 {
+    //const auto@ const state = simManager.SaveState();
+    //const auto@ const wheels = state.Wheels;
     return CountWheelsOnGround(simManager) < 3;
 }
 
@@ -238,59 +263,20 @@ uint CountWheelsOnGround(SimulationManager@ simManager)
 namespace STEER
 {
     const int FULL = 0x10000;
-    const int HALF = FULL >> 1;
-    const int MIN  = -FULL;
-    const int MAX  = FULL;
-
-    const float RATE_F = .2f;
 }
 
-int ClampSteer(const int steer)
+// DO NOT USE TO TRUNCATE SIGNIFICAND/MANTISSA
+int ToSteer(const float small)
 {
-    return Math::Clamp(steer, STEER::MIN, STEER::MAX);
+    return int(small * STEER::FULL);
 }
 
-float ClampTurningRate(const float inputSteer, const float turningRate)
+int ToSteerFloor(const float small)
 {
-    return Math::Clamp(inputSteer, turningRate - STEER::RATE_F, turningRate + STEER::RATE_F);
+    return int(Math::Floor(small * STEER::FULL));
 }
 
-int NextTurningRate(const float inputSteer, const float turningRate)
+int ToSteerCeil(const float small)
 {
-    const float magnitude = ClampTurningRate(inputSteer, turningRate) * STEER::FULL;
-    const float direction = magnitude - turningRate * STEER::FULL;
-    return RoundAway(magnitude, direction);
-}
-
-enum Signum
-{
-    Negative = -1,
-    Zero = 0,
-    Positive = 1,
-}
-
-Signum Sign(const int num)
-{
-    return Signum((num > 0 ? 1 : 0) - (num < 0 ? 1 : 0));
-}
-
-Signum Sign(const float num)
-{
-    return Signum((num > 0 ? 1 : 0) - (num < 0 ? 1 : 0));
-}
-
-int RoundAway(const float magnitude, const Signum direction)
-{
-    switch (direction)
-    {
-    case Signum::Negative: return int(Math::Floor(magnitude));
-    case Signum::Zero: return int(magnitude);
-    case Signum::Positive: return int(Math::Ceil(magnitude));
-    default: return 0; // Unreachable :Clueless:
-    }
-}
-
-int RoundAway(const float magnitude, const float direction)
-{
-    return RoundAway(magnitude, Sign(direction));
+    return int(Math::Ceil(small * STEER::FULL));
 }
