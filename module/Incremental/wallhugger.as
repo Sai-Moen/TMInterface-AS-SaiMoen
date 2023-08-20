@@ -27,6 +27,7 @@ namespace WH
     {
         RegisterVariable(MODE, Classic::NAME);
 
+        //ModeRegister(whMap, Normal::mode); not yet implemented
         ModeRegister(whMap, Classic::mode);
 
         modeStr = GetVariableString(MODE);
@@ -138,7 +139,7 @@ namespace WH::Classic
         const ms time = simManager.TickTime;
         if (Eval::IsInputTime(time) && isDone)
         {
-            Eval::Advance(simManager, time, InputType::Steer, steer);
+            Eval::Advance(simManager, steer);
             Reset();
             Eval::Rewind(simManager);
         }
@@ -186,5 +187,32 @@ namespace WH::Classic
         avoider = STEER::MIN * direction;
         collider = STEER::MAX * direction;
         steer = collider;
+    }
+}
+
+namespace WH::Normal
+{
+    const string NAME = "Normal";
+    const string DESCRIPTION = "More aggressive, tries to get as much sideways force as possible";
+    const Mode@ const mode = Mode(
+        NAME, DESCRIPTION,
+        OnRegister, OnSettings,
+        OnBegin, OnStep
+    );
+
+    void OnRegister()
+    {
+    }
+
+    void OnSettings()
+    {
+    }
+
+    void OnBegin(SimulationManager@ simManager)
+    {
+    }
+
+    void OnStep(SimulationManager@ simManager)
+    {
     }
 }
