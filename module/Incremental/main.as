@@ -13,6 +13,8 @@ PluginInfo@ GetPluginInfo()
 void Main()
 {
     OnRegister();
+    PointCallbacksToEmpty();
+
     RegisterValidationHandler(ID, NAME, OnSettings);
 }
 
@@ -21,19 +23,18 @@ void OnSimulationBegin(SimulationManager@ simManager)
     if (IsOtherController())
     {
         ModeDispatch(NONE::NAME, modeMap, mode);
-
-        // Not the controller, execute an empty lambda
-        @step = function(simManager, userCancelled) {};
-        @end  = function(simManager, result) {};
-
-        @changed = function(simManager, current, target) {};
         return;
     }
 
     simManager.RemoveStateValidation();
     ExecuteCommand(OPEN_EXTERNAL_CONSOLE);
 
-    Eval::cmdlist.Content += simManager.InputEvents.ToCommandsText() + "\n\n";
+    auto@ const buffer = simManager.InputEvents;
+    Eval::cmdlist.Content += buffer.ToCommandsText() + "\n\n";
+
+    const uint duration = simManager.EventsDuration;
+    BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Left);
+    BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Right);
 
     ModeDispatch(modeStr, modeMap, mode);
 
@@ -43,14 +44,9 @@ void OnSimulationBegin(SimulationManager@ simManager)
 
         Eval::Time::pre = Settings::timeFrom - TWO_TICKS;
 
-        // Evaluating in descending order because that's easier to cleanup (do nothing)
-        rangeOfTime.Resize(0);
-        for (ms i = Settings::evalTo; i >= Settings::timeFrom; i -= TICK)
-        {
-            rangeOfTime.Add(i);
-        }
-        Eval::inputsResults.Resize(rangeOfTime.Length);
-        Eval::Time::input = PopFromRange();
+        Range::Start(buffer.Find(-1, InputType::Steer));
+        Eval::inputsResults.Resize(Range::startingTimes.Length);
+        Eval::Time::input = Range::Pop();
     }
     else
     {
@@ -60,9 +56,8 @@ void OnSimulationBegin(SimulationManager@ simManager)
         Eval::Time::input = Settings::timeFrom;
     }
     @end = OnSimEndMain;
-    @Eval::inputsResult = Eval::inputsResults[0];
-
     @changed = OnGameFinishMain;
+    @Eval::inputsResult = Eval::inputsResults[0];
 
     mode.OnBegin(simManager);
 }
@@ -83,6 +78,121 @@ void OnCheckpointCountChanged(SimulationManager@ simManager, int current, int ta
 }
 
 // You are now leaving the TMInterface API
+
+dictionary modeMap;
+const Mode@ mode;
+
+void PointCallbacksToEmpty()
+{
+    @step = function(simManager, userCancelled) {};
+    @end  = function(simManager, result) {};
+
+    @changed = function(simManager, current, target) {};
+}
+
+namespace Range
+{
+    const string PrefixVar(const string &in var)
+    {
+        return ::PrefixVar("range_" + var);
+    }
+
+    const string MODE = PrefixVar("mode");
+
+    string mode;
+
+    dictionary map =
+    {
+        {"Speed", Speed},
+        {"Horizontal Speed", HSpeed},
+        {"Forwards Force", FForce}
+    };
+    array<string> modes = map.GetKeys();
+
+    funcdef bool IsBetter(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other);
+    const IsBetter@ isBetter;
+
+    void ChangeMode(const string &in newMode)
+    {
+        @isBetter = cast<IsBetter>(map[newMode]);
+        SetVariable(MODE, newMode);
+        mode = newMode;
+    }
+
+    string GetBestInputs()
+    {
+        const Eval::InputsResult@ best = Eval::inputsResults[0];
+        for (uint i = 1; i < Eval::inputsResults.Length; i++)
+        {
+            Eval::InputsResult@ const other = Eval::inputsResults[i];
+            if (other.finalState is null) continue;
+
+            if (best.finalState is null || isBetter(best, other))
+            {
+                @best = other;
+            }
+        }
+        return best.ToString();
+    }
+
+    bool Speed(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
+    {
+        const vec3 vBest = best.finalState.SceneVehicleCar.CurrentLocalSpeed;
+        const vec3 vOther = other.finalState.SceneVehicleCar.CurrentLocalSpeed;
+        return vOther.LengthSquared() > vBest.LengthSquared();
+    }
+
+    bool HSpeed(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
+    {
+        const vec3 vBest = best.finalState.SceneVehicleCar.CurrentLocalSpeed;
+        const vec3 vOther = other.finalState.SceneVehicleCar.CurrentLocalSpeed;
+        return vOther.x * vOther.z > vBest.x * vBest.z;
+    }
+
+    bool FForce(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
+    {
+        const vec3 vBest = best.finalState.SceneVehicleCar.TotalCentralForceAdded;
+        const vec3 vOther = other.finalState.SceneVehicleCar.TotalCentralForceAdded;
+        return vOther.z > vBest.z;
+    }
+
+    array<ms> startingTimes;
+    const array<uint>@ startingIndices;
+    SimulationState@ startingState;
+
+    ms Pop()
+    {
+        ms first = startingTimes[0];
+        startingTimes.RemoveAt(0);
+        return first;
+    }
+
+    void Start(const array<uint>@ const indices)
+    {
+        @Range::startingIndices = indices;
+
+        // Evaluating in descending order because that's easier to cleanup (do nothing)
+        Range::startingTimes.Resize(0);
+        for (ms i = Settings::evalTo; i >= Settings::timeFrom; i -= TICK)
+        {
+            Range::startingTimes.Add(i);
+        }
+    }
+
+    void ApplyIndices(TM::InputEventBuffer@ const buffer)
+    {
+        for (uint i = 0; i < startingIndices.Length; i++)
+        {
+            buffer.Add(buffer[startingIndices[i]]);
+        }
+    }
+
+    void Reset()
+    {
+        @startingIndices = null;
+        @startingState = null;
+    }
+}
 
 namespace Eval
 {
@@ -141,7 +251,7 @@ namespace Eval
     class InputsResult
     {
         array<InputCommand> inputs;
-        TM::SceneVehicleCar@ finalState;
+        SimulationState@ finalState;
 
         void AddInputCommand(const InputCommand &in cmd)
         {
@@ -172,11 +282,21 @@ namespace Eval
     InputsResult@ inputsResult;
     array<InputsResult> inputsResults;
 
-    void Next()
+    void NextRangeTime(SimulationManager@ simManager)
     {
+        EndRangeTime(simManager);
         @inputsResult = inputsResults[++irIndex];
-        Eval::Time::input = PopFromRange();
+        Time::input = Range::Pop();
     }
+
+    void EndRangeTime(SimulationManager@ simManager)
+    {
+        @inputsResult.finalState = simManager.SaveState();
+    }
+
+    bool up;
+    bool down;
+    bool respawn;
 
     void Reset()
     {
@@ -185,50 +305,42 @@ namespace Eval
         irIndex = 0;
         @inputsResult = null;
         inputsResults.Clear();
+
+        up = false;
+        down = false;
+        respawn = false;
     }
 
-    void Advance(SimulationManager@ simManager, const ms timestamp, const InputType type, const int state)
+    void Advance(SimulationManager@ simManager, const int state)
     {
-        simManager.InputEvents.Add(timestamp, type, state);
+        const ms timestamp = Eval::Time::input;
+        const InputType type = InputType::Steer;
 
-        InputCommand cmd;
-        cmd.Timestamp = timestamp;
-        cmd.Type = type;
-        cmd.State = state;
+        const auto@ const buffer = simManager.InputEvents;
+        BufferRemoveIndices(buffer, buffer.Find(timestamp, type));
+
+        SaveExistingInput(buffer, timestamp, InputType::Respawn, respawn);
+        SaveExistingInput(buffer, timestamp, InputType::Up, up);
+        SaveExistingInput(buffer, timestamp, InputType::Down, down);
+        buffer.Add(timestamp, type, state);
+
+        InputCommand cmd = MakeInputCommand(timestamp, type, state);
         inputsResult.AddInputCommand(cmd);
-
         Settings::PrintInfo(simManager, cmd.ToScript());
 
         Time::input += TICK;
     }
 
-    funcdef bool IsBetter(const InputsResult@ const best, const InputsResult@ const other);
-    string GetBestInputs()
+    void SaveExistingInput(
+        TM::InputEventBuffer@ const buffer,
+        const int time,
+        const InputType type,
+        const bool current)
     {
-        const InputsResult@ best = inputsResults[0];
-        for (uint i = 1; i < inputsResults.Length; i++)
-        {
-            const InputsResult@ const other = inputsResults[i];
-            if (Settings::isBetter(best, other))
-            {
-                @best = other;
-            }
-        }
-        return best.ToString();
+        const int state = current ? 1 : 0;
+        if (DiffPreviousInput(buffer, time, type, current))
+            inputsResult.AddInputCommand(MakeInputCommand(time, type, state));
     }
-}
-
-dictionary modeMap;
-const Mode@ mode;
-
-array<ms> rangeOfTime;
-SimulationState@ rangeStart;
-
-ms PopFromRange()
-{
-    ms first = rangeOfTime[0];
-    rangeOfTime.RemoveAt(0);
-    return first;
 }
 
 funcdef void OnSimStep(SimulationManager@ simManager, bool userCancelled);
@@ -257,7 +369,7 @@ void OnSimStepRangePre(SimulationManager@ simManager, bool userCancelled)
     const ms time = simManager.TickTime;
     if (time < Eval::Time::pre) return;
 
-    @rangeStart = simManager.SaveState();
+    @Range::startingState = simManager.SaveState();
     @step = OnSimStepRangeMain;
 }
 
@@ -271,16 +383,20 @@ void OnSimStepRangeMain(SimulationManager@ simManager, bool userCancelled)
     else if (Eval::BeforeInput(simManager)) return;
     else if (Eval::Time::LimitExceeded())
     {
-        if (rangeOfTime.IsEmpty())
+        if (Range::startingTimes.IsEmpty())
         {
+            Eval::EndRangeTime(simManager);
             simManager.ForceFinish();
             return;
         }
 
-        Eval::Next();
+        print("");
+
+        Range::ApplyIndices(simManager.InputEvents);
+        Eval::NextRangeTime(simManager);
         mode.OnBegin(simManager);
 
-        simManager.RewindToState(rangeStart);
+        simManager.RewindToState(Range::startingState);
         return;
     }
 
@@ -294,7 +410,7 @@ void OnSimEndMain(SimulationManager@ simManager, SimulationResult result)
 {
     print("Simulation end", Severity::Success);
 
-    Eval::cmdlist.Content += Eval::GetBestInputs();
+    Eval::cmdlist.Content += Range::GetBestInputs();
     if (Eval::cmdlist.Save(FILENAME))
     {
         log("Inputs saved!", Severity::Success);
@@ -303,8 +419,10 @@ void OnSimEndMain(SimulationManager@ simManager, SimulationResult result)
     {
         log("Inputs not saved.", Severity::Error);
     }
-
     Eval::Reset();
+
+    Range::Reset();
+    PointCallbacksToEmpty();
 }
 
 funcdef void OnGameFinish(SimulationManager@ simManager, int current, int target);
