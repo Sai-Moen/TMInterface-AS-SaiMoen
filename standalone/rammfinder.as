@@ -218,10 +218,10 @@ float GetHeight(SimulationManager@ simManager)
     const mat3 rot = loc.Rotation;
 
     const auto@ const simWheels = state.Wheels;
-    const float yfl = RotateOffset(rot, simWheels.FrontLeft.OffsetFromVehicle).y;
-    const float yfr = RotateOffset(rot, simWheels.FrontRight.OffsetFromVehicle).y;
-    const float ybr = RotateOffset(rot, simWheels.BackRight.OffsetFromVehicle).y;
-    const float ybl = RotateOffset(rot, simWheels.BackLeft.OffsetFromVehicle).y;
+    const float yfl = RotateOffset(rot, simWheels.FrontLeft.SurfaceHandler.Location.Position).y;
+    const float yfr = RotateOffset(rot, simWheels.FrontRight.SurfaceHandler.Location.Position).y;
+    const float ybr = RotateOffset(rot, simWheels.BackRight.SurfaceHandler.Location.Position).y;
+    const float ybl = RotateOffset(rot, simWheels.BackLeft.SurfaceHandler.Location.Position).y;
 
     return pos.y + Math::Max(Math::Max(yfl, yfr), Math::Max(ybr, ybl));
 }
