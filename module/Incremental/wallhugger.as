@@ -27,8 +27,8 @@ namespace WH
     {
         RegisterVariable(MODE, Classic::NAME);
 
-        //ModeRegister(whMap, Normal::mode); not yet implemented
         ModeRegister(whMap, Classic::mode);
+        //ModeRegister(whMap, Normal::mode); not yet implemented
 
         modeStr = GetVariableString(MODE);
         ModeDispatch(modeStr, whMap, whMode);
@@ -180,7 +180,7 @@ namespace WH::Classic
 
     void Reset()
     {
-        Eval::Time::Update(seek);
+        Eval::Time::OffsetEval(seek);
 
         isDone = false;
 
