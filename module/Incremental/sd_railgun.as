@@ -27,8 +27,8 @@ namespace SD
     {
         RegisterVariable(MODE, Classic::NAME);
 
-        //ModeRegister(sdMap, Normal::mode); thinking about it
         ModeRegister(sdMap, Classic::mode);
+        //ModeRegister(sdMap, Normal::mode); not yet good
         //ModeRegister(sdMap, Wiggle::mode); not yet implemented
 
         modeStr = GetVariableString(MODE);
@@ -66,7 +66,6 @@ namespace SD
     }
 
     Result evalBest;
-    array<Result> evalResults;
 
     int steer;
     SteeringRange steerRange;
@@ -170,6 +169,7 @@ namespace SD::Classic
         if (Eval::IsEvalTime(time))
         {
             OnEval(simManager);
+            Eval::Rewind(simManager);
         }
         else
         {
@@ -183,12 +183,8 @@ namespace SD::Classic
         if (result > evalBest.result) evalBest = Result(steer, result);
 
         if (!steerRange.IsEmpty)
-        {
-            Eval::Rewind(simManager);
-            return;
-        }
-
-        if (steerRange.IsDone)
+        {} // Simply Rewind
+        else if (steerRange.IsDone)
         {
             const bool switchDirection = isNormalDirection && evalBest.steer * direction < 0;
             if (switchDirection)
@@ -213,13 +209,11 @@ namespace SD::Classic
         {
             steerRange.Magnify(evalBest.steer);
         }
-
-        Eval::Rewind(simManager);
     }
 
     void Reset()
     {
-        Eval::Time::Update(seek);
+        Eval::Time::OffsetEval(seek);
 
         evalBest = Result();
 
@@ -252,17 +246,37 @@ namespace SD::Normal
         Reset();
     }
 
+    score diff;
+    score prev;
+
     void OnStepPre(SimulationManager@ simManager)
     {
+        const auto@ const svc = simManager.SceneVehicleCar;
+
         const ms time = simManager.TickTime;
         if (Eval::IsInputTime(time))
         {
-            const auto@ const svc = simManager.SceneVehicleCar;
-            evalBest.steer = NextTurningRate(svc.InputSteer, svc.TurningRate);
+            const float prevTurningRate = Eval::MinState.SceneVehicleCar.TurningRate;
+            const float turningRate = svc.TurningRate;
+            evalBest.steer = RoundAway(turningRate * STEER::FULL, turningRate - prevTurningRate);
             steerRange.Midpoint = evalBest.steer;
-            steer = steerRange.Pop();
-            @step = OnStepMain;
         }
+        else if (IsStable(svc, diff))
+        {
+            diff = 0;
+            prev = 0;
+            Eval::Time::Eval = time;
+
+            @step = OnStepMain;
+            Eval::Rewind(simManager);
+            return;
+        }
+
+        const score curr = GetScore(svc);
+        diff = Math::Abs(curr - prev);
+        prev = curr;
+
+        simManager.SetInputState(InputType::Steer, evalBest.steer);
     }
 
     void OnStepMain(SimulationManager@ simManager)
@@ -276,6 +290,7 @@ namespace SD::Normal
         if (Eval::IsEvalTime(time))
         {
             OnEval(simManager);
+            Eval::Rewind(simManager);
         }
         else
         {
@@ -285,32 +300,41 @@ namespace SD::Normal
 
     void OnEval(SimulationManager@ simManager)
     {
-        // Gather results
-        const score result = simManager.SceneVehicleCar.TotalCentralForceAdded.z;
-        evalResults.Add(Result(steer, result));
+        const score result = GetScore(simManager.SceneVehicleCar);
+        if (result > evalBest.result) evalBest = Result(steer, result);
 
-        // Continue until empty range
         if (!steerRange.IsEmpty)
+        {} // Simply Rewind
+        else if (steerRange.IsDone)
         {
-            Eval::Rewind(simManager);
-            return;
+            Eval::Advance(simManager, evalBest.steer);
+            Reset();
         }
-
-        // ??
-
-        // Profit
+        else
+        {
+            steerRange.Magnify(evalBest.steer);
+        }
     }
 
     void Reset()
     {
-        Eval::Time::Update(TWO_TICKS);
+        Eval::Time::OffsetEval(TWO_TICKS);
+
+        evalBest = Result();
+
+        steerRange = SteeringRange(0, 0x1000, 0x2800);
 
         @step = OnStepPre;
+    }
 
-        const int midpoint = 0;
-        const uint deviation = 0x3000;
-        const uint step = 0x1000;
-        steerRange = SteeringRange(midpoint, step, deviation);
+    score GetScore(const TM::SceneVehicleCar@ const svc)
+    {
+        return svc.CurrentLocalSpeed.z * svc.TotalCentralForceAdded.z;
+    }
+
+    bool IsStable(const TM::SceneVehicleCar@ const svc, const score diff)
+    {
+        return diff <= svc.TotalCentralForceAdded.z;
     }
 }
 
