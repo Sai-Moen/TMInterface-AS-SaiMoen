@@ -172,16 +172,16 @@ float GetDistance(SimulationManager@ simManager)
     switch (wheel)
     {
     case Wheel::FrontLeft:
-        offset = simWheels.FrontLeft.OffsetFromVehicle;
+        offset = simWheels.FrontLeft.SurfaceHandler.Location.Position;
         break;
     case Wheel::FrontRight:
-        offset = simWheels.FrontRight.OffsetFromVehicle;
+        offset = simWheels.FrontRight.SurfaceHandler.Location.Position;
         break;
     case Wheel::BackRight:
-        offset = simWheels.BackRight.OffsetFromVehicle;
+        offset = simWheels.BackRight.SurfaceHandler.Location.Position;
         break;
     case Wheel::BackLeft:
-        offset = simWheels.BackLeft.OffsetFromVehicle;
+        offset = simWheels.BackLeft.SurfaceHandler.Location.Position;
         break;
     }
 
