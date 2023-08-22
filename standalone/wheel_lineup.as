@@ -108,6 +108,11 @@ const float UNDEFINED = -1;
 float current;
 float best = UNDEFINED;
 
+void OnSimulationEnd(SimulationManager@ simManager, SimulationResult result)
+{
+    best = UNDEFINED;
+}
+
 BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluationInfo &in info)
 {
     BFEvaluationResponse@ const response = BFEvaluationResponse();
