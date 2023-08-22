@@ -15,25 +15,16 @@ namespace STEER
     const int HALF = FULL >> 1;
     const int MIN  = -FULL;
     const int MAX  = FULL;
+}
 
-    const float RATE_F = .2f;
+int ToSteer(const float small)
+{
+    return int(small * STEER::FULL);
 }
 
 int ClampSteer(const int steer)
 {
     return Math::Clamp(steer, STEER::MIN, STEER::MAX);
-}
-
-float ClampTurningRate(const float inputSteer, const float turningRate)
-{
-    return Math::Clamp(inputSteer, turningRate - STEER::RATE_F, turningRate + STEER::RATE_F);
-}
-
-int NextTurningRate(const float inputSteer, const float turningRate)
-{
-    const float magnitude = ClampTurningRate(inputSteer, turningRate) * STEER::FULL;
-    const float direction = magnitude - turningRate * STEER::FULL;
-    return RoundAway(magnitude, direction);
 }
 
 enum Signum
@@ -255,6 +246,18 @@ bool BufferGetLast(
     return buffer[indices[indices.Length - 1]].Value.Binary;
 }
 
+int BufferGetLast(
+    TM::InputEventBuffer@ const buffer,
+    const ms time,
+    const InputType type,
+    const int current)
+{
+    const auto@ const indices = buffer.Find(time, type);
+    if (indices.IsEmpty()) return current;
+
+    return buffer[indices[indices.Length - 1]].Value.Analog;
+}
+
 void BufferRemoveAll(
     TM::InputEventBuffer@ const buffer,
     const ms start,
@@ -271,11 +274,9 @@ void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ 
 {
     if (indices.IsEmpty()) return;
 
-    const uint len = indices.Length;
-
     uint contiguous = 1;
-    uint old = indices[len - 1];
-    for (int i = len - 2; i >= 0; i--)
+    uint old = indices[indices.Length - 1];
+    for (int i = indices.Length - 2; i >= 0; i--)
     {
         const uint new = indices[i];
         if (new == old - 1)
