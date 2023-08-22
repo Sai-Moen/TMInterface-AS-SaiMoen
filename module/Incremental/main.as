@@ -36,29 +36,28 @@ void OnSimulationBegin(SimulationManager@ simManager)
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Left);
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Right);
 
-    ModeDispatch(modeStr, modeMap, mode);
-
     if (Settings::evalRange)
     {
         @step = OnSimStepRangePre;
 
         Eval::Time::pre = Settings::timeFrom - TWO_TICKS;
 
-        Range::Start(buffer.Find(-1, InputType::Steer));
+        Range::OnBegin(buffer);
         Eval::inputsResults.Resize(Range::startingTimes.Length);
-        Eval::Time::input = Range::Pop();
+        Eval::Time::Input = Range::Pop();
     }
     else
     {
         @step = OnSimStepSingle;
 
         Eval::inputsResults.Resize(1);
-        Eval::Time::input = Settings::timeFrom;
+        Eval::Time::Input = Settings::timeFrom;
     }
     @end = OnSimEndMain;
     @changed = OnGameFinishMain;
     @Eval::inputsResult = Eval::inputsResults[0];
 
+    ModeDispatch(modeStr, modeMap, mode);
     mode.OnBegin(simManager);
 }
 
@@ -157,7 +156,7 @@ namespace Range
     }
 
     array<ms> startingTimes;
-    const array<uint>@ startingIndices;
+    array<TM::InputEvent> startingEvents;
     SimulationState@ startingState;
 
     ms Pop()
@@ -167,29 +166,35 @@ namespace Range
         return first;
     }
 
-    void Start(const array<uint>@ const indices)
+    void OnBegin(const TM::InputEventBuffer@ const buffer)
     {
-        @Range::startingIndices = indices;
-
         // Evaluating in descending order because that's easier to cleanup (do nothing)
-        Range::startingTimes.Resize(0);
         for (ms i = Settings::evalTo; i >= Settings::timeFrom; i -= TICK)
         {
-            Range::startingTimes.Add(i);
+            startingTimes.Add(i);
+        }
+
+        startingEvents.Resize(buffer.Length);
+        for (uint i = 0; i < buffer.Length; i++)
+        {
+            startingEvents[i] = buffer[i];
         }
     }
 
-    void ApplyIndices(TM::InputEventBuffer@ const buffer)
+    void ApplyStartingEvents(TM::InputEventBuffer@ const buffer)
     {
-        for (uint i = 0; i < startingIndices.Length; i++)
+        // How this is faster than only undoing the things I changed is beyond me
+        buffer.Clear();
+        for (uint i = 0; i < startingEvents.Length; i++)
         {
-            buffer.Add(buffer[startingIndices[i]]);
+            buffer.Add(startingEvents[i]);
         }
     }
 
     void Reset()
     {
-        @startingIndices = null;
+        startingTimes.Resize(0);
+        startingEvents.Resize(0);
         @startingState = null;
     }
 }
@@ -214,9 +219,29 @@ namespace Eval
         ms eval;  // When to check the results of a sub-iteration,
                   // may change within an iteration, but that is up to the implementing mode(s)
 
-        void Update(const ms evalOffset)
+        ms Input
         {
-            min = input - TICK;
+            get
+            {
+                return input;
+            }
+            set
+            {
+                min = value - TICK;
+                input = value;
+            }
+        }
+
+        ms Eval
+        {
+            set
+            {
+                eval = value;
+            }
+        }
+
+        void OffsetEval(const ms evalOffset)
+        {
             eval = input + evalOffset;
         }
 
@@ -286,7 +311,7 @@ namespace Eval
     {
         EndRangeTime(simManager);
         @inputsResult = inputsResults[++irIndex];
-        Time::input = Range::Pop();
+        Time::Input = Range::Pop();
     }
 
     void EndRangeTime(SimulationManager@ simManager)
@@ -328,7 +353,7 @@ namespace Eval
         inputsResult.AddInputCommand(cmd);
         Settings::PrintInfo(simManager, cmd.ToScript());
 
-        Time::input += TICK;
+        Time::Input += TICK;
     }
 
     void SaveExistingInput(
@@ -383,6 +408,8 @@ void OnSimStepRangeMain(SimulationManager@ simManager, bool userCancelled)
     else if (Eval::BeforeInput(simManager)) return;
     else if (Eval::Time::LimitExceeded())
     {
+        Range::ApplyStartingEvents(simManager.InputEvents);
+
         if (Range::startingTimes.IsEmpty())
         {
             Eval::EndRangeTime(simManager);
@@ -392,7 +419,6 @@ void OnSimStepRangeMain(SimulationManager@ simManager, bool userCancelled)
 
         print("");
 
-        Range::ApplyIndices(simManager.InputEvents);
         Eval::NextRangeTime(simManager);
         mode.OnBegin(simManager);
 
