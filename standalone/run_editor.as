@@ -1,9 +1,8 @@
 // Text editor plugin for TMInterface!
 
+const string ID      = "repp";
 const string NAME    = "RunEditor++";
 const string COMMAND = "toggle_repp";
-
-const string NEWLINE  = "\n";
 
 PluginInfo@ GetPluginInfo()
 {
@@ -11,55 +10,140 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = NAME;
     info.Description = "Use " + COMMAND + " to open a text editor in-game";
-    info.Version = "v2.0.0.1";
+    info.Version = "v2.0.1.0";
     return info;
 }
 
 void Main()
 {
+    OnRegister();
     RegisterCustomCommand(COMMAND, "Toggles " + NAME + " window", OnCommand);
 }
 
-bool isEnabled = false;
+const string NEWLINE  = "\n";
+const string FILE_SEP = "|";
 
-void OnCommand(
-    int fromTime,
-    int toTime,
-    const string&in commandLine,
-    const array<string>&in args)
+const string SCRIPT_DIR  = "\\TMInterface\\Scripts\\";
+const int SCRIPT_DIR_LEN = SCRIPT_DIR.Length;
+
+string GetScriptName(CommandList@ const file)
 {
-    isEnabled = !isEnabled;
+    string scriptname = file.Filename;
+    scriptname.Erase(0, scriptname.FindLast(SCRIPT_DIR) + SCRIPT_DIR_LEN);
+    return scriptname;
 }
+
+const string PrefixVar(const string &in var)
+{
+    return ID + "_" + var;
+}
+
+const string ENABLED = PrefixVar("enabled");
+
+const string OPEN_FILES = PrefixVar("open_files");
+
+const string WIDTH  = PrefixVar("width");
+const string HEIGHT = PrefixVar("height");
+
+bool enabled;
 
 string filename;
 array<CommandList> files;
 
-void Render()
+vec2 size;
+
+void OnRegister()
 {
-    if (!(isEnabled && UI::Begin(NAME)))
+    RegisterVariable(ENABLED, false);
+
+    RegisterVariable(OPEN_FILES, "");
+
+    RegisterVariable(WIDTH, 0x200);
+    RegisterVariable(HEIGHT, 0x200);
+
+    enabled = GetVariableBool(ENABLED);
+
+    const auto@ const filenames = GetVariableString(OPEN_FILES).Split(FILE_SEP);
+    for (uint i = 0; i < filenames.Length; i++)
     {
+        const string s = filenames[i];
+        if (s != "")
+        {
+            TryOpenFile(s);
+        }
+    }
+
+    const float width  = GetVariableDouble(WIDTH);
+    const float height = GetVariableDouble(HEIGHT);
+    size = vec2(width, height);
+}
+
+void OnCommand(
+    int fromTime,
+    int toTime,
+    const string &in commandLine,
+    const array<string> &in args)
+{
+    enabled = !enabled;
+    SetVariable(ENABLED, enabled);
+}
+
+void TryOpenFile(const string &in filename)
+{
+    CommandList file(filename);
+    if (file is null)
+    {
+        log("Could not find file '" + filename + "'!", Severity::Error);
         return;
     }
 
-    UI::TextWrapped("To create a new line below the current one, press the button on that line.");
+    files.Add(file);
+    SetOpenFiles();
+}
+
+void TryCloseFile(const uint index)
+{
+    if (index >= files.Length)
+    {
+        log("Could not close file: invalid index -> " + index, Severity::Error);
+        return;
+    }
+
+    files.RemoveAt(index);
+    SetOpenFiles();
+}
+
+void SetOpenFiles()
+{
+    string openFiles;
+    for (uint i = 0; i < files.Length; i++)
+    {
+        openFiles += GetScriptName(files[i]) + FILE_SEP;
+    }
+    SetVariable(OPEN_FILES, openFiles);
+}
+
+void Render()
+{
+    if (!(enabled && UI::Begin(NAME))) return;
 
     filename = UI::InputText("Enter filename", filename);
     if (UI::Button("Open"))
     {
-        CommandList file(filename);
-        if (file is null)
-        {
-            log("Could not find file!", Severity::Error);
-        }
-        else
-        {
-            files.Add(file);
-        }
+        TryOpenFile(filename);
     }
+
+    const float width = UI::InputFloatVar("Width", WIDTH);
+    const float height = UI::InputFloatVar("Height", HEIGHT);
+    size = vec2(width, height);
+
+    UI::Separator();
+
+    const bool fileClose = UI::Button("Close");
     UI::SameLine();
-    const bool saveFile = UI::Button("Save");
+    const bool fileRefresh = UI::Button("Refresh");
     UI::SameLine();
-    const bool closeFile = UI::Button("Close");
+    const bool fileSave = UI::Button("Save");
 
     if (UI::BeginTabBar("Files"))
     {
@@ -67,15 +151,17 @@ void Render()
         for (uint i = 0; i < files.Length; i++)
         {
             CommandList@ const file = files[i];
-            if (OnFile(file) && OnSelectedFile(file, saveFile, closeFile))
+            if (UI::BeginTabItem(GetScriptName(file)))
             {
-                closeIndex = i;
+                OnSelectedFile(file, fileSave, fileRefresh);
+                OnCloseCheck(closeIndex, i, fileClose);
+                UI::EndTabItem();
             }
         }
 
         if (closeIndex != Math::UINT_MAX)
         {
-            files.RemoveAt(closeIndex);
+            TryCloseFile(closeIndex);
         }
 
         UI::EndTabBar();
@@ -84,42 +170,9 @@ void Render()
     UI::End();
 }
 
-const bool OnFile(CommandList@ const file)
+void OnSelectedFile(CommandList@ const file, const bool fileSave, const bool fileRefresh)
 {
-    const bool selected = UI::BeginTabItem(file.Filename);
-    if (!selected)
-    {
-        return selected;
-    }
-
-    const array<string>@ const lines = file.Content.Split(NEWLINE);
-    array<string> content(lines.Length);
-    for (uint i = 0; i < lines.Length; i++)
-    {
-        string line = UI::InputText("" + i, lines[i]);
-
-        UI::PushID("Button" + i);
-
-        UI::SameLine();
-        if (UI::Button("Add"))
-        {
-            const uint64 time = Text::ParseUInt(line.Split(" ")[0]) + 10;
-            line += NEWLINE + time;
-        }
-
-        UI::PopID();
-
-        content[i] = line;
-    }
-    file.Content = Text::Join(content, NEWLINE);
-
-    UI::EndTabItem();
-    return selected;
-}
-
-const bool OnSelectedFile(CommandList@ const file, const bool saveFile, const bool closeFile)
-{
-    if (saveFile)
+    if (fileSave)
     {
         if (file.Save(file.Filename))
         {
@@ -130,6 +183,22 @@ const bool OnSelectedFile(CommandList@ const file, const bool saveFile, const bo
             log("Could not save!", Severity::Error);
         }
     }
+    else if (fileRefresh)
+    {
+        file = CommandList(file.Filename);
+    }
 
-    return closeFile;
+    string text = file.Content;
+    if (UI::InputTextMultiline("", text, size))
+    {
+        file.Content = text;
+    }
+}
+
+void OnCloseCheck(uint& closeIndex, const uint index, const bool fileClose)
+{
+    if (fileClose)
+    {
+        closeIndex = index;
+    }
 }
