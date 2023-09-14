@@ -10,7 +10,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = NAME;
     info.Description = DESCRIPTION;
-    info.Version = "v2.0.0.0";
+    info.Version = "v2.0.1.0";
     return info;
 }
 
@@ -166,13 +166,11 @@ bool IsBetter(SimulationManager@ simManager)
 
 float GetDistance(SimulationManager@ simManager)
 {
-    const auto@ const state = simManager.SaveState();
-
-    const iso4 loc = state.Dyna.CurrentState.Location;
+    const iso4 loc = simManager.Dyna.CurrentState.Location;
     const vec3 pos = loc.Position;
     const mat3 rot = loc.Rotation;
 
-    const auto@ const simWheels = state.Wheels;
+    const auto@ const simWheels = simManager.Wheels;
     vec3 offset;
     switch (wheel)
     {
