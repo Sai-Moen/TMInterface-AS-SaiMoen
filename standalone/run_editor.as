@@ -10,7 +10,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = NAME;
     info.Description = "Use " + COMMAND + " to open a text editor in-game";
-    info.Version = "v2.0.1.0";
+    info.Version = "v2.0.1.1";
     return info;
 }
 
@@ -26,11 +26,49 @@ const string FILE_SEP = "|";
 const string SCRIPT_DIR  = "\\TMInterface\\Scripts\\";
 const int SCRIPT_DIR_LEN = SCRIPT_DIR.Length;
 
-string GetScriptName(CommandList@ const file)
+class Script
 {
-    string scriptname = file.Filename;
-    scriptname.Erase(0, scriptname.FindLast(SCRIPT_DIR) + SCRIPT_DIR_LEN);
-    return scriptname;
+    CommandList file;
+    string Filename { get { return file.Filename; } }
+
+    bool fileChanged;
+    string Content
+    {
+        get { return file.Content; }
+        set
+        {
+            file.Content = value;
+            fileChanged = true;
+        }
+    }
+
+    Script(const string &in scriptRelativePath)
+    {
+        Open(scriptRelativePath);
+    }
+
+    void Open(const string &in scriptRelativePath)
+    {
+        fileChanged = false;
+        file = CommandList(scriptRelativePath);
+    }
+
+    bool Save(const string &in scriptRelativePath)
+    {
+        fileChanged = false;
+        return file.Save(scriptRelativePath);
+    }
+
+    string Edited()
+    {
+        return fileChanged ? "*" : "";
+    }
+
+    string GetScriptName()
+    {
+        const string scriptname = file.Filename;
+        return scriptname.Substr(scriptname.FindLast(SCRIPT_DIR) + SCRIPT_DIR_LEN);
+    }
 }
 
 const string PrefixVar(const string &in var)
@@ -39,7 +77,6 @@ const string PrefixVar(const string &in var)
 }
 
 const string ENABLED = PrefixVar("enabled");
-
 const string OPEN_FILES = PrefixVar("open_files");
 
 const string WIDTH  = PrefixVar("width");
@@ -48,14 +85,13 @@ const string HEIGHT = PrefixVar("height");
 bool enabled;
 
 string filename;
-array<CommandList> files;
+array<Script@> files;
 
 vec2 size;
 
 void OnRegister()
 {
     RegisterVariable(ENABLED, false);
-
     RegisterVariable(OPEN_FILES, "");
 
     RegisterVariable(WIDTH, 0x200);
@@ -90,10 +126,10 @@ void OnCommand(
 
 void TryOpenFile(const string &in filename)
 {
-    CommandList file(filename);
+    Script@ const file = Script(filename);
     if (file is null)
     {
-        log("Could not find file '" + filename + "'!", Severity::Error);
+        log("Could not find file " + filename, Severity::Error);
         return;
     }
 
@@ -113,12 +149,20 @@ void TryCloseFile(const uint index)
     SetOpenFiles();
 }
 
+void TrySaveFile(Script@ const file)
+{
+    const string filename = file.Filename;
+    if (file.Save(filename)) return;
+    
+    log("Could not save " + filename, Severity::Error);
+}
+
 void SetOpenFiles()
 {
     string openFiles;
     for (uint i = 0; i < files.Length; i++)
     {
-        openFiles += GetScriptName(files[i]) + FILE_SEP;
+        openFiles += files[i].GetScriptName() + FILE_SEP;
     }
     SetVariable(OPEN_FILES, openFiles);
 }
@@ -144,15 +188,24 @@ void Render()
     const bool fileRefresh = UI::Button("Refresh");
     UI::SameLine();
     const bool fileSave = UI::Button("Save");
+    UI::SameLine();
+    if (UI::Button("Save All"))
+    {
+        for (uint i = 0; i < files.Length; i++)
+        {
+            TrySaveFile(files[i]);
+        }
+    }
 
     if (UI::BeginTabBar("Files"))
     {
         uint closeIndex = Math::UINT_MAX;
         for (uint i = 0; i < files.Length; i++)
         {
-            CommandList@ const file = files[i];
-            if (UI::BeginTabItem(GetScriptName(file)))
+            Script@ const file = files[i];
+            if (UI::BeginTabItem(file.GetScriptName()))
             {
+                UI::TextWrapped(file.Edited());
                 OnSelectedFile(file, fileSave, fileRefresh);
                 OnCloseCheck(closeIndex, i, fileClose);
                 UI::EndTabItem();
@@ -170,22 +223,15 @@ void Render()
     UI::End();
 }
 
-void OnSelectedFile(CommandList@ const file, const bool fileSave, const bool fileRefresh)
+void OnSelectedFile(Script@ const file, const bool fileSave, const bool fileRefresh)
 {
     if (fileSave)
     {
-        if (file.Save(file.Filename))
-        {
-            log("Saved!", Severity::Success);
-        }
-        else
-        {
-            log("Could not save!", Severity::Error);
-        }
+        TrySaveFile(file);
     }
     else if (fileRefresh)
     {
-        file = CommandList(file.Filename);
+        file.Open(file.Filename);
     }
 
     string text = file.Content;
