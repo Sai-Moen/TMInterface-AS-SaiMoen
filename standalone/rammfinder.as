@@ -10,7 +10,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = NAME;
     info.Description = DESCRIPTION;
-    info.Version = "v2.0.0.0";
+    info.Version = "v2.0.1.0";
     return info;
 }
 
@@ -175,8 +175,7 @@ BFEvaluationDecision OnSearch(SimulationManager@ simManager)
 
 bool IsBetter(SimulationManager@ simManager)
 {
-    const auto@ const state = simManager.SaveState();
-    const auto@ const simWheels = state.Wheels;
+    const auto@ const simWheels = simManager.Wheels;
 
     for (Wheel i = Wheel(0); i < Wheel::Count; i++)
     {
@@ -216,13 +215,11 @@ bool IsBetter(SimulationManager@ simManager)
 
 float GetHeight(SimulationManager@ simManager)
 {
-    const auto@ const state = simManager.SaveState();
-
-    const iso4 loc = state.Dyna.CurrentState.Location;
+    const iso4 loc = simManager.Dyna.CurrentState.Location;
     const vec3 pos = loc.Position;
     const mat3 rot = loc.Rotation;
 
-    const auto@ const simWheels = state.Wheels;
+    const auto@ const simWheels = simManager.Wheels;
     const float yfl = RotateOffset(rot, simWheels.FrontLeft.SurfaceHandler.Location.Position).y;
     const float yfr = RotateOffset(rot, simWheels.FrontRight.SurfaceHandler.Location.Position).y;
     const float ybr = RotateOffset(rot, simWheels.BackRight.SurfaceHandler.Location.Position).y;
