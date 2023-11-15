@@ -204,7 +204,7 @@ namespace Eval
     CommandList cmdlist;
 
     SimulationState@ minState; // The state saved when time equals min
-    SimulationState@ MinState { get { return minState; } }
+    SimulationState@ const MinState { get { return minState; } }
 
     void Rewind(SimulationManager@ simManager)
     {
@@ -446,7 +446,6 @@ void OnSimEndMain(SimulationManager@ simManager, SimulationResult result)
         log("Inputs not saved.", Severity::Error);
     }
     Eval::Reset();
-
     Range::Reset();
     PointCallbacksToEmpty();
 }

@@ -28,8 +28,8 @@ namespace SD
         RegisterVariable(MODE, Classic::NAME);
 
         ModeRegister(sdMap, Classic::mode);
-        //ModeRegister(sdMap, Normal::mode); not yet good
-        //ModeRegister(sdMap, Wiggle::mode); not yet implemented
+        ModeRegister(sdMap, Normal::mode);
+        //ModeRegister(sdMap, Wiggle::mode); // not yet implemented
 
         modeStr = GetVariableString(MODE);
         ModeDispatch(modeStr, sdMap, sdMode);
@@ -183,7 +183,9 @@ namespace SD::Classic
         if (result > evalBest.result) evalBest = Result(steer, result);
 
         if (!steerRange.IsEmpty)
-        {} // Simply Rewind
+        {
+            return;
+        }
         else if (steerRange.IsDone)
         {
             const bool switchDirection = isNormalDirection && evalBest.steer * direction < 0;
@@ -230,7 +232,7 @@ namespace SD::Normal
     const string DESCRIPTION = "Tries to optimize a given SD automatically.";
     const Mode@ const mode = Mode(
         NAME, DESCRIPTION,
-        null, null,
+        OnRegister, OnSettings,
         OnBegin, OnStep
     );
 
@@ -239,44 +241,41 @@ namespace SD::Normal
         return SD::PrefixVar("normal_" + var);
     }
 
-    const OnSim@ step;
+    const string SEEK = PrefixVar("seek");
+    ms seek;
+
+    void OnRegister()
+    {
+        RegisterVariable(SEEK, 120);
+        seek = ms(GetVariableDouble(SEEK));
+    }
+
+    void OnSettings()
+    {
+        seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
+    }
 
     void OnBegin(SimulationManager@ simManager)
     {
         Reset();
     }
 
-    score diff;
-    score prev;
+    const OnSim@ step;
+
+    void OnStep(SimulationManager@ simManager)
+    {
+        step(simManager);
+    }
 
     void OnStepPre(SimulationManager@ simManager)
     {
-        const auto@ const svc = simManager.SceneVehicleCar;
+        const float prevTurningRate = Eval::MinState.SceneVehicleCar.TurningRate;
+        const float turningRate = simManager.SceneVehicleCar.TurningRate;
+        evalBest.steer = RoundAway(turningRate * STEER::FULL, turningRate - prevTurningRate);
+        steerRange.Midpoint = evalBest.steer;
 
-        const ms time = simManager.TickTime;
-        if (Eval::IsInputTime(time))
-        {
-            const float prevTurningRate = Eval::MinState.SceneVehicleCar.TurningRate;
-            const float turningRate = svc.TurningRate;
-            evalBest.steer = RoundAway(turningRate * STEER::FULL, turningRate - prevTurningRate);
-            steerRange.Midpoint = evalBest.steer;
-        }
-        else if (IsStable(svc, diff))
-        {
-            diff = 0;
-            prev = 0;
-            Eval::Time::Eval = time;
-
-            @step = OnStepMain;
-            Eval::Rewind(simManager);
-            return;
-        }
-
-        const score curr = GetScore(svc);
-        diff = Math::Abs(curr - prev);
-        prev = curr;
-
-        simManager.SetInputState(InputType::Steer, evalBest.steer);
+        @step = OnStepMain;
+        step(simManager);
     }
 
     void OnStepMain(SimulationManager@ simManager)
@@ -300,11 +299,13 @@ namespace SD::Normal
 
     void OnEval(SimulationManager@ simManager)
     {
-        const score result = GetScore(simManager.SceneVehicleCar);
+        const score result = simManager.SceneVehicleCar.CurrentLocalSpeed.Length();
         if (result > evalBest.result) evalBest = Result(steer, result);
 
         if (!steerRange.IsEmpty)
-        {} // Simply Rewind
+        {
+            return;
+        }
         else if (steerRange.IsDone)
         {
             Eval::Advance(simManager, evalBest.steer);
@@ -318,23 +319,12 @@ namespace SD::Normal
 
     void Reset()
     {
-        Eval::Time::OffsetEval(TWO_TICKS);
+        Eval::Time::OffsetEval(seek);
 
         evalBest = Result();
-
-        steerRange = SteeringRange(0, 0x1000, 0x2800);
+        steerRange = SteeringRange(0, 0x1000, 0x2000);
 
         @step = OnStepPre;
-    }
-
-    score GetScore(const TM::SceneVehicleCar@ const svc)
-    {
-        return svc.CurrentLocalSpeed.z * svc.TotalCentralForceAdded.z;
-    }
-
-    bool IsStable(const TM::SceneVehicleCar@ const svc, const score diff)
-    {
-        return diff <= svc.TotalCentralForceAdded.z;
     }
 }
 
