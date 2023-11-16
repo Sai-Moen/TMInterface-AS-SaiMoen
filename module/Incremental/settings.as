@@ -2,7 +2,7 @@
 
 const string PrefixVar(const string &in var)
 {
-    return "saimoen_" + var;
+    return ID + "_" + var;
 }
 
 const string MODE       = PrefixVar("mode");

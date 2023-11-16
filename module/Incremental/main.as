@@ -1,10 +1,13 @@
 // Main Script, Strings everything together
 
+const string ID = "incremental";
+const string NAME = "Incremental module";
+
 PluginInfo@ GetPluginInfo()
 {
     auto info = PluginInfo();
     info.Author = "SaiMoen";
-    info.Name = "Incremental module";
+    info.Name = NAME;
     info.Description = "Contains: SD, Wallhug, maybe eventually something else in case of new ideas";
     info.Version = "v2.0.0.5";
     return info;
