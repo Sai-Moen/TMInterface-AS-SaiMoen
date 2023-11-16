@@ -3,6 +3,9 @@
 A way to save your changes and create branches with automatic backups!
 
 ## Terminology
+        path
+    The entire relative path after Scripts/ to the script.
+    Yes, this includes the filename extension.
 
         script
     A TMInterface script.
@@ -34,34 +37,31 @@ A way to save your changes and create branches with automatic backups!
     The primary branch, often used as a default.
 
 ## Commands
-
 ### Hints
     [ ] means required argument.
     ( ) means optional argument.
-    filename is the entire relative path after Scripts/ to the script.
-    filename needs to include file extension.
 
 ### Command-Line Interface
         svcs help
     Return a help message.
 
-        svcs gui (NOT YET IMPLEMENTED)
-    Toggle the Graphical User Interface.
+        svcs toggle
+    Toggle the Graphical User Interface. (NOT YET IMPLEMENTED)
 
         svcs list
-    List all of the created trees, with some extra information.
+    List all the created trees.
 
-        svcs create [filename]
-    Create a tree for the given filename.
+        svcs create [path]
+    Create a tree for the given path.
     No operation if it is already tracked.
 
-        svcs select [filename] (branch) (commit)
-    Try to select a certain filename, branch and commit to work from.
+        svcs select [path] (branch) (commit)
+    Try to select a certain path, branch and commit to work from.
     If branch is not given, it will select main.
     If commit is not given, it will select leaf.
 
-        svcs remove [filename]
-    Try to remove the tree for a given filename.
+        svcs remove [path]
+    Try to remove the tree for a given path.
     This untracks the script.
 
 #### A script needs to be selected for the following commands
@@ -69,21 +69,7 @@ A way to save your changes and create branches with automatic backups!
     Deselect current script.
 
         svcs load
-    Load the currently selected script.
-
-        svcs commit list
-    List the commits of the selected branch.
-
-        svcs commit create
-    Commit the current file changes to the leaf of the selected branch.
-    No operation if nothing changed.
-
-        svcs commit select [index]
-    Select the commit with the given index.
-    Index is the amount of backwards steps from leaf.
-
-        svcs commit remove
-    Undo the last commit.
+    Load the currently selected script + branch + commit combination.
 
         svcs branch list
     List the branches of the selected script.
@@ -100,3 +86,20 @@ A way to save your changes and create branches with automatic backups!
         svcs branch remove [name]
     Remove the branch with the given name.
     No operation if name is main.
+
+        svcs commit list
+    List the commits of the selected branch.
+
+        svcs commit create
+    Commit the current file changes to the leaf of the selected branch.
+    No operation if nothing changed.
+
+        svcs commit select [index]
+    Select the commit with the given index.
+    Index is the amount of backwards steps from leaf.
+
+        svcs commit remove
+    Undo the last commit.
+
+        svcs commit tag [name]
+    Give the selected commit a certain name.

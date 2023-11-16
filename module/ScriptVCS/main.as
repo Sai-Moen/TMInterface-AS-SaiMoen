@@ -17,4 +17,10 @@ PluginInfo@ GetPluginInfo()
 void Main()
 {
     RegisterCustomCommand(COMMAND, "Command for " + NAME, OnCommand);
+    VCS::Main();
+}
+
+void Render()
+{
+    Interface::Render();
 }
