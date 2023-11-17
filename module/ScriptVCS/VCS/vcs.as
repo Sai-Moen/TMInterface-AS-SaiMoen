@@ -1,30 +1,13 @@
-namespace Structure
-{
-    const string DIR = "svcs/";
-    const string BASE = DIR + "tree_";
-    const string META = DIR + "tree";
-    const string META_SEP = "\0";
-
-    const array<string>@ const GetPaths()
-    {
-        try
-        {
-            const CommandList cmdlist = CommandList(META);
-            return cmdlist.Content.Split(META_SEP);
-        }
-        catch
-        {
-            return array<string>();
-        }
-    }
-}
-
 namespace VCS
 {
     void Main()
     {
         LoadTrees();
     }
+
+    Tree@ selectedTree;
+    Branch@ selectedBranch;
+    Commit@ selectedCommit;
 
     dictionary trees;
 
@@ -46,12 +29,65 @@ namespace VCS
     {
         try
         {
-            trees[path] = Tree(CommandList(path));
+            trees[path] = Tree(Structure::GetTree(path));
             return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    bool SelectTree(const string &in name)
+    {
+        Tree@ tree;
+        if (trees.Get(name, tree))
+        {
+            @selectedTree = tree;
+            @selectedBranch = selectedTree.Main;
+            @selectedCommit = selectedBranch.Leaf;
+            return true;
+        }
+        return false;
+    }
+
+    bool RemoveTree(const string &in name)
+    {
+        return trees.Delete(name);
+    }
+
+    bool IsSelecting()
+    {
+        return selectedTree is null;
+    }
+
+    void Deselect()
+    {
+        @selectedCommit = null;
+        @selectedBranch = null;
+        @selectedTree = null;
+    }
+
+    bool SelectBranch(const string &in name)
+    {
+        Branch@ branch;
+        if (selectedTree.GetBranch(name, branch))
+        {
+            @selectedBranch = branch;
+            @selectedCommit = selectedBranch.Leaf;
+            return true;
+        }
+        return false;
+    }
+
+    bool SelectCommit(const string &in name)
+    {
+        Commit@ commit;
+        if (selectedBranch.GetCommit(name, commit))
+        {
+            @selectedCommit = commit;
+            return true;
+        }
+        return false;
     }
 }

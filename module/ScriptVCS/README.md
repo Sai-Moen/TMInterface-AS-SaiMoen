@@ -68,6 +68,11 @@ A way to save your changes and create branches with automatic backups!
         svcs deselect
     Deselect current script.
 
+        svcs cleanup (index/tag)
+    Tries to cleanup the tree until index (can be tag) is the oldest commit.
+    If index is not given it will cleanup until the newest commit that multiple branches are referencing.
+    WARNING: This will most likely remove most commits, specify index if possible.
+
         svcs load
     Load the currently selected script + branch + commit combination.
 
@@ -94,8 +99,8 @@ A way to save your changes and create branches with automatic backups!
     Commit the current file changes to the leaf of the selected branch.
     No operation if nothing changed.
 
-        svcs commit select [index]
-    Select the commit with the given index.
+        svcs commit select [index/tag]
+    Select the commit with the given index or tag.
     Index is the amount of backwards steps from leaf.
 
         svcs commit remove

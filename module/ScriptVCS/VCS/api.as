@@ -5,7 +5,13 @@ namespace API
     enum Result
     {
         OK,
+
         FileNotFound,
+        TreeNotFound,
+        BranchNotFound,
+        CommitNotFound,
+
+        NotSelected,
     }
 
     void Toggle()
@@ -28,7 +34,11 @@ namespace API
 
     Result Create(const string &in path)
     {
-        if (VCS::TreeExists(path) || VCS::TryAddTree(path))
+        if (VCS::TreeExists(path))
+        {
+            return Result::OK;
+        }
+        else if (Structure::CreateTree(path) && VCS::TryAddTree(path))
         {
             return Result::OK;
         }
@@ -43,7 +53,75 @@ namespace API
         const string &in branch = EMPTY,
         const string &in commit = EMPTY)
     {
-        // TODO: have a tree pointer in VCS
+        if (VCS::SelectTree(path))
+        {
+            return BranchSelect(branch, commit);
+        }
+        else
+        {
+            return Result::TreeNotFound;
+        }
+    }
+
+    Result Remove(const string &in path)
+    {
+        if (VCS::RemoveTree(path) && Structure::SetPaths())
+        {
+            return Result::OK;
+        }
+        else
+        {
+            return Result::FileNotFound;
+        }
+    }
+
+    // A script needs to be selected for the following commands (kinda)
+
+    Result Deselect()
+    {
+        Result result;
+        if (VCS::IsSelecting())
+        {
+            result = Result::OK;
+        }
+        else
+        {
+            result = Result::NotSelected;
+        }
+
+        VCS::Deselect();
+        return result;
+    }
+
+    Result Cleanup(string index)
+    {
+        // Implement backend
+    }
+
+    Result BranchSelect(
+        const string &in branch = EMPTY,
+        const string &in commit = EMPTY)
+    {
+        if (branch == EMPTY || VCS::SelectBranch(branch))
+        {
+            return CommitSelect(commit);
+        }
+        else
+        {
+            return Result::BranchNotFound;
+        }
+    }
+
+    Result CommitSelect(const string &in commit = EMPTY)
+    {
+        if (commit == EMPTY || VCS::SelectCommit(commit))
+        {
+            return Result::OK;
+        }
+        else
+        {
+            return Result::CommitNotFound;
+        }
     }
 
     // Leave at the bottom
@@ -79,6 +157,11 @@ namespace API
             svcs deselect
         Deselect current script.
 
+            svcs cleanup (index/tag)
+        Tries to cleanup the tree until index (can be tag) is the oldest commit.
+        If index is not given it will cleanup until the newest commit that multiple branches are referencing.
+        WARNING: This will most likely remove most commits, specify index if possible.
+
             svcs load
         Load the currently selected script + branch + commit combination.
 
@@ -105,8 +188,8 @@ namespace API
         Commit the current file changes to the leaf of the selected branch.
         No operation if nothing changed.
 
-            svcs commit select [index]
-        Select the commit with the given index.
+            svcs commit select [index/tag]
+        Select the commit with the given index or tag.
         Index is the amount of backwards steps from leaf.
 
             svcs commit remove
