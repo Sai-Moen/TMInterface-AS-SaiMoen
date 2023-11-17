@@ -7,7 +7,7 @@ namespace Tree
     {
         dictionary branches;
 
-        uint i;
+        uint i = 0;
         while (i < tree.Length)
         {
             string key = Key(tree, i, i);
@@ -26,39 +26,15 @@ namespace Tree
 
     string Key(const string &in tree, const uint start, out uint new)
     {
-        const int EXCESS = 1;
-        const uint8 DELIMITER = '"'[0];
-
-        bool inContext = false;
-        uint old;
-        for (uint i = start; i < tree.Length; i++)
-        {
-            const uint8 s = tree[i];
-            if (s == DELIMITER)
-            {
-                if (inContext)
-                {
-                    new = i + 1;
-                    return tree.Substr(old, new - old - EXCESS);
-                }
-                else
-                {
-                    inContext = true;
-                    old = i + 1;
-                }
-            }
-        }
-
-        new = tree.Length;
-        return EMPTY;
+        return Structure::Key(tree, start, new);
     }
 
     string Value(const string &in tree, const uint start, out uint new)
     {
         const int EXCESS = 2;
-        const uint8 OPEN = '{'[0];
-        const uint8 CLOSE = '}'[0];
-        const uint8 SEP = ','[0];
+        const uint8 OPEN = ReservedBytes['{'];
+        const uint8 CLOSE = ReservedBytes['}'];
+        const uint8 SEP = ReservedBytes[','];
 
         const int NO_DEPTH = -1;
         int depth = NO_DEPTH;
