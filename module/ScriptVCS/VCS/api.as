@@ -19,7 +19,7 @@ namespace API
         Interface::Toggle();
     }
 
-    const array<Tree>@ List()
+    array<Tree>@ List()
     {
         const array<string>@ const keys = VCS::trees.GetKeys();
         uint len = keys.Length;
@@ -93,7 +93,7 @@ namespace API
         return result;
     }
 
-    Result Cleanup(string index)
+    Result Cleanup(const string &in strIndex)
     {
         // Implement backend
     }
@@ -159,7 +159,7 @@ namespace API
 
             svcs cleanup (index/tag)
         Tries to cleanup the tree until index (can be tag) is the oldest commit.
-        If index is not given it will cleanup until the newest commit that multiple branches are referencing.
+        If index is not given it will cleanup until the newest commit that at least 1 branch is referencing.
         WARNING: This will most likely remove most commits, specify index if possible.
 
             svcs load

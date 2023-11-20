@@ -91,3 +91,12 @@ namespace VCS
         return false;
     }
 }
+
+typedef uint64 Index;
+
+bool ParseIndex(const string &in strIndex, Index &out index)
+{
+    uint byteCount;
+    index = Text::ParseUInt(strIndex, 10, byteCount);
+    return byteCount > 0;
+}

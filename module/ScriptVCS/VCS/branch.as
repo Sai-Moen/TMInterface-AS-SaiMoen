@@ -1,51 +1,86 @@
 namespace Branch
 {
+    // Add a space to avoid random serialized data from splitting
+    const string SEP = ", ";
+
     const string KEY_COMMITS = "commits";
     const string KEY_TAGS = "tags";
 
-    dictionary Parse(string branch)
+    dictionary Deserialize(const string &in branch)
     {
-        // Parse into Branch fields
+        dictionary parsed;
+
+        uint j = 0;
+        for (uint i = 0; i < 2; i++)
+        {
+            const string key = Structure::Key(branch, j, j);
+            const string value = Structure::Value(branch, j, j);
+
+            parsed[key] = value;
+        }
+
+        return parsed;
     }
 
-    array<string>@ ParseCommits(string commits)
+    array<Commit>@ DeserializeCommits(const string &in commits)
     {
-        const string SEP = ",";
-        return commits.Split(SEP);
+        const array<string>@ const split = commits.Split(SEP);
+
+        array<Commit>@ const parsed = array<Commit>(split.Length);
+        for (uint i = 0; i < split.Length; i++)
+        {
+            parsed[i] = Commit(split[i]);
+        }
+
+        return parsed;
     }
 
-    dictionary ParseTags(string commits)
+    dictionary DeserializeTags(const string &in tags)
     {
-        dictionary tags;
+        dictionary parsed;
 
         uint i = 0;
-        while (i < commits.Length)
+        while (i < tags.Length)
         {
-            const string key = Key(commits, i, i);
-            const string tag = Tag(commits, i, i);
+            const string key = TagKey(tags, i, i);
+            const Index tag = TagValue(tags, i, i);
 
             if (key == EMPTY || tag == EMPTY)
             {
                 continue;
             }
 
-            tags[key] = tag;
+            parsed[key] = tag;
         }
 
-        return tags;
+        return parsed;
     }
 
-    string Key(const string &in tag, const uint start, out uint new)
+    string TagKey(const string &in tag, const uint start, out uint new)
     {
         return Structure::Key(tag, start, new);
     }
 
-    string Tag(const string &in tag, const uint start, out uint new)
+    Index TagValue(const string &in tag, const uint start, out uint new)
     {
+        bool isParsingNumber = false;
+        uint old;
         for (uint i = start; i < tag.Length; i++)
         {
-            const string s = tag[i];
-            // Detect number
+            const uint8 s = tag[i];
+            if (IsDigit(s))
+            {
+                isParsingNumber = true;
+                old = i;
+            }
+            else if (isParsingNumber)
+            {
+                new = i;
+
+                Index index;
+                bool ignore = ParseIndex(tag.Substr(old, index));
+                return index;
+            }
         }
 
         new = tag.Length;
@@ -55,14 +90,26 @@ namespace Branch
 
 class Branch
 {
-    Branch(string branch)
+    Branch(const string &in branch)
     {
-        dictionary fields = Branch::Parse(branch);
-        // Parse specific fields
+        dictionary fields = Branch::Deserialize(branch);
+        
+        string strCommits;
+        if (!fields.Get(KEY_COMMITS, strCommits)) return;
+        commits = Branch::DeserializeCommits(strCommits);
+
+        string strTags;
+        if (!fields.Get(KEY_TAGS, strTags)) return;
+        tags = Branch::DeserializeTags(strTags);
+
+        valid = true;
     }
 
     array<Commit> commits;
     dictionary tags;
+
+    bool valid = false;
+    bool Valid { get { return valid; } }
 
     Commit@ Leaf
     {

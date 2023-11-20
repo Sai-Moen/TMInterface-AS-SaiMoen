@@ -1,7 +1,7 @@
 // Version Control System for TMInterface!
 
 const string ID      = "script_vcs";
-const string NAME    = "TMInterface Script Version Control System";
+const string NAME    = "Script Version Control System";
 const string COMMAND = "svcs";
 
 PluginInfo@ GetPluginInfo()

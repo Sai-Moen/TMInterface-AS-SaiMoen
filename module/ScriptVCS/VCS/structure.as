@@ -80,6 +80,47 @@ namespace Structure
         new = source.Length;
         return EMPTY;
     }
+
+    string Value(const string &in source, const uint start, out uint new)
+    {
+        const int EXCESS = 1;
+        const uint8 OPEN = ReservedBytes['{'];
+        const uint8 CLOSE = ReservedBytes['}'];
+
+        const int NO_DEPTH = -1;
+        int depth = NO_DEPTH;
+
+        uint old;
+        for (uint i = start; i < source.Length; i++)
+        {
+            const uint8 s = source[i];
+            if (s == OPEN)
+            {
+                if (depth == NO_DEPTH)
+                {
+                    depth = 1;
+                    old = i + 1;
+                }
+                else
+                {
+                    depth++;
+                }
+            }
+            else if (s == CLOSE)
+            {
+                depth--;
+            }
+            
+            if (depth == 0)
+            {
+                new = i + 1;
+                return source.Substr(old, new - old - EXCESS);
+            }
+        }
+
+        new = source.Length;
+        return EMPTY;
+    }
 }
 
 const dictionary ReservedBytes =
@@ -102,7 +143,7 @@ const dictionary ReservedBytes =
     {'?', "?"[0]}  // 0x3f
 };
 
-bool IsDigit(string c)
+bool IsDigit(const string &in c)
 {
     // 0x30 is latin1 digits and some symbols
     // 0xb0 also checks if UTF-8 bit is set

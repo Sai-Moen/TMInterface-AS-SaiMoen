@@ -3,7 +3,7 @@ namespace Tree
     const string EMPTY = "";
     const string MAIN_BRANCH = "main";
 
-    dictionary Parse(const string &in tree)
+    dictionary Deserialize(const string &in tree)
     {
         dictionary branches;
 
@@ -76,7 +76,7 @@ class Tree
     Tree(CommandList@ _script)
     {
         @script = _script;
-        dictionary parsed = Tree::Parse(script.Content);
+        dictionary parsed = Tree::Deserialize(script.Content);
         if (parsed is null)
         {
             return;
@@ -89,14 +89,14 @@ class Tree
             branches[key] = Branch(parsed[key]);
         }
 
-        success = true;
+        valid = true;
     }
 
     CommandList@ script;
     dictionary branches;
 
-    bool success = false;
-    bool Success { get { return success; } }
+    bool valid = false;
+    bool Valid { get { return valid; } }
 
     Branch@ Main { get { return GetBranchUnsafe(Tree::MAIN_BRANCH); } }
 
