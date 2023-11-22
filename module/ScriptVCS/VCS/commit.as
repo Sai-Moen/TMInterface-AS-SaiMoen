@@ -42,13 +42,13 @@ namespace Commit
             {
             case Mode::Diff:
                 parsed[KEY_BASE] = false;
-                parsed[KEY_DATA] = DecodeDiff(commit);
-                valid = true; // Maybe check decoders
+                parsed[KEY_DATA] = Decode::Diff(commit);
+                valid = true;
                 break;
             case Mode::Base:
                 parsed[KEY_BASE] = true;
-                parsed[KEY_DATA] = DecodeBase(commit);
-                valid = true; // Maybe check decoders
+                parsed[KEY_DATA] = Decode::Base(commit);
+                valid = true;
                 break;
             default:
                 break;
@@ -56,74 +56,6 @@ namespace Commit
         }
 
         return parsed;
-    }
-
-    array<InputCommand> DecodeDiff(const string &in encoded)
-    {
-        array<InputCommand> decoded;
-
-        uint len = encoded.Length;
-        uint offset = len;
-        for (uint i = MODE_SIZE; i < len; i += offset)
-        {
-            // look at flags, decode diff
-        }
-
-        return decoded;
-    }
-
-    array<InputCommand> DecodeBase(const string &in encoded)
-    {
-        array<InputCommand> decoded;
-
-        uint len = encoded.Length;
-        uint offset = len;
-        for (uint i = MODE_SIZE; i < len; i += offset)
-        {
-            if (TestFlag(encoded[i], Op::Com))
-            {
-                decoded.Add(DecodeBaseCompressed(encoded, i, offset));
-            }
-            else
-            {
-                decoded.Add(DecodeBaseRaw(encoded, i, offset));
-            }
-        }
-
-        return decoded;
-    }
-
-    InputCommand DecodeBaseCompressed(const string &in encoded, uint start, uint &out offset)
-    {
-        offset = 2;
-
-        InputCommand cmd;
-        cmd.Type = encoded[start] & 0xf;
-        cmd.Timestamp = Decompress(encoded, start, offset);
-        cmd.State     = Decompress(encoded, start, offset);
-
-        return offset;
-    }
-
-    InputCommand DecodeBaseRaw(const string &in encoded, uint start, uint &out offset)
-    {
-        return InputCommand(); // implement this
-    }
-
-    int Decompress(const string &in encoded, uint forward, uint& offset)
-    {
-        forward += offset;
-        const uint8 rawBitsCount = 0x1f - encoded[forward - 1];
-        const uint remainingBytes = (rawBitsCount >> 3) + 1;
-        offset += remainingBytes + 1;
-
-        int val;
-        for (uint i = 0; i < remainingBytes; i++)
-        {
-            const uint shift = (remainingBytes - i) << 3;
-            val &= encoded[forward + i] << shift;
-        }
-        return val;
     }
 }
 
