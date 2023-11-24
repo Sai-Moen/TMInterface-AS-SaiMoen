@@ -36,18 +36,19 @@ namespace Commit
     {
         dictionary parsed;
 
-        if (!commit.IsEmpty())
+        string decoded;
+        if (!commit.IsEmpty() && Decode::b64(commit, decoded))
         {
-            switch (commit[0])
+            switch (decoded[0])
             {
             case Mode::Diff:
                 parsed[KEY_BASE] = false;
-                parsed[KEY_DATA] = Decode::Diff(commit);
+                parsed[KEY_DATA] = decoded;
                 valid = true;
                 break;
             case Mode::Base:
                 parsed[KEY_BASE] = true;
-                parsed[KEY_DATA] = Decode::Base(commit);
+                parsed[KEY_DATA] = decoded;
                 valid = true;
                 break;
             default:
@@ -67,15 +68,27 @@ class Commit
     {
         dictionary fields = Commit::Deserialize(commit, valid);
         if (!valid) return;
-
-        // Probably needs some cast...
         if (!fields.Get(KEY_BASE, base)) return;
         if (!fields.Get(KEY_DATA, data)) return;
 
         valid = true;
     }
 
-    array<InputCommand> data;
+    string data;
+    array<InputCommand> Data
+    {
+        get
+        {
+            if (base)
+            {
+                return Decode::Base(data);
+            }
+            else
+            {
+                return Decode::Diff(data);
+            }
+        }
+    }
 
     bool base = false;
     bool Base { get { return base; } }

@@ -2,23 +2,45 @@
 
 namespace Encode
 {
-    bool b64(const string &in toEncode, string &out encoded)
+    const uint8 B64_MASK = 0x3f;
+
+    void b64(string& toEncode, string &out encoded)
     {
-        //
-        return true;
+        const uint len = b64pad(toEncode);
+        encoded.Resize((len / 3) << 2);
+
+        uint i, j;
+        while (i < len)
+        {
+            const uint8 b0 = toEncode[i++];
+            const uint8 b1 = toEncode[i++];
+            const uint8 b2 = toEncode[i++];
+
+            encoded[j++] = b0 >> 2;
+            encoded[j++] = (b0 << 4) & (b1 >> 4) & B64_MASK;
+            encoded[j++] = (b1 << 2) & (b2 >> 6) & B64_MASK;
+            encoded[j++] = b2 & B64_MASK;
+        }
+    }
+
+    uint b64pad(string& toEncode)
+    {
+        uint len = toEncode.Length;
+        len += (3 - len % 3) % 3;
+        toEncode.Resize(len);
+        return len;
     }
 }
 
 namespace Decode
 {
-    bool b64(const string &in toDecode, string &out decoded)
+    bool b64(string& toDecode, string &out decoded)
     {
-        const uint len = toDecode.Length;
-        decoded.Resize(((len + 1) >> 2) * 3);
+        const uint len = b64pad(toDecode);
+        decoded.Resize((len >> 2) * 3);
 
-        const uint remainderBelow4 = len - 3;
         uint i, j;
-        while (i < remainderBelow4)
+        while (i < len)
         {
             uint8 b0, b1, b2, b3;
             if (
@@ -29,37 +51,22 @@ namespace Decode
             {
                 decoded[j++] = (b0 << 2) & (b1 >> 4);
                 decoded[j++] = (b1 << 4) & (b2 >> 2);
-                decoded[j++] = (b2 << 6) & (b3 >> 0);
+                decoded[j++] = (b2 << 6) & b3;
             }
             else
             {
                 return false;
             }
         }
-
-        const uint remainder = len - i;
-        array<uint8> remainingBytes = array<uint8>(4);
-        while (i < len)
-        {
-            uint8 b0;
-            if (sequenceTable.Get(toDecode[i], b0))
-            {
-                remainingBytes[(i++ + remainder) - len] = b0;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        for (uint k = 0; k < remainder; k++)
-        {
-            const uint8 b0 = remainingBytes[k];
-            const uint8 b1 = remainingBytes[k + 1];
-            decoded[j++] = (b0 << ((k + 1) << 1)) & (b1 >> ((2 - k) << 1))
-        }
-
         return true;
+    }
+
+    uint b64pad(string& toDecode)
+    {
+        uint len = toDecode.Length;
+        len += (4 - (len & 3)) & 3;
+        toDecode.Resize(len);
+        return len;
     }
 
     array<InputCommand> Diff(const string &in bytes)
@@ -70,11 +77,11 @@ namespace Decode
         uint offset = len;
         for (uint i = MODE_SIZE; i < len; i += offset)
         {
-            if (TestFlag(bytes[i], Op::Add))
+            if (TestFlag(bytes[i], ::Commit::Op::Add))
             {
                 //
             }
-            else if (TestFlag(bytes[i], Op::Del))
+            else if (TestFlag(bytes[i], ::Commit::Op::Del))
             {
                 //
             }
@@ -96,7 +103,7 @@ namespace Decode
         for (uint i = MODE_SIZE; i < len; i += offset)
         {
             InputCommand cmd;
-            if (TestFlag(bytes[i], Op::Com))
+            if (TestFlag(bytes[i], ::Commit::Op::Com))
             {
                 offset = 1;
                 cmd = BaseCom(Decompress, bytes, i, offset);
