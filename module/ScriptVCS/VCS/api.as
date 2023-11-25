@@ -4,48 +4,49 @@ namespace API
 
     enum Result
     {
+        NONE,
+
         OK,
 
         FileNotFound,
         TreeNotFound,
         BranchNotFound,
         CommitNotFound,
+        IndexNotFound,
 
         NotSelected,
     }
 
-    void Toggle()
+    Result Toggle()
     {
         Interface::Toggle();
+        return Result::OK;
     }
 
-    array<Tree>@ List()
+    Result List(array<Tree>@ &out trees)
     {
-        const array<string>@ const keys = VCS::trees.GetKeys();
-        uint len = keys.Length;
-
-        array<Tree> trees = array<Tree>(len);
-        for (uint i = 0; i < len; i++)
-        {
-            trees[i] = cast<Tree>(VCS::trees[keys[i]]);
-        }
-        return trees;
+        trees = VCS::GetTrees();
+        return Result::OK;
     }
 
     Result Create(const string &in path)
     {
+        Result result;
+
         if (VCS::TreeExists(path))
         {
-            return Result::OK;
+            result = Result::OK;
         }
         else if (Structure::CreateTree(path) && VCS::TryAddTree(path))
         {
-            return Result::OK;
+            result = Result::OK;
         }
         else
         {
-            return Result::FileNotFound;
+            result = Result::FileNotFound;
         }
+
+        return result;
     }
 
     Result Select(
@@ -53,26 +54,34 @@ namespace API
         const string &in branch = EMPTY,
         const string &in commit = EMPTY)
     {
+        Result result;
+
         if (VCS::SelectTree(path))
         {
-            return BranchSelect(branch, commit);
+            result = BranchSelect(branch, commit);
         }
         else
         {
-            return Result::TreeNotFound;
+            result = Result::TreeNotFound;
         }
+
+        return result;
     }
 
     Result Remove(const string &in path)
     {
+        Result result;
+
         if (VCS::RemoveTree(path) && Structure::SetPaths())
         {
-            return Result::OK;
+            result = Result::OK;
         }
         else
         {
-            return Result::FileNotFound;
+            result = Result::FileNotFound;
         }
+
+        return result;
     }
 
     // A script needs to be selected for the following commands (kinda)
@@ -80,6 +89,7 @@ namespace API
     Result Deselect()
     {
         Result result;
+
         if (VCS::IsSelecting())
         {
             result = Result::OK;
@@ -88,115 +98,141 @@ namespace API
         {
             result = Result::NotSelected;
         }
-
         VCS::Deselect();
+
         return result;
     }
 
-    Result Cleanup(const string &in strIndex)
+    Result Cleanup(const string &in strIndex = EMPTY)
     {
-        // Implement backend
+        Result result;
+
+        Index index;
+        if (strIndex == EMPTY)
+        {
+            VCS::AutoCleanup();
+            result = Result::OK;
+        }
+        else if (VCS::ParseStringDex(strIndex, index) && VCS::TryCleanup(index))
+        {
+            result = Result::OK;
+        }
+        else
+        {
+            result = Result::IndexNotFound;
+        }
+
+        return result;
     }
 
     Result BranchSelect(
         const string &in branch = EMPTY,
         const string &in commit = EMPTY)
     {
+        Result result;
+
         if (branch == EMPTY || VCS::SelectBranch(branch))
         {
-            return CommitSelect(commit);
+            result = CommitSelect(commit);
         }
         else
         {
-            return Result::BranchNotFound;
+            result = Result::BranchNotFound;
         }
+
+        return result;
     }
 
     Result CommitSelect(const string &in commit = EMPTY)
     {
+        Result result;
+
         if (commit == EMPTY || VCS::SelectCommit(commit))
         {
-            return Result::OK;
+            result = Result::OK;
         }
         else
         {
-            return Result::CommitNotFound;
+            result = Result::CommitNotFound;
         }
+
+        return result;
     }
 
-    // Leave at the bottom
+    // Leave at the bottom because it makes the code unreadable
     const string Help()
     {
         return
-        """Commands:
+"""
+Commands:
 
-            svcs help
-        Return a help message.
+    svcs help
+Return a help message.
 
-            svcs toggle
-        Toggle the Graphical User Interface. (NOT YET IMPLEMENTED)
+    svcs toggle
+Toggle the Graphical User Interface. (NOT YET IMPLEMENTED)
 
-            svcs list
-        List all the created trees.
+    svcs list
+List all the created trees.
 
-            svcs create [path]
-        Create a tree for the given path.
-        No operation if it is already tracked.
+    svcs create [path]
+Create a tree for the given path.
+No operation if it is already tracked.
 
-            svcs select [path] (branch) (commit)
-        Try to select a certain path, branch and commit to work from.
-        If branch is not given, it will select main.
-        If commit is not given, it will select leaf.
+    svcs select [path] (branch) (commit)
+Try to select a certain path, branch and commit to work from.
+If branch is not given, it will select main.
+If commit is not given, it will select leaf.
 
-            svcs remove [path]
-        Try to remove the tree for a given path.
-        This untracks the script.
+    svcs remove [path]
+Try to remove the tree for a given path.
+This untracks the script.
 
-        -- A script needs to be selected for the following commands --
+-- A script needs to be selected for the following commands --
 
-            svcs deselect
-        Deselect current script.
+    svcs deselect
+Deselect current script.
 
-            svcs cleanup (index/tag)
-        Tries to cleanup the tree until index (can be tag) is the oldest commit.
-        If index is not given it will cleanup until the newest commit that at least 1 branch is referencing.
-        WARNING: This will most likely remove most commits, specify index if possible.
+    svcs cleanup (index/tag)
+Tries to cleanup the tree until index (can be tag) is the oldest commit.
+If index is not given it will cleanup until the newest commit that at least 1 branch is referencing.
+WARNING: This will most likely remove most commits, specify index if possible.
 
-            svcs load
-        Load the currently selected script + branch + commit combination.
+    svcs load
+Load the currently selected script + branch + commit combination.
 
-            svcs branch list
-        List the branches of the selected script.
+    svcs branch list
+List the branches of the selected script.
 
-            svcs branch create [name]
-        Create a branch with the given name, based on the selected branch and commit.
-        No operation if it already exists.
+    svcs branch create [name]
+Create a branch with the given name, based on the selected branch and commit.
+No operation if it already exists.
 
-            svcs branch select (name) (commit)
-        Select the branch with the given name.
-        If name is not given, it will select main.
-        If commit is not given, it will select leaf.
+    svcs branch select (name) (commit)
+Select the branch with the given name.
+If name is not given, it will select main.
+If commit is not given, it will select leaf.
 
-            svcs branch remove [name]
-        Remove the branch with the given name.
-        No operation if name is main.
+    svcs branch remove [name]
+Remove the branch with the given name.
+No operation if name is main.
 
-            svcs commit list
-        List the commits of the selected branch.
+    svcs commit list
+List the commits of the selected branch.
 
-            svcs commit create
-        Commit the current file changes to the leaf of the selected branch.
-        No operation if nothing changed.
+    svcs commit create
+Commit the current file changes to the leaf of the selected branch.
+No operation if nothing changed.
 
-            svcs commit select [index/tag]
-        Select the commit with the given index or tag.
-        Index is the amount of backwards steps from leaf.
+    svcs commit select [index/tag]
+Select the commit with the given index or tag.
+Index is the amount of backwards steps from leaf.
 
-            svcs commit remove
-        Undo the last commit.
+    svcs commit remove
+Undo the last commit.
 
-            svcs commit tag [name]
-        Give the selected commit a certain name.
-        """
+    svcs commit tag [name]
+Give the selected commit a certain name.
+""";
     }
 }

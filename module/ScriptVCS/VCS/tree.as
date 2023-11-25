@@ -77,10 +77,6 @@ class Tree
     {
         @script = _script;
         dictionary parsed = Tree::Deserialize(script.Content);
-        if (parsed is null)
-        {
-            return;
-        }
 
         const array<string>@ const keys = parsed.GetKeys();
         for (uint i = 0; i < keys.Length; i++)
@@ -89,7 +85,7 @@ class Tree
             branches[key] = Branch(parsed[key]);
         }
 
-        valid = true;
+        valid = branches.Exists(Tree::MAIN_BRANCH);
     }
 
     CommandList@ script;

@@ -1,5 +1,7 @@
 namespace Branch
 {
+    const string EMPTY = "";
+
     const string KEY_COMMITS = "commits";
     const string KEY_TAGS = "tags";
 
@@ -53,12 +55,12 @@ namespace Branch
         return parsed;
     }
 
-    string TagKey(const string &in tag, const uint start, out uint new)
+    string TagKey(const string &in tag, const uint start, uint out& new)
     {
         return Structure::Key(tag, start, new);
     }
 
-    Index TagValue(const string &in tag, const uint start, out uint new)
+    Index TagValue(const string &in tag, const uint start, uint out& new)
     {
         bool isParsingNumber = false;
         uint old;
@@ -75,13 +77,13 @@ namespace Branch
                 new = i;
 
                 Index index;
-                bool ignore = ParseIndex(tag.Substr(old, index));
+                bool ignore = Index::Parse(tag.Substr(old, new - old), index);
                 return index;
             }
         }
 
         new = tag.Length;
-        return EMPTY;
+        return Index::MAX;
     }
 }
 
@@ -119,5 +121,15 @@ class Branch
 
             return commits[0];
         }
+    }
+
+    bool IndexExists(const Index index)
+    {
+        return index < commits.Length;
+    }
+
+    bool TryGetTag(const string &in tag, Index &out index)
+    {
+        return tags.Get(tag, index);
     }
 }

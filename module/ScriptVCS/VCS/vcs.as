@@ -11,6 +11,24 @@ namespace VCS
 
     dictionary trees;
 
+    array<Tree>@ GetTrees()
+    {
+        const array<string>@ const keys = trees.GetKeys();
+        const uint len = keys.Length;
+
+        trees = array<Tree>(len);
+        for (uint i = 0; i < len; i++)
+        {
+            trees[i] = cast<Tree>(trees[keys[i]]);
+        }
+        return trees;
+    }
+
+    bool TreeExists(const string &in path)
+    {
+        return trees.Exists(path);
+    }
+
     void LoadTrees()
     {
         const array<string>@ const paths = Structure::GetPaths();
@@ -18,11 +36,6 @@ namespace VCS
         {
             TryAddTree(paths[i]);
         }
-    }
-
-    bool TreeExists(const string &in path)
-    {
-        return trees.Exists(path);
     }
 
     bool TryAddTree(const string &in path)
@@ -58,7 +71,10 @@ namespace VCS
 
     bool IsSelecting()
     {
-        return selectedTree is null;
+        return
+            selectedTree !is null &&
+            selectedBranch !is null &&
+            selectedCommit !is null;
     }
 
     void Deselect()
@@ -66,6 +82,33 @@ namespace VCS
         @selectedCommit = null;
         @selectedBranch = null;
         @selectedTree = null;
+    }
+
+    bool ParseStringDex(const string &in strIndex, Index &out index)
+    {
+        if (Index::Parse(strIndex, index))
+        {
+            return true;
+        }
+        else if (IsSelecting() && selectedBranch.TryGetTag(strIndex, index))
+        {
+            return selectedBranch.IndexExists(index);
+        }
+        else
+        {
+            index = Index::MAX;
+            return false;
+        }
+    }
+
+    void AutoCleanup()
+    {
+        // TODO
+    }
+
+    bool TryCleanup(const Index index)
+    {
+        return true; // TODO
     }
 
     bool SelectBranch(const string &in name)
@@ -94,9 +137,14 @@ namespace VCS
 
 typedef uint64 Index;
 
-bool ParseIndex(const string &in strIndex, Index &out index)
+namespace Index
 {
-    uint byteCount;
-    index = Text::ParseUInt(strIndex, 10, byteCount);
-    return byteCount > 0;
+    Index MAX = ~Index(0);
+
+    bool Parse(const string &in strIndex, Index &out index)
+    {
+        uint byteCount;
+        index = Text::ParseUInt(strIndex, 10, byteCount);
+        return byteCount > 0;
+    }
 }
