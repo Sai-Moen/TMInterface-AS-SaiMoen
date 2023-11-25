@@ -1,8 +1,5 @@
 namespace Branch
 {
-    // Add a space to avoid random serialized data from splitting
-    const string SEP = ", ";
-
     const string KEY_COMMITS = "commits";
     const string KEY_TAGS = "tags";
 
@@ -24,7 +21,7 @@ namespace Branch
 
     array<Commit>@ DeserializeCommits(const string &in commits)
     {
-        const array<string>@ const split = commits.Split(SEP);
+        const array<string>@ const split = commits.Split(",");
 
         array<Commit>@ const parsed = array<Commit>(split.Length);
         for (uint i = 0; i < split.Length; i++)
