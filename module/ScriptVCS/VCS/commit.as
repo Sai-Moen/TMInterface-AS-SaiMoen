@@ -40,7 +40,10 @@ class Commit
         dictionary fields = Commit::Deserialize(commit, valid);
         if (!valid) return;
         if (!fields.Get(KEY_BASE, base)) return;
-        if (!fields.Get(KEY_DATA, data)) return;
+
+        string encoded;
+        if (!fields.Get(KEY_DATA, encoded)) return;
+        if (!EnDec::Decode::b64(encoded, data)) return;
 
         valid = true;
     }

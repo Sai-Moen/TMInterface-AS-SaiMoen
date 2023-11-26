@@ -1,6 +1,5 @@
 namespace Tree
 {
-    const string EMPTY = "";
     const string MAIN_BRANCH = "main";
 
     dictionary Deserialize(const string &in tree)
@@ -13,7 +12,7 @@ namespace Tree
             string key = Key(tree, i, i);
             string value = Value(tree, i, i);
 
-            if (key == EMPTY || value == EMPTY)
+            if (key.IsEmpty() || value.IsEmpty())
             {
                 continue;
             }
@@ -78,12 +77,24 @@ class Tree
         @script = _script;
         dictionary parsed = Tree::Deserialize(script.Content);
 
+        dictionary callbacks;
+
         const array<string>@ const keys = parsed.GetKeys();
         for (uint i = 0; i < keys.Length; i++)
         {
             const string key = keys[i];
-            branches[key] = Branch(parsed[key]);
+
+            array<string>@ childNames;
+            Branch@ const branch = Branch(parsed[key], @childNames);
+            branches[key] = branch;
+
+            if (branch.Valid)
+            {
+                callbacks[key] = childNames;
+            }
         }
+        
+        // Give branches their children back
 
         valid = branches.Exists(Tree::MAIN_BRANCH);
     }

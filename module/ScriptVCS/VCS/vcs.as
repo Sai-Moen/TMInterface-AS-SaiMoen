@@ -5,11 +5,20 @@ namespace VCS
         LoadTrees();
     }
 
+    dictionary trees;
+
     Tree@ selectedTree;
     Branch@ selectedBranch;
     Commit@ selectedCommit;
 
-    dictionary trees;
+    void LoadTrees()
+    {
+        const array<string>@ const paths = Structure::GetPaths();
+        for (uint i = 0; i < paths.Length; i++)
+        {
+            TryAddTree(paths[i]);
+        }
+    }
 
     array<Tree>@ GetTrees()
     {
@@ -29,13 +38,9 @@ namespace VCS
         return trees.Exists(path);
     }
 
-    void LoadTrees()
+    bool CreateTree(const string &in path)
     {
-        const array<string>@ const paths = Structure::GetPaths();
-        for (uint i = 0; i < paths.Length; i++)
-        {
-            TryAddTree(paths[i]);
-        }
+        return Structure::CreateTree(path);
     }
 
     bool TryAddTree(const string &in path)
@@ -66,7 +71,7 @@ namespace VCS
 
     bool RemoveTree(const string &in name)
     {
-        return trees.Delete(name);
+        return trees.Delete(name) && Structure::SetPaths();
     }
 
     bool IsSelecting()
@@ -111,6 +116,11 @@ namespace VCS
         return true; // TODO
     }
 
+    bool LoadSelected()
+    {
+        return false; // TODO
+    }
+
     bool SelectBranch(const string &in name)
     {
         Branch@ branch;
@@ -134,6 +144,8 @@ namespace VCS
         return false;
     }
 }
+
+const string EMPTY = string();
 
 typedef uint64 Index;
 

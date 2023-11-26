@@ -1,16 +1,17 @@
 namespace Branch
 {
-    const string EMPTY = "";
-
     const string KEY_COMMITS = "commits";
     const string KEY_TAGS = "tags";
+    const string KEY_START = "start";
+    const string KEY_CHILDREN = "children";
+    const uint KEY_N = 4;
 
     dictionary Deserialize(const string &in branch)
     {
         dictionary parsed;
 
         uint j = 0;
-        for (uint i = 0; i < 2; i++)
+        for (uint i = 0; i < KEY_N; i++)
         {
             const string key = Structure::Key(branch, j, j);
             const string value = Structure::Value(branch, j, j);
@@ -34,7 +35,7 @@ namespace Branch
         return parsed;
     }
 
-    dictionary DeserializeTags(const string &in tags)
+    dictionary@ DeserializeTags(const string &in tags)
     {
         dictionary parsed;
 
@@ -44,7 +45,7 @@ namespace Branch
             const string key = TagKey(tags, i, i);
             const Index tag = TagValue(tags, i, i);
 
-            if (key == EMPTY || tag == EMPTY)
+            if (key.IsEmpty() || tag.IsEmpty())
             {
                 continue;
             }
@@ -85,13 +86,25 @@ namespace Branch
         new = tag.Length;
         return Index::MAX;
     }
+
+    Index DeserializeIndex(const string &in strIndex)
+    {
+        Index index;
+        bool ignore = Index::Parse(strIndex, index);
+        return index;
+    }
+
+    array<string>@ DeserializeChildren(const string &in children)
+    {
+        return children.Split(",");
+    }
 }
 
 class Branch
 {
-    Branch(const string &in branch)
+    Branch(const string &in branch, dictionary@ &out childNames)
     {
-        dictionary fields = Branch::Deserialize(branch);
+        dictionary@ const fields = Branch::Deserialize(branch);
         
         string strCommits;
         if (!fields.Get(KEY_COMMITS, strCommits)) return;
@@ -101,11 +114,22 @@ class Branch
         if (!fields.Get(KEY_TAGS, strTags)) return;
         tags = Branch::DeserializeTags(strTags);
 
+        string strIndex;
+        if (!fields.Get(KEY_INDEX, strIndex)) return;
+        start = Branch::DeserializeIndex(strIndex);
+
+        string strChildren;
+        if (!fields.Get(KEY_CHILDREN, strChildren)) return;
+        childNames = Branch::DeserializeChildren(strChildren);
+
         valid = true;
     }
 
     array<Commit> commits;
     dictionary tags;
+
+    Index start;
+    array<Branch@> children;
 
     bool valid = false;
     bool Valid { get { return valid; } }

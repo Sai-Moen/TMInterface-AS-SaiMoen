@@ -1,6 +1,5 @@
 namespace Structure
 {
-    const string EMPTY = "";
     const string DIR = "svcs/";
     const string BASE = DIR + "tree_";
     const string META = DIR + "tree";

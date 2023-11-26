@@ -1,12 +1,17 @@
-namespace API
+namespace SVCS
 {
-    const string EMPTY = "";
+    const string Ignore()
+    {
+        return string();
+    }
 
     enum Result
     {
-        NONE,
+        Err, // Error on the VCS side
 
-        OK,
+        OK, // Success
+
+        // The rest are errors on the user side
 
         FileNotFound,
         TreeNotFound,
@@ -37,7 +42,7 @@ namespace API
         {
             result = Result::OK;
         }
-        else if (Structure::CreateTree(path) && VCS::TryAddTree(path))
+        else if (VCS::CreateTree(path) && VCS::TryAddTree(path))
         {
             result = Result::OK;
         }
@@ -51,8 +56,8 @@ namespace API
 
     Result Select(
         const string &in path,
-        const string &in branch = EMPTY,
-        const string &in commit = EMPTY)
+        const string &in branch,
+        const string &in commit)
     {
         Result result;
 
@@ -72,7 +77,7 @@ namespace API
     {
         Result result;
 
-        if (VCS::RemoveTree(path) && Structure::SetPaths())
+        if (VCS::RemoveTree(path))
         {
             result = Result::OK;
         }
@@ -84,7 +89,7 @@ namespace API
         return result;
     }
 
-    // A script needs to be selected for the following commands (kinda)
+    // A script should be selected for the following commands (or an error could occur)
 
     Result Deselect()
     {
@@ -103,12 +108,12 @@ namespace API
         return result;
     }
 
-    Result Cleanup(const string &in strIndex = EMPTY)
+    Result Cleanup(const string &in strIndex)
     {
         Result result;
 
         Index index;
-        if (strIndex == EMPTY)
+        if (strIndex.IsEmpty())
         {
             VCS::AutoCleanup();
             result = Result::OK;
@@ -125,13 +130,29 @@ namespace API
         return result;
     }
 
-    Result BranchSelect(
-        const string &in branch = EMPTY,
-        const string &in commit = EMPTY)
+    Result Load()
     {
         Result result;
 
-        if (branch == EMPTY || VCS::SelectBranch(branch))
+        if (VCS::LoadSelected())
+        {
+            result = Result::OK;
+        }
+        else
+        {
+            result = Result::NotSelected; // maybe check if valid
+        }
+
+        return result;
+    }
+
+    Result BranchSelect(
+        const string &in branch,
+        const string &in commit)
+    {
+        Result result;
+
+        if (branch.IsEmpty() || VCS::SelectBranch(branch))
         {
             result = CommitSelect(commit);
         }
@@ -143,11 +164,11 @@ namespace API
         return result;
     }
 
-    Result CommitSelect(const string &in commit = EMPTY)
+    Result CommitSelect(const string &in commit)
     {
         Result result;
 
-        if (commit == EMPTY || VCS::SelectCommit(commit))
+        if (commit.IsEmpty() || VCS::SelectCommit(commit))
         {
             result = Result::OK;
         }
@@ -188,7 +209,7 @@ If commit is not given, it will select leaf.
 Try to remove the tree for a given path.
 This untracks the script.
 
--- A script needs to be selected for the following commands --
+-- A script should be selected for the following commands (or an error could occur) --
 
     svcs deselect
 Deselect current script.
