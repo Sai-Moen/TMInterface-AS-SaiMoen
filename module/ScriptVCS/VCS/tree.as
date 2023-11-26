@@ -77,24 +77,35 @@ class Tree
         @script = _script;
         dictionary parsed = Tree::Deserialize(script.Content);
 
-        dictionary callbacks;
+        dictionary branchesChildren;
 
         const array<string>@ const keys = parsed.GetKeys();
         for (uint i = 0; i < keys.Length; i++)
         {
             const string key = keys[i];
 
-            array<string>@ childNames;
+            const array<string>@ childNames;
             Branch@ const branch = Branch(parsed[key], @childNames);
             branches[key] = branch;
 
             if (branch.Valid)
             {
-                callbacks[key] = childNames;
+                branchesChildren[key] = childNames;
             }
         }
-        
-        // Give branches their children back
+
+        const array<string>@ const childKeys = branchesChildren.GetKeys();
+        for (uint i = 0; i < childKeys.Length; i++)
+        {
+            const string key = childKeys[i];
+            Branch@ const branch = branches[key];
+
+            const array<string>@ const childNames = branchesChildren[key];
+            for (uint j = 0; j < childNames.Length; j++)
+            {
+                branch.AddChild(branches[childNames[j]]);
+            }
+        }
 
         valid = branches.Exists(Tree::MAIN_BRANCH);
     }
@@ -115,5 +126,26 @@ class Tree
     Branch@ GetBranchUnsafe(const string &in name)
     {
         return cast<Branch>(branches[name]);
+    }
+
+    Index HighestStart()
+    {
+        const auto arr = dictionary::ForEachArr(
+            branches,
+            function(d, key)
+            {
+                return cast<Branch@>(d[key]).Start;
+            });
+
+        Index highest = Index::MIN;
+        for (uint i = 0; i < arr.Length; i++)
+        {
+            const Index index = Index(arr[i]);
+            if (index > highest)
+            {
+                highest = index;
+            }
+        }
+        return highest;
     }
 }

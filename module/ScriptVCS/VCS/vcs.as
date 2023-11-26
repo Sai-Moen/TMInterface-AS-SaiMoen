@@ -59,14 +59,14 @@ namespace VCS
     bool SelectTree(const string &in name)
     {
         Tree@ tree;
-        if (trees.Get(name, tree))
+        const bool treeExists = trees.Get(name, tree);
+        if (treeExists)
         {
             @selectedTree = tree;
             @selectedBranch = selectedTree.Main;
             @selectedCommit = selectedBranch.Leaf;
-            return true;
         }
-        return false;
+        return treeExists;
     }
 
     bool RemoveTree(const string &in name)
@@ -106,42 +106,49 @@ namespace VCS
         }
     }
 
-    void AutoCleanup()
+    bool Cleanup(const Index limit = Index::MIN)
     {
-        // TODO
-    }
-
-    bool TryCleanup(const Index index)
-    {
-        return true; // TODO
+        const bool selecting = IsSelecting();
+        if (selecting)
+        {
+            const Index highest = selectedTree.HighestStart();
+            selectedBranch.Cleanup(limit > highest ? limit : highest);
+        }
+        return selecting;
     }
 
     bool LoadSelected()
     {
-        return false; // TODO
+        const bool selecting = IsSelecting();
+        if (selecting)
+        {
+            // TODO
+        }
+        return selecting;
     }
 
     bool SelectBranch(const string &in name)
     {
         Branch@ branch;
-        if (selectedTree.GetBranch(name, branch))
+        const bool branchExists = selectedTree.GetBranch(name, @branch);
+        if (branchExists)
         {
             @selectedBranch = branch;
             @selectedCommit = selectedBranch.Leaf;
-            return true;
         }
-        return false;
+        return branchExists;
     }
 
-    bool SelectCommit(const string &in name)
+    bool SelectCommit(const string &in strIndex)
     {
+        Index index;
         Commit@ commit;
-        if (selectedBranch.GetCommit(name, commit))
+        const bool commitExists = ParseStringDex(strIndex, index) && selectedBranch.GetCommit(index, @commit);
+        if (commitExists)
         {
             @selectedCommit = commit;
-            return true;
         }
-        return false;
+        return commitExists;
     }
 }
 
@@ -151,7 +158,8 @@ typedef uint64 Index;
 
 namespace Index
 {
-    Index MAX = ~Index(0);
+    const Index MIN = Index(0);
+    const Index MAX = ~Index(0);
 
     bool Parse(const string &in strIndex, Index &out index)
     {

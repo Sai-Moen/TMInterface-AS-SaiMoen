@@ -20,6 +20,7 @@ namespace SVCS
         IndexNotFound,
 
         NotSelected,
+        BadIndex,
     }
 
     Result Toggle()
@@ -108,23 +109,38 @@ namespace SVCS
         return result;
     }
 
-    Result Cleanup(const string &in strIndex)
+    Result CleanupIndex(const Index index)
     {
         Result result;
 
-        Index index;
-        if (strIndex.IsEmpty())
-        {
-            VCS::AutoCleanup();
-            result = Result::OK;
-        }
-        else if (VCS::ParseStringDex(strIndex, index) && VCS::TryCleanup(index))
+        if (VCS::Cleanup(index))
         {
             result = Result::OK;
         }
         else
         {
             result = Result::IndexNotFound;
+        }
+
+        return result;
+    }
+
+    Result CleanupString(const string &in strIndex)
+    {
+        Result result;
+
+        Index index;
+        if (strIndex.IsEmpty())
+        {
+            result = VCS::Cleanup() ? Result::OK : Result::NotSelected;
+        }
+        else if (VCS::ParseStringDex(strIndex, index))
+        {
+            result = CleanupIndex(index);
+        }
+        else
+        {
+            result = Result::BadIndex;
         }
 
         return result;

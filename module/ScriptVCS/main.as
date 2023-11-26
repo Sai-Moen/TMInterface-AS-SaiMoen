@@ -24,3 +24,52 @@ void Render()
 {
     Interface::Render();
 }
+
+namespace dictionary
+{
+    funcdef void Iter(const dictionary@ const d, const string &in key);
+
+    void ForEach(
+        const dictionary@ const d,
+        const Iter@ const funci)
+    {
+        const array<string>@ const keys = d.GetKeys();
+        for (uint i = 0; i < keys.Length; i++)
+        {
+            funci(d, keys[i]);
+        }
+    }
+
+    funcdef dictionaryValue IterVal(const dictionary@ const d, const string &in key);
+
+    array<dictionaryValue>@ ForEachArr(
+        const dictionary@ const d,
+        const IterVal@ const funcival)
+    {
+        array<dictionaryValue> values;
+
+        const array<string>@ const keys = d.GetKeys();
+        for (uint i = 0; i < keys.Length; i++)
+        {
+            values.Add(funcival(d, keys[i]));
+        }
+
+        return values;
+    }
+
+    dictionary@ ForEachDict(
+        const dictionary@ const d,
+        const IterVal@ const funcival)
+    {
+        dictionary values;
+
+        const array<string>@ const keys = d.GetKeys();
+        for (uint i = 0; i < keys.Length; i++)
+        {
+            const string key = keys[i];
+            values[key] = funcival(d, key);
+        }
+
+        return values;
+    }
+}

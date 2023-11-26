@@ -109,7 +109,7 @@ namespace Structure
             {
                 depth--;
             }
-            
+
             if (depth == 0)
             {
                 new = i + 1;

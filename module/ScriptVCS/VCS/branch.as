@@ -102,10 +102,10 @@ namespace Branch
 
 class Branch
 {
-    Branch(const string &in branch, dictionary@ &out childNames)
+    Branch(const string &in branch, array<string>@ &out childNames)
     {
         dictionary@ const fields = Branch::Deserialize(branch);
-        
+
         string strCommits;
         if (!fields.Get(KEY_COMMITS, strCommits)) return;
         commits = Branch::DeserializeCommits(strCommits);
@@ -129,6 +129,8 @@ class Branch
     dictionary tags;
 
     Index start;
+    Index Start { get { return start; } }
+
     array<Branch@> children;
 
     bool valid = false;
@@ -147,13 +149,39 @@ class Branch
         }
     }
 
+    bool TryGetTag(const string &in tag, Index &out index)
+    {
+        return tags.Get(tag, index);
+    }
+
     bool IndexExists(const Index index)
     {
         return index < commits.Length;
     }
 
-    bool TryGetTag(const string &in tag, Index &out index)
+    void Cleanup(const Index index)
     {
-        return tags.Get(tag, index);
+        if (IndexExists(index))
+        {
+            commits.Resize(index + 1);
+        }
+    }
+
+    bool GetCommit(const Index index, Commit@ &out commit)
+    {
+        if (IndexExists(index))
+        {
+            @commit = commits[index];
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    void AddChild(const Branch@ const branch)
+    {
+        children.Add(branch);
     }
 }
