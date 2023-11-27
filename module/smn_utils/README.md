@@ -50,8 +50,9 @@ but as of writing it is not (yet?) implemented so even if we wanted to use it we
 ```AngelScript
 log(true); // logs true
 ```
-
-Now we want to import something from a namespace, and this requires a bit of extra syntax.
+\
+\
+Now let's say we want to import something from a namespace, this requires a bit of extra syntax.
 
 ```AngelScript
 namespace smnu
