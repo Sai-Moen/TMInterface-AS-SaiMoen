@@ -130,7 +130,7 @@ class Tree
 
     Index HighestStart()
     {
-        const auto arr = dictionary::ForEachArr(
+        const auto@ const arr = Dictionary::ForEachArr(
             branches,
             function(d, key)
             {

@@ -25,13 +25,12 @@ void Render()
     Interface::Render();
 }
 
-namespace dictionary
+// Maybe use smn_utils for this
+namespace Dictionary
 {
     funcdef void Iter(const dictionary@ const d, const string &in key);
 
-    void ForEach(
-        const dictionary@ const d,
-        const Iter@ const funci)
+    void ForEach(const dictionary@ const d, const Iter@ const funci)
     {
         const array<string>@ const keys = d.GetKeys();
         for (uint i = 0; i < keys.Length; i++)
@@ -42,24 +41,20 @@ namespace dictionary
 
     funcdef dictionaryValue IterVal(const dictionary@ const d, const string &in key);
 
-    array<dictionaryValue>@ ForEachArr(
-        const dictionary@ const d,
-        const IterVal@ const funcival)
+    array<dictionaryValue>@ ForEachArr(const dictionary@ const d, const IterVal@ const funcival)
     {
-        array<dictionaryValue> values;
+        array<dictionaryValue> values(d.GetSize());
 
         const array<string>@ const keys = d.GetKeys();
         for (uint i = 0; i < keys.Length; i++)
         {
-            values.Add(funcival(d, keys[i]));
+            values[i] = funcival(d, keys[i]);
         }
 
         return values;
     }
 
-    dictionary@ ForEachDict(
-        const dictionary@ const d,
-        const IterVal@ const funcival)
+    dictionary@ ForEachDict(const dictionary@ const d, const IterVal@ const funcival)
     {
         dictionary values;
 

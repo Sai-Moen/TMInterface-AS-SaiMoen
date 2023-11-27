@@ -278,7 +278,7 @@ namespace EnDec::Decode
         for (uint i = 1; i <= width; i++)
         {
             const uint shift = (width - i) << 3;
-            val &= bytes[start + i] << shift;
+            val |= bytes[start + i] << shift;
         }
         return val;
     }
