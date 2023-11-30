@@ -7,8 +7,8 @@ PluginInfo@ GetPluginInfo()
 {
     auto info = PluginInfo();
     info.Author = "SaiMoen";
-    info.Name = NAME;
-    info.Description = "Contains: SD, Wallhug, maybe eventually something else in case of new ideas";
+    info.Name = ID;
+    info.Description = NAME;
     info.Version = "v2.0.0.5";
     return info;
 }

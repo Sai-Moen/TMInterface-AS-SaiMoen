@@ -56,7 +56,7 @@ class Commit
     bool valid = false;
     bool Valid { get { return valid; } }
 
-    array<InputCommand> GetData(bool addOp = false)
+    array<InputCommand> GetData(bool addOp = false) const
     {
         if (base)
         {

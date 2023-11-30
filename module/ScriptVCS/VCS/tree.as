@@ -118,17 +118,17 @@ class Tree
 
     Branch@ Main { get { return GetBranchUnsafe(Tree::MAIN_BRANCH); } }
 
-    bool GetBranch(const string &in name, out Branch branch)
-    {
-        return branches.Get(name, branch);
-    }
-
-    Branch@ GetBranchUnsafe(const string &in name)
+    Branch@ GetBranchUnsafe(const string &in name) const
     {
         return cast<Branch>(branches[name]);
     }
 
-    Index HighestStart()
+    bool GetBranch(const string &in name, out Branch branch) const
+    {
+        return branches.Get(name, branch);
+    }
+
+    Index HighestStart() const
     {
         const auto@ const arr = Dictionary::ForEachArr(
             branches,

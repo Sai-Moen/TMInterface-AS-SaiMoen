@@ -1,23 +1,19 @@
 // Version Control System for TMInterface!
 
-const string ID      = "script_vcs";
-const string NAME    = "Script Version Control System";
-const string COMMAND = "svcs";
-
 PluginInfo@ GetPluginInfo()
 {
     auto info = PluginInfo();
     info.Author = "SaiMoen";
-    info.Name = NAME;
-    info.Description = "Use '" + COMMAND + " help' to see available commands";
+    info.Name = "script_vcs";
+    info.Description = "Script Version Control System";
     info.Version = "v2.0.1.0";
     return info;
 }
 
 void Main()
 {
-    RegisterCustomCommand(COMMAND, "Command for " + NAME, OnCommand);
     VCS::Main();
+    RegisterCustomCommand("svcs", "Command for script_vcs", OnCommand);
 }
 
 void Render()

@@ -129,16 +129,16 @@ class Branch
     dictionary tags;
 
     Index start;
-    Index Start { get { return start; } }
+    Index Start { get const { return start; } }
 
     array<Branch@> children;
 
     bool valid = false;
-    bool Valid { get { return valid; } }
+    bool Valid { get const { return valid; } }
 
     Commit@ Leaf
     {
-        get
+        get const
         {
             if (commits.IsEmpty())
             {
@@ -149,25 +149,17 @@ class Branch
         }
     }
 
-    bool TryGetTag(const string &in tag, Index &out index)
-    {
-        return tags.Get(tag, index);
-    }
-
-    bool IndexExists(const Index index)
+    bool IndexExists(const Index index) const
     {
         return index < commits.Length;
     }
 
-    void Cleanup(const Index index)
+    bool TryGetTag(const string &in tag, Index &out index) const
     {
-        if (IndexExists(index))
-        {
-            commits.Resize(index + 1);
-        }
+        return tags.Get(tag, index);
     }
 
-    bool GetCommit(const Index index, Commit@ &out commit)
+    bool GetCommit(const Index index, Commit@ &out commit) const
     {
         if (IndexExists(index))
         {
@@ -183,5 +175,13 @@ class Branch
     void AddChild(const Branch@ const branch)
     {
         children.Add(branch);
+    }
+
+    void Cleanup(const Index index)
+    {
+        if (IndexExists(index))
+        {
+            commits.Resize(index + 1);
+        }
     }
 }
