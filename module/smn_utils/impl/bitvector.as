@@ -1,18 +1,25 @@
 namespace smnu
 {
+    shared interface BitVector
+    {
+        bool GetBit(const uint index) const;
+        void SetBit(const uint index, const bool value);
+        string ToString() const;
+    }
+
     // Arbitrary-Length BitVector, based on an array of BitVector32's
-    shared class BitVector
+    shared class BitVectorDynamic : BitVector
     {
         const uint WIDTH { get const { return 0x20; } }
 
-        BitVector(const uint length)
+        BitVectorDynamic(const uint length)
         {
             Resize(length);
         }
 
         array<BitVector32> bitsArray;
 
-        bool get_Bits(const uint index) const property
+        bool GetBit(const uint index) const
         {
             if (index > Length)
             {
@@ -20,18 +27,18 @@ namespace smnu
             }
 
             const BitVector32 bv = bitsArray[GetArrayIndex(index)];
-            return bv.Bits[GetRelativeIndex(index)];
+            return bv.GetBit(GetRelativeIndex(index));
         }
 
-        void set_Bits(const uint index, const bool value) property
+        void SetBit(const uint index, const bool value)
         {
             if (index > Length)
             {
                 Resize(index + 1);
             }
 
-            BitVector32@ bv = bitsArray[GetArrayIndex(index)];
-            bv.Bits[GetRelativeIndex(index)] = value;
+            BitVector32@ const bv = bitsArray[GetArrayIndex(index)];
+            bv.SetBit(GetRelativeIndex(index), value);
         }
 
         uint Length { get const { return bitsArray.Length * WIDTH; } }
@@ -56,25 +63,67 @@ namespace smnu
             string builder;
             for (uint i = 0; i < bitsArray.Length; i++)
             {
-                string line = bitsArray[i].ToString();
-                line += "\n";
-                builder += line;
+                builder += bitsArray[i].ToString() + "\n";
             }
             return builder;
         }
     }
 
-    mixin class BitVectorMixin
+    shared class BitVectorStatic : BitVector
     {
-        bool get_Bits(const uint index) const property
+        BitVectorStatic(const uint size)
+        {
+            if (size <= 8)
+            {
+                @bits = BitVector8();
+            }
+            else if (size <= 16)
+            {
+                @bits = BitVector16();
+            }
+            else if (size <= 32)
+            {
+                @bits = BitVector32();
+            }
+            else if (size <= 64)
+            {
+                @bits = BitVector64();
+            }
+            else
+            {
+                Throw("Tried to allocate BitVectorStatic larger than allowed: " + size + " > 64");
+            }
+        }
+
+        BitVector@ bits;
+
+        bool GetBit(const uint index) const
+        {
+            return bits.GetBit(index);
+        }
+
+        void SetBit(const uint index, const bool value)
+        {
+            bits.SetBit(index, value);
+        }
+
+        string ToString() const
+        {
+            return bits.ToString();
+        }
+    }
+
+    mixin class BitVectorMixin : BitVector
+    {
+        bool GetBit(const uint index) const
         {
             const auto shift = Shifted(index);
             return bits & shift == shift;
         }
 
-        void set_Bits(const uint index, const bool value) property
+        void SetBit(const uint index, const bool value)
         {
-            bits = (bits | Shifted(index)) & ~(Shifted(index, !value));
+            bits = (bits & ~Shifted(index)) | Shifted(index, value);
         }
 
         uint FromBool(const bool b) const
@@ -87,7 +136,8 @@ namespace smnu
             string builder;
             for (uint i = 0; i < WIDTH; i++)
             {
-                builder += FromBool(Bits[i]);
+                if (i & 3 == 0) builder += " ";
+                builder += FromBool(GetBit(i));
             }
             return builder;
         }
