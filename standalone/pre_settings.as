@@ -1,4 +1,4 @@
-// A way to automatically pick an input modify count using a percentage
+// Preset Settings
 
 const string ID = "pre_settings";
 const string NAME = "PreSettings";
