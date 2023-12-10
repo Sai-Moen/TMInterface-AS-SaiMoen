@@ -97,10 +97,10 @@ void LoadFiles()
             const string filename = filenames[i];
             if (filename.IsEmpty()) continue;
 
-            const CommandList@ const preset = CommandList(filename);
+            CommandList@ const preset = CommandList(filename);
             if (preset is null) continue;
 
-            presets[RelativeName(filename)] = preset;
+            @presets[RelativeName(filename)] = preset;
         }
 
         @curr = GetPreset(currName);
