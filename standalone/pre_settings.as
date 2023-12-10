@@ -10,7 +10,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = NAME;
     info.Description = "Automatically create presets based on certain settings";
-    info.Version = "v2.0.1.0";
+    info.Version = "v2.0.1.1";
     return info;
 }
 
@@ -95,10 +95,12 @@ void LoadFiles()
         for (uint i = 0; i < filenames.Length; i++)
         {
             const string filename = filenames[i];
-            if (!filename.IsEmpty())
-            {
-                @presets[RelativeName(filename)] = CommandList(filename);
-            }
+            if (filename.IsEmpty()) continue;
+
+            const CommandList@ const preset = CommandList(filename);
+            if (preset is null) continue;
+
+            presets[RelativeName(filename)] = preset;
         }
 
         @curr = GetPreset(currName);
@@ -114,6 +116,11 @@ void StoreFiles()
     {
         const string key = keys[i];
         CommandList@ const preset = GetPreset(key);
+        if (preset is null)
+        {
+            presets.Delete(key);
+            continue;
+        }
 
         const string filename = CONFIG_DIRECTORY + key;
         preset.Save(filename);
