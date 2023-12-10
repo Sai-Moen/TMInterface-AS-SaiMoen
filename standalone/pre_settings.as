@@ -4,10 +4,6 @@ const string ID = "pre_settings";
 const string NAME = "PreSettings";
 const string COMMAND = "ps";
 
-const string HELP = "help";
-const string TOGGLE = "toggle";
-const string LOAD_VARS = "load_vars";
-
 PluginInfo@ GetPluginInfo()
 {
     auto info = PluginInfo();
@@ -30,48 +26,24 @@ void OnDisabled()
     StoreFiles();
 }
 
+const string HELP = "help";
+const string TOGGLE = "toggle";
+
 void OnCommand(
     int fromTime,
     int toTime,
     const string &in commandLine,
     const array<string> &in args)
 {
-    if (args.Length < 1 || args[0] == "help")
+    if (args.Length < 1 || args[0] == HELP)
     {
         log("Available Commands:");
         log(HELP + " - log this message");
         log(TOGGLE + " - show UI");
-        log(LOAD_VARS + "- paste vars into this to copy into currently selected tab");
-        return;
     }
-    
-    if (args[0] == TOGGLE)
+    else if (args[0] == TOGGLE)
     {
-        SetVariable(ENABLED, !enabled);
-        enabled = GetVariableBool(ENABLED);
-    }
-    else if (args[0] == LOAD_VARS)
-    {
-        if (args.Length < 2)
-        {
-            log("use `vars` to copy the vars, then paste them as a second argument with \"\"", Severity::Error);
-            return;
-        }
-        else if (curr is null)
-        {
-            log("no file selected", Severity::Warning);
-            return;
-        }
-
-        array<string> args2(args.Length - 1);
-        for (uint i = 1; i < args.Length; i++)
-        {
-            args2[i] = args[i - 1];
-        }
-
-        const string vars = Text::Join(args2, "");
-        curr.Content = Text::Join(vars.Split(";"), NEWLINE);
-        curr.Save(curr.Filename);
+        SetVariable(ENABLED, enabled = !enabled);
     }
 }
 
@@ -82,17 +54,21 @@ const string PrefixVar(const string &in var)
 
 const string ENABLED = PrefixVar("enabled");
 const string NEW_FILENAME = PrefixVar("new_filename");
+const string CURR_NAME = PrefixVar("curr_name");
 
 bool enabled;
 string newFilename;
+string currName;
 
 void OnRegister()
 {
     RegisterVariable(ENABLED, false);
     RegisterVariable(NEW_FILENAME, string());
+    RegisterVariable(CURR_NAME, string());
 
     enabled = GetVariableBool(ENABLED);
     newFilename = GetVariableString(NEW_FILENAME);
+    currName = GetVariableString(CURR_NAME);
 }
 
 const string NEWLINE = "\n";
@@ -101,45 +77,57 @@ const string CONFIG_FILENAME = "_";
 const string CONFIG_DIRECTORY = ID + "\\";
 const string CONFIG_PATH = CONFIG_DIRECTORY + CONFIG_FILENAME;
 
+const string RelativeName(const string &in filename)
+{
+    return filename.Substr(filename.FindLast(CONFIG_DIRECTORY) + CONFIG_DIRECTORY.Length);
+}
+
 void LoadFiles()
 {
     CommandList cfg(CONFIG_PATH);
     if (cfg is null)
     {
-        CommandList().Save(CONFIG_PATH);
+        CreateFile(CONFIG_PATH);
     }
     else
     {
         const array<string>@ const filenames = cfg.Content.Split(NEWLINE);
-        const uint len = filenames.Length;
-
-        for (uint i = 0; i < len; i++)
+        for (uint i = 0; i < filenames.Length; i++)
         {
             const string filename = filenames[i];
             if (!filename.IsEmpty())
             {
-                presets.Add(CommandList(filename));
+                @presets[RelativeName(filename)] = CommandList(filename);
             }
         }
+
+        @curr = GetPreset(currName);
     }
 }
 
 void StoreFiles()
 {
     CommandList cfg;
-    for (uint i = 0; i < presets.Length; i++)
-    {
-        CommandList@ const preset = presets[i];
-        const string filename = preset.Filename;
 
+    const array<string>@ const keys = presets.GetKeys();
+    for (uint i = 0; i < keys.Length; i++)
+    {
+        const string key = keys[i];
+        CommandList@ const preset = GetPreset(key);
+
+        const string filename = CONFIG_DIRECTORY + key;
         preset.Save(filename);
         cfg.Content += filename + NEWLINE;
     }
+    changed = false;
+
     cfg.Save(CONFIG_PATH);
 }
 
+bool changed = false;
+
 CommandList@ curr;
-array<CommandList@> presets;
+dictionary presets;
 
 void Render()
 {
@@ -149,9 +137,16 @@ void Render()
     if (UI::Button("Add New Config") && newFilename != CONFIG_FILENAME)
     {
         const string newPath = CONFIG_DIRECTORY + newFilename;
-        CommandList().Save(newPath);
-        presets.Add(CommandList(newPath));
+        CreateFile(newPath);
+
+        CommandList@ const script = CommandList(newPath);
+        @presets[newFilename] = script;
         StoreFiles();
+
+        SetVariable(CURR_NAME, currName = newFilename);
+        @curr = script;
+
+        SetVariable(NEW_FILENAME, newFilename = string());
     }
 
     UI::Separator();
@@ -161,45 +156,64 @@ void Render()
         StoreFiles();
     }
 
-    if (UI::BeginTabBar("Presets"))
+    if (UI::BeginCombo("Presets", currName))
     {
-        for (uint i = 0; i < presets.Length; i++)
+        const array<string>@ const keys = presets.GetKeys();
+        for (uint i = 0; i < keys.Length; i++)
         {
-            CommandList@ const preset = presets[i];
-            const string path = preset.Filename;
-            const uint start = path.FindLast(CONFIG_DIRECTORY) + CONFIG_DIRECTORY.Length;
-            if (path.Length < start) continue;
-
-            const string filename = path.Substr(start);
-            if (UI::BeginTabItem(filename))
+            const string key = keys[i];
+            CommandList@ const preset = GetPreset(key);
+            if (UI::Selectable(key, preset is curr))
             {
+                SetVariable(CURR_NAME, currName = key);
                 @curr = preset;
-                OnSelectedPreset(preset);
-
-                UI::EndTabItem();
             }
         }
 
-        UI::EndTabBar();
+        UI::EndCombo();
+    }
+
+    if (curr !is null)
+    {
+        DrawCurrent();
     }
 
     UI::End();
 }
 
-void OnSelectedPreset(CommandList@ const preset)
+CommandList@ GetPreset(const string &in key)
+{
+    return cast<CommandList@>(presets[key]);
+}
+
+string vars;
+
+void DrawCurrent()
 {
     if (UI::Button("Load"))
     {
-        preset.Process();
+        if (changed)
+        {
+            StoreFiles();
+        }
+        curr.Process();
     }
 
     if (UI::BeginTable("Settings", 2))
     {
-        array<string>@ const settings = preset.Content.Split(NEWLINE);
+        array<string>@ settings = curr.Content.Split(NEWLINE);
+
         UI::TableHeadersRow();
         if (UI::Button("New Setting"))
         {
-            settings.Add(string());
+            settings.InsertAt(0, string());
+        }
+
+        vars = UI::InputText("Insert vars?", vars);
+        if (!vars.IsEmpty())
+        {
+            @settings = vars.Split(";");
+            vars = string();
         }
 
         const uint noIndex = ~0;
@@ -211,7 +225,14 @@ void OnSelectedPreset(CommandList@ const preset)
             UI::PushID("TableRow" + i);
 
             UI::TableNextColumn();
-            settings[i] = UI::InputText("", settings[i]);
+            UI::PushItemWidth(0);
+
+            const string old = settings[i];
+            const string new = UI::InputText("", old);
+            changed = changed || new != old;
+            settings[i] = new;
+
+            UI::PopItemWidth();
 
             UI::TableNextColumn();
             if (UI::Button("+"))
@@ -230,15 +251,31 @@ void OnSelectedPreset(CommandList@ const preset)
 
         if (idxAdd != noIndex)
         {
-            settings.InsertAt(idxAdd, string());
+            settings.InsertAt(idxAdd + 1, string());
         }
         else if (idxDel != noIndex)
         {
             settings.RemoveAt(idxDel);
         }
 
-        preset.Content = Text::Join(settings, NEWLINE);
+        if (settings.IsEmpty())
+        {
+            presets.Delete(currName);
+            StoreFiles();
+
+            currName = string();
+            @curr = null;
+        }
+        else
+        {
+            curr.Content = Text::Join(settings, NEWLINE);
+        }
 
         UI::EndTable();
     }
+}
+
+void CreateFile(const string &in filename)
+{
+    CommandList().Save(filename);
 }
