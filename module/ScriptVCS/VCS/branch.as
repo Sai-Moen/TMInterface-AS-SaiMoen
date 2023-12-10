@@ -1,10 +1,11 @@
 namespace Branch
 {
+    const int NAME_LEN = 0x40;
 }
 
 class Branch
 {
-    Branch(const string &in branch, array<string>@ &out childNames)
+    Branch(const Data@ const branch, array<string>@ &out childNames)
     {
         valid = true;
     }
@@ -12,10 +13,17 @@ class Branch
     array<Commit> commits;
     dictionary tags;
 
+    dictionary children;
+
+    string name;
+    string Name
+    {
+        get const { return name; }
+        set { name = value.Substr(0, Branch::NAME_LEN); }
+    }
+
     Index start;
     Index Start { get const { return start; } }
-
-    array<Branch@> children;
 
     bool valid = false;
     bool Valid { get const { return valid; } }
@@ -52,6 +60,7 @@ class Branch
         }
         else
         {
+            @commit = null;
             return false;
         }
     }

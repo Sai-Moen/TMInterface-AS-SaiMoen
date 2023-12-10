@@ -50,21 +50,17 @@ class Data
 
     array<uint8> data;
 
-    array<uint8>@ Slice(const uint begin, const uint end) const
+    array<uint8>@ Slice(const uint ptr, const uint size) const
     {
-        array<uint8> slice;
-        if (end > begin)
+        array<uint8> slice(size);
+        for (uint i = 0; i < size; i++)
         {
-            slice.Resize(end - begin);
-            for (uint i = begin; i < end; i++)
-            {
-                slice[i] = bytes[i];
-            }
+            slice[i] = data[ptr + i];
         }
         return slice;
     }
 
-    string ToString() const
+    string opConv() const
     {
         string conv;
         Data::IntoString(data, conv);

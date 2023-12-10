@@ -1,17 +1,17 @@
 namespace Commit
 {
+    // 'Static' methods
 }
 
 class Commit
 {
-    Commit() {} // For array<Commit>
-
-    Commit(const ?@ commit)
+    Commit(const Data@ const commit)
     {
-        valid = true;
+        @data = commit;
+        valid = data !is null;
     }
 
-    ? data;
+    Data@ data;
 
     bool valid = false;
     bool Valid { get { return valid; } }

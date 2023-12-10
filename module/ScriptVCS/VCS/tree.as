@@ -21,7 +21,7 @@ class Tree
 
     Branch@ GetBranchUnsafe(const string &in name) const
     {
-        return cast<Branch>(branches[name]);
+        return cast<Branch@>(branches[name]);
     }
 
     bool GetBranch(const string &in name, out Branch@ branch) const
@@ -52,5 +52,6 @@ class Tree
 
     array<InputCommand>@ Reconstruct() const
     {
+        // TODO
     }
 }
