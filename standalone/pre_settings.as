@@ -2,7 +2,11 @@
 
 const string ID = "pre_settings";
 const string NAME = "PreSettings";
-const string COMMAND = "toggle_ps";
+const string COMMAND = "ps";
+
+const string HELP = "help";
+const string TOGGLE = "toggle";
+const string LOAD_VARS = "load_vars";
 
 PluginInfo@ GetPluginInfo()
 {
@@ -18,7 +22,7 @@ void Main()
 {
     OnRegister();
     LoadFiles();
-    RegisterCustomCommand(COMMAND, "Toggles " + NAME + " window", OnCommand);
+    RegisterCustomCommand(COMMAND, "Use: " + COMMAND + " help", OnCommand);
 }
 
 void OnDisabled()
@@ -32,8 +36,43 @@ void OnCommand(
     const string &in commandLine,
     const array<string> &in args)
 {
-    SetVariable(ENABLED, !enabled);
-    enabled = GetVariableBool(ENABLED);
+    if (args.Length < 1 || args[0] == "help")
+    {
+        log("Available Commands:");
+        log(HELP + " - log this message");
+        log(TOGGLE + " - show UI");
+        log(LOAD_VARS + "- paste vars into this to copy into currently selected tab");
+        return;
+    }
+    
+    if (args[0] == TOGGLE)
+    {
+        SetVariable(ENABLED, !enabled);
+        enabled = GetVariableBool(ENABLED);
+    }
+    else if (args[0] == LOAD_VARS)
+    {
+        if (args.Length < 2)
+        {
+            log("use `vars` to copy the vars, then paste them as a second argument with \"\"", Severity::Error);
+            return;
+        }
+        else if (curr is null)
+        {
+            log("no file selected", Severity::Warning);
+            return;
+        }
+
+        array<string> args2(args.Length - 1);
+        for (uint i = 1; i < args.Length; i++)
+        {
+            args2[i] = args[i - 1];
+        }
+
+        const string vars = Text::Join(args2, "");
+        curr.Content = Text::Join(vars.Split(";"), NEWLINE);
+        curr.Save(curr.Filename);
+    }
 }
 
 const string PrefixVar(const string &in var)
@@ -99,6 +138,7 @@ void StoreFiles()
     cfg.Save(CONFIG_PATH);
 }
 
+CommandList@ curr;
 array<CommandList@> presets;
 
 void Render()
@@ -133,6 +173,7 @@ void Render()
             const string filename = path.Substr(start);
             if (UI::BeginTabItem(filename))
             {
+                @curr = preset;
                 OnSelectedPreset(preset);
 
                 UI::EndTabItem();
