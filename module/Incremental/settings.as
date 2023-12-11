@@ -5,7 +5,7 @@ const string PrefixVar(const string &in var)
     return ID + "_" + var;
 }
 
-const string MODE       = PrefixVar("mode");
+const string MODE = PrefixVar("mode");
 
 const string EVAL_RANGE = PrefixVar("eval_range");
 const string EVAL_TO    = PrefixVar("eval_to");
@@ -57,8 +57,6 @@ void OnRegister()
 
     ModeRegister(modeMap, SD::mode);
     ModeRegister(modeMap, WH::mode);
-
-    Entry::OnRegister();
 
     // Init
     modeStr = GetVariableString(MODE);

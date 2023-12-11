@@ -69,11 +69,6 @@ bool IsOtherController()
     return ID != GetVariableString(CONTROLLER);
 }
 
-// Script
-const string ID = "saimoen_incremental";
-const string NAME = "SaiMoen's Incremental module";
-const string FILENAME = ID + ".txt";
-
 // UI utils
 funcdef void OnNewMode(const string &in newMode);
 

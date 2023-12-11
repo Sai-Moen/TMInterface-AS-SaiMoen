@@ -1,7 +1,9 @@
 // Main Script, Strings everything together
 
 const string ID = "incremental";
-const string NAME = "Incremental module";
+const string NAME = "Incremental";
+
+const string FILENAME = ID + ".txt";
 
 PluginInfo@ GetPluginInfo()
 {
