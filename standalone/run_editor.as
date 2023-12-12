@@ -403,4 +403,8 @@ void OnSelectedFile()
     }
 
     string text = curr.Content;
-    if (UI::InputTextMultiline(MULTILINE_LABEL, 
+    if (UI::InputTextMultiline(MULTILINE_LABEL, text, MULTILINE_SIZE))
+    {
+        curr.Content = text;
+    }
+}
