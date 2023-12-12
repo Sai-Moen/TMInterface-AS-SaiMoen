@@ -26,27 +26,6 @@ void OnDisabled()
     StoreFiles();
 }
 
-const string HELP = "help";
-const string TOGGLE = "toggle";
-
-void OnCommand(
-    int fromTime,
-    int toTime,
-    const string &in commandLine,
-    const array<string> &in args)
-{
-    if (args.Length < 1 || args[0] == HELP)
-    {
-        log("Available Commands:");
-        log(HELP + " - log this message");
-        log(TOGGLE + " - show UI");
-    }
-    else if (args[0] == TOGGLE)
-    {
-        SetVariable(ENABLED, enabled = !enabled);
-    }
-}
-
 const string PrefixVar(const string &in var)
 {
     return ID + "_" + var;
@@ -69,6 +48,43 @@ void OnRegister()
     enabled = GetVariableBool(ENABLED);
     newFilename = GetVariableString(NEW_FILENAME);
     currName = GetVariableString(CURR_NAME);
+}
+
+const string HELP = "help";
+const string TOGGLE = "toggle";
+
+void OnCommand(
+    int fromTime,
+    int toTime,
+    const string &in commandLine,
+    const array<string> &in args)
+{
+    if (args.IsEmpty())
+    {
+        LogHelp();
+        return;
+    }
+
+    const string cmd = args[0];
+    if (cmd == HELP)
+    {
+        LogHelp();
+    }
+    else if (cmd == TOGGLE)
+    {
+        SetVariable(ENABLED, enabled = !enabled);
+    }
+    else
+    {
+        LogHelp();
+    }
+}
+
+void LogHelp()
+{
+    log("Available Commands:");
+    log(HELP + " - log this message");
+    log(TOGGLE + " - show UI");
 }
 
 const string NEWLINE = "\n";
@@ -129,6 +145,11 @@ void StoreFiles()
     changed = false;
 
     cfg.Save(CONFIG_PATH);
+}
+
+void CreateFile(const string &in filename)
+{
+    CommandList().Save(filename);
 }
 
 bool changed = false;
@@ -280,9 +301,4 @@ void DrawCurrent()
 
         UI::EndTable();
     }
-}
-
-void CreateFile(const string &in filename)
-{
-    CommandList().Save(filename);
 }

@@ -2,15 +2,15 @@
 
 const string ID      = "repp";
 const string NAME    = "RunEditor++";
-const string COMMAND = "toggle_repp";
+const string COMMAND = "repp";
 
 PluginInfo@ GetPluginInfo()
 {
     auto info = PluginInfo();
     info.Author = "SaiMoen";
-    info.Name = NAME;
-    info.Description = "Use " + COMMAND + " to open a text editor in-game";
-    info.Version = "v2.0.1.1";
+    info.Name = ID;
+    info.Description = NAME;
+    info.Version = "v2.0.1.2";
     return info;
 }
 
@@ -20,24 +20,189 @@ void Main()
     RegisterCustomCommand(COMMAND, "Toggles " + NAME + " window", OnCommand);
 }
 
+void OnDisabled()
+{
+    TrySaveAll();
+}
+
 const string NEWLINE  = "\n";
-const string FILE_SEP = "|";
+
+const string CONFIG_FILENAME = ID;
+const string CONFIG_DIRECTORY = ID + "\\";
+const string CONFIG_PATH = CONFIG_DIRECTORY + CONFIG_FILENAME;
+
+const string PrefixVar(const string &in var)
+{
+    return ID + "_" + var;
+}
+
+const string ENABLED = PrefixVar("enabled");
+const string CURR_NAME = PrefixVar("curr_name");
+
+bool enabled;
+
+string currName;
+Script@ curr;
+dictionary files;
+
+void OnRegister()
+{
+    RegisterVariable(ENABLED, false);
+    RegisterVariable(CURR_NAME, string());
+
+    enabled = GetVariableBool(ENABLED);
+
+    LoadFiles();
+    currName = GetVariableString(CURR_NAME);
+    @curr = GetFile(currName);
+}
+
+void LoadFiles()
+{
+    CommandList cfg(CONFIG_PATH);
+    if (cfg is null)
+    {
+        CreateFile(CONFIG_PATH);
+    }
+    else
+    {
+        const auto@ const filenames = cfg.Content.Split(NEWLINE);
+        for (uint i = 0; i < filenames.Length; i++)
+        {
+            const string s = filenames[i];
+            if (!s.IsEmpty())
+            {
+                TryOpenFile(s);
+            }
+        }
+    }
+}
+
+void StoreFiles()
+{
+    CommandList cfg;
+
+    const array<string>@ const keys = files.GetKeys();
+    for (uint i = 0; i < keys.Length; i++)
+    {
+        const string key = keys[i];
+        Script@ const file = GetFile(key);
+        if (file is null)
+        {
+            files.Delete(key);
+            continue;
+        }
+
+        file.Save();
+        cfg.Content += file.RelativeName() + NEWLINE;
+    }
+
+    cfg.Save(CONFIG_PATH);
+}
+
+void CreateFile(const string &in filename)
+{
+    CommandList().Save(filename);
+}
+
+const string HELP = "help";
+const string TOGGLE = "toggle";
+const string SAVE = "save";
+const string LOAD = "load";
+
+void OnCommand(
+    int fromTime,
+    int toTime,
+    const string &in commandLine,
+    const array<string> &in args)
+{
+    if (args.IsEmpty())
+    {
+        LogHelp();
+        return;
+    }
+
+    const string cmd = args[0];
+    if (cmd == HELP)
+    {
+        LogHelp();
+    }
+    else if (cmd == TOGGLE)
+    {
+        SetVariable(ENABLED, enabled = !enabled);
+    }
+    else if (cmd == SAVE)
+    {
+        TrySaveFile();
+    }
+    else if (cmd == LOAD)
+    {
+        TryLoadFile();
+    }
+    else
+    {
+        LogHelp();
+    }
+}
+
+void LogHelp()
+{
+    log("Available commands:");
+    log(HELP + "   - log this message");
+    log(TOGGLE + " - toggle the editor");
+    log(SAVE + "   - save the currently selected file");
+    log(LOAD + "   - load the currently selected file");
+}
 
 const string SCRIPT_DIR  = "\\TMInterface\\Scripts\\";
-const int SCRIPT_DIR_LEN = SCRIPT_DIR.Length;
+
+CommandList@ currCommands;
+CommandList@ CurrCommands
+{
+    get { return currCommands; }
+    set
+    {
+        @currCommands = value;
+        currCommands.Process(CommandListProcessOption::ExecuteImmediately);
+        SetCurrentCommandList(currCommands);
+    }
+}
+
+void UpdateCurrCommands(CommandList@ const file)
+{
+    UpdateCurrCommands(file, file);
+}
+
+void UpdateCurrCommands(CommandList@ const file, CommandList@ const value)
+{
+    if (file is CurrCommands)
+    {
+        @CurrCommands = value;
+    }
+}
 
 class Script
 {
-    CommandList file;
-    string Filename { get { return file.Filename; } }
+    CommandList@ file;
+    CommandList@ File
+    {
+        get const { return file; }
+        set
+        {
+            UpdateCurrCommands(file, value);
+            @file = value;
+        }
+    }
+
+    string Filename { get { return File.Filename; } }
 
     bool fileChanged;
     string Content
     {
-        get { return file.Content; }
+        get { return File.Content; }
         set
         {
-            file.Content = value;
+            File.Content = value;
             fileChanged = true;
         }
     }
@@ -47,81 +212,45 @@ class Script
         Open(scriptRelativePath);
     }
 
+    void Open()
+    {
+        Open(Filename);
+    }
+
     void Open(const string &in scriptRelativePath)
     {
+        @File = CommandList(scriptRelativePath);
         fileChanged = false;
-        file = CommandList(scriptRelativePath);
     }
 
-    bool Save(const string &in scriptRelativePath)
+    void Save()
     {
+        File.Save(Filename);
         fileChanged = false;
-        return file.Save(scriptRelativePath);
+        UpdateCurrCommands(File);
     }
 
-    string Edited()
+    void Load()
     {
-        return fileChanged ? "*" : "";
+        Save();
+        @CurrCommands = File;
     }
 
-    string GetScriptName()
+    string Edited() const
     {
-        const string scriptname = file.Filename;
-        return scriptname.Substr(scriptname.FindLast(SCRIPT_DIR) + SCRIPT_DIR_LEN);
+        return fileChanged ? "*" : " ";
+    }
+
+    string RelativeName()
+    {
+        const string scriptname = Filename;
+        return scriptname.Substr(scriptname.FindLast(SCRIPT_DIR) + SCRIPT_DIR.Length);
     }
 }
 
-const string PrefixVar(const string &in var)
+Script@ GetFile(const string &in key)
 {
-    return ID + "_" + var;
-}
-
-const string ENABLED = PrefixVar("enabled");
-const string OPEN_FILES = PrefixVar("open_files");
-
-const string WIDTH  = PrefixVar("width");
-const string HEIGHT = PrefixVar("height");
-
-bool enabled;
-
-string filename;
-array<Script@> files;
-
-vec2 size;
-
-void OnRegister()
-{
-    RegisterVariable(ENABLED, false);
-    RegisterVariable(OPEN_FILES, "");
-
-    RegisterVariable(WIDTH, 0x200);
-    RegisterVariable(HEIGHT, 0x200);
-
-    enabled = GetVariableBool(ENABLED);
-
-    const auto@ const filenames = GetVariableString(OPEN_FILES).Split(FILE_SEP);
-    for (uint i = 0; i < filenames.Length; i++)
-    {
-        const string s = filenames[i];
-        if (s != "")
-        {
-            TryOpenFile(s);
-        }
-    }
-
-    const float width  = GetVariableDouble(WIDTH);
-    const float height = GetVariableDouble(HEIGHT);
-    size = vec2(width, height);
-}
-
-void OnCommand(
-    int fromTime,
-    int toTime,
-    const string &in commandLine,
-    const array<string> &in args)
-{
-    enabled = !enabled;
-    SetVariable(ENABLED, enabled);
+    return cast<Script@>(files[key]);
 }
 
 void TryOpenFile(const string &in filename)
@@ -130,91 +259,116 @@ void TryOpenFile(const string &in filename)
     if (file is null)
     {
         log("Could not find file " + filename, Severity::Error);
+        DiscardFile(filename);
         return;
     }
 
-    files.Add(file);
-    SetOpenFiles();
+    const string key = file.RelativeName();
+    @files[key] = file;
+    StoreFiles();
+
+    currName = key;
+    @curr = file;
 }
 
-void TryCloseFile(const uint index)
+void TryCloseFile()
 {
-    if (index >= files.Length)
+    DiscardFile(curr.RelativeName());
+    @curr = null;
+    currName = string();
+}
+
+void TrySaveFile()
+{
+    if (curr !is null)
     {
-        log("Could not close file: invalid index -> " + index, Severity::Error);
+        curr.Save();
+    }
+}
+
+void TrySaveFile(const string &in key)
+{
+    Script@ const file = GetFile(key);
+    if (file is null)
+    {
+        DiscardFile(key);
         return;
     }
 
-    files.RemoveAt(index);
-    SetOpenFiles();
+    file.Save();
 }
 
-void TrySaveFile(Script@ const file)
+void TrySaveAll()
 {
-    const string filename = file.Filename;
-    if (file.Save(filename)) return;
-    
-    log("Could not save " + filename, Severity::Error);
-}
-
-void SetOpenFiles()
-{
-    string openFiles;
-    for (uint i = 0; i < files.Length; i++)
+    const array<string>@ const keys = files.GetKeys();
+    for (uint i = 0; i < keys.Length; i++)
     {
-        openFiles += files[i].GetScriptName() + FILE_SEP;
+        TrySaveFile(keys[i]);
     }
-    SetVariable(OPEN_FILES, openFiles);
 }
+
+void TryLoadFile()
+{
+    if (curr !is null)
+    {
+        curr.Load();
+    }
+}
+
+void DiscardFile(const string &in key)
+{
+    files.Delete(key);
+    StoreFiles();
+}
+
+const string MULTILINE_LABEL = string();
+const vec2 MULTILINE_SIZE = vec2(-1);
+
+string newFilename;
 
 void Render()
 {
     if (!(enabled && UI::Begin(NAME))) return;
 
-    filename = UI::InputText("Enter filename", filename);
+    newFilename = UI::InputText("Enter filename", newFilename);
     if (UI::Button("Open"))
     {
-        TryOpenFile(filename);
+        TryOpenFile(newFilename);
+        newFilename = string();
     }
-
-    const float width = UI::InputFloatVar("Width", WIDTH);
-    const float height = UI::InputFloatVar("Height", HEIGHT);
-    size = vec2(width, height);
 
     UI::Separator();
 
-    const bool fileClose = UI::Button("Close");
-    UI::SameLine();
-    const bool fileRefresh = UI::Button("Refresh");
-    UI::SameLine();
-    const bool fileSave = UI::Button("Save");
-    UI::SameLine();
     if (UI::Button("Save All"))
     {
-        for (uint i = 0; i < files.Length; i++)
-        {
-            TrySaveFile(files[i]);
-        }
+        TrySaveAll();
     }
 
     if (UI::BeginTabBar("Files"))
     {
-        uint closeIndex = Math::UINT_MAX;
-        for (uint i = 0; i < files.Length; i++)
+        const array<string>@ const keys = files.GetKeys();
+        for (uint i = 0; i < keys.Length; i++)
         {
-            Script@ const file = files[i];
-            if (UI::BeginTabItem(file.GetScriptName()))
+            const string key = keys[i];
+            if (key.IsEmpty())
+            {
+                DiscardFile(key);
+                continue;
+            }
+
+            Script@ const file = GetFile(key);
+            if (file is null) continue;
+
+            if (UI::BeginTabItem(key))
             {
                 UI::TextWrapped(file.Edited());
-                OnSelectedFile(file, fileSave, fileRefresh);
-                OnCloseCheck(closeIndex, i, fileClose);
+
+                currName = key;
+                @curr = file;
+                OnSelectedFile();
+
                 UI::EndTabItem();
             }
-        }
-
-        if (closeIndex != Math::UINT_MAX)
-        {
-            TryCloseFile(closeIndex);
         }
 
         UI::EndTabBar();
@@ -223,28 +377,30 @@ void Render()
     UI::End();
 }
 
-void OnSelectedFile(Script@ const file, const bool fileSave, const bool fileRefresh)
+void OnSelectedFile()
 {
-    if (fileSave)
+    if (UI::Button("Save"))
     {
-        TrySaveFile(file);
+        TrySaveFile();
+        return;
     }
-    else if (fileRefresh)
+    UI::SameLine();
+    if (UI::Button("Load"))
     {
-        file.Open(file.Filename);
+        curr.Load();
+    }
+    UI::SameLine();
+    if (UI::Button("Refresh"))
+    {
+        curr.Open();
+        return;
+    }
+    UI::SameLine();
+    if (UI::Button("Close"))
+    {
+        TryCloseFile();
+        return;
     }
 
-    string text = file.Content;
-    if (UI::InputTextMultiline("", text, size))
-    {
-        file.Content = text;
-    }
-}
-
-void OnCloseCheck(uint& closeIndex, const uint index, const bool fileClose)
-{
-    if (fileClose)
-    {
-        closeIndex = index;
-    }
-}
+    string text = curr.Content;
+    if (UI::InputTextMultiline(MULTILINE_LABEL, 
