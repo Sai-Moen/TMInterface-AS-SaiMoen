@@ -147,6 +147,11 @@ void StoreFiles()
     cfg.Save(CONFIG_PATH);
 }
 
+CommandList@ GetPreset(const string &in key)
+{
+    return cast<CommandList@>(presets[key]);
+}
+
 void CreateFile(const string &in filename)
 {
     CommandList().Save(filename);
@@ -159,8 +164,17 @@ dictionary presets;
 
 void Render()
 {
-    if (!(enabled && UI::Begin(NAME))) return;
+    if (!enabled) return;
 
+    if (UI::Begin(NAME))
+    {
+        Window();
+    }
+    UI::End();
+}
+
+void Window()
+{
     newFilename = UI::InputTextVar("New Config Name", NEW_FILENAME);
     if (UI::Button("Add New Config") && newFilename != CONFIG_FILENAME)
     {
@@ -205,13 +219,6 @@ void Render()
     {
         DrawCurrent();
     }
-
-    UI::End();
-}
-
-CommandList@ GetPreset(const string &in key)
-{
-    return cast<CommandList@>(presets[key]);
 }
 
 string vars;

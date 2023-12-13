@@ -328,8 +328,17 @@ string newFilename;
 
 void Render()
 {
-    if (!(enabled && UI::Begin(NAME))) return;
+    if (!enabled) return;
 
+    if (UI::Begin(NAME))
+    {
+        Window();
+    }
+    UI::End();
+}
+
+void Window()
+{
     newFilename = UI::InputText("Enter filename", newFilename);
     if (UI::Button("Open"))
     {
@@ -373,8 +382,6 @@ void Render()
 
         UI::EndTabBar();
     }
-
-    UI::End();
 }
 
 void OnSelectedFile()

@@ -20,7 +20,7 @@ void Main()
     RegisterCustomCommand(COMMAND, "Toggles " + NAME + " window", OnCommand);
 }
 
-bool isEnabled = false;
+bool enabled = false;
 
 void OnCommand(
     int fromTime,
@@ -28,7 +28,7 @@ void OnCommand(
     const string &in commandLine,
     const array<string> &in args)
 {
-    isEnabled = !isEnabled;
+    enabled = !enabled;
 }
 
 const string PrefixVar(const string &in var)
@@ -50,8 +50,17 @@ const double MAX = 100.0;
 
 void Render()
 {
-    if (!(isEnabled && UI::Begin(NAME))) return;
+    if (!enabled) return;
 
+    if (UI::Begin(NAME))
+    {
+        Window();
+    }
+    UI::End();
+}
+
+void Window()
+{
     percentage = UI::SliderFloatVar("Input Modify Probability (%)", PERCENTAGE, MIN, MAX, "%.6f");
     percentage = Math::Clamp(percentage, MIN, MAX) / MAX;
     if (percentage == MIN) return;
