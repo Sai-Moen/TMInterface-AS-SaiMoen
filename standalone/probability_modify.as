@@ -10,7 +10,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = NAME;
     info.Description = "Converts percentage to input modify count";
-    info.Version = "v2.0.0.0";
+    info.Version = "v2.0.1.0";
     return info;
 }
 

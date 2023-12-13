@@ -10,7 +10,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = NAME;
     info.Description = "Automatically create presets based on certain settings";
-    info.Version = "v2.0.1.1";
+    info.Version = "v2.0.1.2";
     return info;
 }
 
