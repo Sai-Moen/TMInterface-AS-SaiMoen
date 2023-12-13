@@ -1,1 +1,1 @@
-mklink /H ..\..\Plugins\%~nx1 ..\standalone\%~nx1
+mklink /H ..\..\Plugins\%~nx1 ..\Dev\standalone\%~nx1
