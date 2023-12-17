@@ -33,36 +33,28 @@ namespace smnu::UI::Combo
         return false;
     }
 
-    // See full function
-    shared bool Strings(
-        const string &in label,
-        const string &in currentMode,
-        const dictionary@ const modes,
-        OnNewModeName@ const onNewMode)
-    {
-        return Strings(label, currentMode, modes.GetKeys(), onNewMode);
-    }
-
-    // Draws a UI::Combo based on the given strings
+    // Draws a UI::Combo based on the given HandleStrs
     // param label: label of the Combo
-    // param currentMode: name of the current mode, should be in modes
-    // param modes: All possible modes
-    // param onNewMode: function that is called when the mode changes, and given the new mode name
+    // param curr: name of the current mode, should be in modes
+    // param modes: dictionary holding Handle objects
+    // param onNewMode: function that is called when the mode changes, and given the new Handle
     // returns: the return value of UI::EndCombo, or false if no combo
-    shared bool Strings(
+    shared bool HandleStrs(
         const string &in label,
-        const string &in currentMode,
-        const array<string>@ const modes,
-        OnNewModeName@ const onNewMode)
+        const HandleStr@ const curr,
+        const dictionary@ const modes,
+        OnNewMode@ const onNewMode)
     {
-        if (UI::BeginCombo(label, currentMode))
+        if (UI::BeginCombo(label, string(curr)))
         {
-            for (uint i = 0; i < modes.Length; i++)
+            const array<string>@ const keys = modes.GetKeys();
+            for (uint i = 0; i < keys.Length; i++)
             {
-                const string newMode = modes[i];
-                if (UI::Selectable(newMode, currentMode == newMode))
+                const string key = keys[i];
+                Handle@ const handle = CastToHandle(modes[key]);
+                if (UI::Selectable(key, handle is curr))
                 {
-                    onNewMode(newMode);
+                    onNewMode(handle);
                 }
             }
 
