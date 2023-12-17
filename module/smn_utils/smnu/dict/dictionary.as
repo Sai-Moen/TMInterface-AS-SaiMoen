@@ -1,4 +1,4 @@
-namespace smnu::Dict
+namespace smnu::dict
 {
     // Called on each iteration with the dictionaryValue from the key
     shared funcdef void Iter(dictionaryValue&);

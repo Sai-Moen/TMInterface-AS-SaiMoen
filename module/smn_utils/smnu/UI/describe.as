@@ -29,8 +29,8 @@ namespace smnu::UI
     // param label: text that appears at the top of the tooltip
     // param modes: array of describable objects
     // param dm: callback to describe a mode
-    // returns: return value of UI::EndTooltip
-    shared bool DescribeModes(const string &in label, const array<Describable@>@ const modes, const DescribeMode@ const dm)
+    // returns: the return value of UI::EndTooltip, or false if no tooltip
+    shared bool DescribeModes(const string &in label, const array<Describable@>@ const modes, DescribeMode@ const dm)
     {
         if (UI::BeginTooltip())
         {
@@ -63,8 +63,8 @@ namespace smnu::UI
     // param label: text that appears at the top of the tooltip
     // param map: dictionary of describable objects
     // param dm: callback to describe a mode
-    // returns: return value of UI::EndTooltip
-    shared bool DescribeModes(const string &in label, const dictionary@ const map, const DescribeMode@ const dm)
+    // returns: the return value of UI::EndTooltip, or false if no tooltip
+    shared bool DescribeModes(const string &in label, const dictionary@ const map, DescribeMode@ const dm)
     {
         array<Describable@>@ const descs = array<Describable@>(map.GetSize());
 

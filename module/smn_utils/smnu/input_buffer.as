@@ -1,4 +1,4 @@
-namespace smnu::IB
+namespace smnu
 {
     // Makes InputCommand based on the three required parameters
     // param timestamp: time of the input
@@ -32,7 +32,7 @@ namespace smnu::IB
         const InputType type,
         bool& current)
     {
-        const bool new = GetLast(buffer, time, type, current);
+        const bool new = BufferGetLast(buffer, time, type, current);
         const bool old = current;
         current = new;
         return new != old;
@@ -44,7 +44,7 @@ namespace smnu::IB
         const InputType type,
         int& current)
     {
-        const int new = GetLast(buffer, time, type, current);
+        const int new = BufferGetLast(buffer, time, type, current);
         const int old = current;
         current = new;
         return new != old;
@@ -56,13 +56,13 @@ namespace smnu::IB
     // param type: type to look for
     // param current: current state of the input, of type T
     // returns: the state of the most up-to-date input, of type T
-    //  shared T GetLast(
+    //  shared T BufferGetLast(
     //      TM::InputEventBuffer@ const buffer,
     //      const ms time,
     //      const InputType type,
     //      const T current);
 
-    shared bool GetLast(
+    shared bool BufferGetLast(
         TM::InputEventBuffer@ const buffer,
         const ms time,
         const InputType type,
@@ -74,7 +74,7 @@ namespace smnu::IB
         return buffer[indices[indices.Length - 1]].Value.Binary;
     }
 
-    shared int GetLast(
+    shared int BufferGetLast(
         TM::InputEventBuffer@ const buffer,
         const ms time,
         const InputType type,
@@ -91,7 +91,7 @@ namespace smnu::IB
     // param start: the starting time
     // param end: the stopping time
     // param type: the type of input to remove
-    shared void RemoveAll(
+    shared void BufferRemoveAll(
         TM::InputEventBuffer@ const buffer,
         const ms start,
         const ms end,
@@ -99,14 +99,14 @@ namespace smnu::IB
     {
         for (ms i = start; i <= end; i += TICK())
         {
-            RemoveIndices(buffer, buffer.Find(i, type));
+            BufferRemoveIndices(buffer, buffer.Find(i, type));
         }
     }
 
     // Removes the given indices from the buffer
     // param buffer: the InputEventBuffer
     // param indices: the indices to remove from buffer
-    shared void RemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ const indices)
+    shared void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ const indices)
     {
         if (indices.IsEmpty()) return;
 

@@ -1,10 +1,10 @@
 namespace smnu
 {
-    shared interface BitVector
+    // Represents the simplest interface of a bit vector
+    shared interface BitVector : HandleStr
     {
-        bool GetBit(const uint index) const;
-        void SetBit(const uint index, const bool value);
-        string ToString() const;
+        bool Get(const uint index) const;
+        void Set(const uint index, const bool value);
     }
 
     // Arbitrary-Length BitVector, based on an array of BitVector32's
@@ -19,7 +19,7 @@ namespace smnu
 
         array<BitVector32> bitsArray;
 
-        bool GetBit(const uint index) const
+        bool Get(const uint index) const
         {
             if (index > Length)
             {
@@ -27,10 +27,10 @@ namespace smnu
             }
 
             const BitVector32 bv = bitsArray[GetArrayIndex(index)];
-            return bv.GetBit(GetRelativeIndex(index));
+            return bv.Get(GetRelativeIndex(index));
         }
 
-        void SetBit(const uint index, const bool value)
+        void Set(const uint index, const bool value)
         {
             if (index > Length)
             {
@@ -38,32 +38,32 @@ namespace smnu
             }
 
             BitVector32@ const bv = bitsArray[GetArrayIndex(index)];
-            bv.SetBit(GetRelativeIndex(index), value);
+            bv.Set(GetRelativeIndex(index), value);
         }
 
         uint Length { get const { return bitsArray.Length * WIDTH; } }
-
-        uint GetRelativeIndex(const uint index) const
-        {
-            return index & 0x1f;
-        }
-
-        uint GetArrayIndex(const uint index) const
-        {
-            return index >> 5;
-        }
 
         void Resize(const uint length)
         {
             bitsArray.Resize(GetArrayIndex(length - 1) + 1);
         }
 
-        string ToString() const
+        protected uint GetRelativeIndex(const uint index) const
+        {
+            return index & 0x1f;
+        }
+
+        protected uint GetArrayIndex(const uint index) const
+        {
+            return index >> 5;
+        }
+
+        string opConv() const
         {
             string builder;
             for (uint i = 0; i < bitsArray.Length; i++)
             {
-                builder += bitsArray[i].ToString() + "\n";
+                builder += bitsArray[i].opConv() + "\n";
             }
             return builder;
         }
@@ -97,31 +97,31 @@ namespace smnu
 
         BitVector@ bits;
 
-        bool GetBit(const uint index) const
+        bool Get(const uint index) const
         {
-            return bits.GetBit(index);
+            return bits.Get(index);
         }
 
-        void SetBit(const uint index, const bool value)
+        void Set(const uint index, const bool value)
         {
-            bits.SetBit(index, value);
+            bits.Set(index, value);
         }
 
-        string ToString() const
+        string opConv() const
         {
-            return bits.ToString();
+            return bits.opConv();
         }
     }
 
     mixin class BitVectorMixin : BitVector
     {
-        bool GetBit(const uint index) const
+        bool Get(const uint index) const
         {
             const auto shift = Shifted(index);
             return bits & shift == shift;
         }
 
-        void SetBit(const uint index, const bool value)
+        void Set(const uint index, const bool value)
         {
             bits = (bits & ~Shifted(index)) | Shifted(index, value);
         }
@@ -131,13 +131,13 @@ namespace smnu
             return b ? 1 : 0;
         }
 
-        string ToString() const
+        string opConv() const
         {
             string builder;
             for (uint i = 0; i < WIDTH; i++)
             {
                 if (i & 3 == 0) builder += " ";
-                builder += FromBool(GetBit(i));
+                builder += FromBool(Get(i));
             }
             return builder;
         }

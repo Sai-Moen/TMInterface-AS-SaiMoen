@@ -1,8 +1,9 @@
-namespace smnu::Array::String
+namespace smnu::arr::str
 {
     // Called on each iteration with the value from an index
     shared funcdef void Iter(string&);
 
+    // See array docs
     shared void ForEach(array<string>@ const a, Iter@ const func)
     {
         const uint len = a.Length;
@@ -15,6 +16,7 @@ namespace smnu::Array::String
     // Called on each iteration with the array and index
     shared funcdef void IterIdx(array<string>@ const, uint);
 
+    // See array docs
     shared void ForEachIdx(array<string>@ const a, IterIdx@ const funci)
     {
         const uint len = a.Length;
@@ -27,6 +29,7 @@ namespace smnu::Array::String
     // Same as IterIdx, but also returns a value
     shared funcdef string IterIdxVal(array<string>@ const, uint);
 
+    // See array docs
     shared array<string>@ ForEachIdxArr(array<string>@ const a, IterIdxVal@ const funcival)
     {
         const uint len = a.Length;
