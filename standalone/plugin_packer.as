@@ -63,3 +63,18 @@ void LogHelp()
     log(HELP + "   - log this message");
     log(TOGGLE + " - toggle the editor");
 }
+
+void Render()
+{
+    if (!enabled) return;
+
+    if (UI::Begin(NAME))
+    {
+        Window();
+    }
+    UI::End();
+}
+
+void Window()
+{
+}
