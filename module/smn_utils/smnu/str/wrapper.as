@@ -1,18 +1,18 @@
 namespace smnu::str
 {
     // Minimal implementation of string wrappers
-    mixin class Base
+    mixin class BaseWrapper
     {
         protected string content;
 
         string opConv() const
         {
-            return Content; // property
+            return content; // property
         }
     }
 
     // Wraps a string to allow for handles to be passed around
-    shared class Wrapper : Base, HandleStr
+    shared class Wrapper : BaseWrapper, HandleStr
     {
         Wrapper() { }
 
@@ -29,11 +29,11 @@ namespace smnu::str
     }
 
     // Like Wrapper, but cannot be modified
-    shared class Frozen : Base, HandleStr
+    shared class FrozenWrapper : BaseWrapper, HandleStr
     {
-        Frozen() { }
+        FrozenWrapper() { }
 
-        Frozen(const string &in s)
+        FrozenWrapper(const string &in s)
         {
             content = s;
         }

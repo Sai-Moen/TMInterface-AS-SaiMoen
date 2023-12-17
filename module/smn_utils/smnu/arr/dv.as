@@ -3,7 +3,7 @@ namespace smnu::arr::DV
     // Called on each iteration with the value from an index
     shared funcdef void Iter(dictionaryValue&);
 
-    // See array docs
+    // See handle.as
     shared void ForEach(array<dictionaryValue>@ const a, Iter@ const func)
     {
         const uint len = a.Length;
@@ -16,7 +16,7 @@ namespace smnu::arr::DV
     // Called on each iteration with the array and index
     shared funcdef void IterIdx(array<dictionaryValue>@ const, uint);
 
-    // See array docs
+    // See handle.as
     shared void ForEachIdx(array<dictionaryValue>@ const a, IterIdx@ const funci)
     {
         const uint len = a.Length;
@@ -29,7 +29,7 @@ namespace smnu::arr::DV
     // Same as IterIdx, but also returns a value
     shared funcdef dictionaryValue IterIdxVal(array<dictionaryValue>@ const, uint);
 
-    // See array docs
+    // See handle.as
     shared array<dictionaryValue>@ ForEachIdxArr(array<dictionaryValue>@ const a, IterIdxVal@ const funcival)
     {
         const uint len = a.Length;
