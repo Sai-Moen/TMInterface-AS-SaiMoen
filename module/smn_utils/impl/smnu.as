@@ -1,5 +1,9 @@
 namespace smnu
 {
+    // Implement this to gain access to a special set of API's
+    // These API's pass around handles and can check for identity
+    shared interface Handle { }
+
     // Throws an exception and prints the given message
     // It is recommended to catch the exception somewhere
     // param exception: error message to log
@@ -10,7 +14,7 @@ namespace smnu
         {
             log(exception, Severity::Error);
         }
-        const uint throw = len / (len ^ len);
+        const uint throw = len / (len ^ len); // fancy
     }
 
     // Stringifies the given primitive, of type T

@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "Calculator";
     info.Description = "Can calculate expressions and deal with time";
-    info.Version = "v2.0.0.1";
+    info.Version = "v2.0.1.0";
     return info;
 }
 
@@ -20,21 +20,13 @@ typedef double number;
 funcdef number FuncFromText(const string &in text);
 const FuncFromText@ FromText;
 
-void OnExpression(
-    int fromTime,
-    int toTime,
-    const string &in commandLine,
-    const array<string> &in args)
+void OnExpression(int, int, const string &in, const array<string> &in args)
 {
     @FromText = function(text) { return Text::ParseFloat(text); };
     log("expr = " + Calculate(args));
 }
 
-void OnTime(
-    int fromTime,
-    int toTime,
-    const string &in commandLine,
-    const array<string> &in args)
+void OnTime(int, int, const string &in, const array<string> &in args)
 {
     @FromText = function(text) { return number(Time::Parse(text)); };
     log("time = " + Time::FormatPrecise(Calculate(args) / 1000));
@@ -340,7 +332,7 @@ void Tokenize(const array<string> &in args)
         for (uint j = 0; j < params.Length; j++)
         {
             const string param = params[j];
-            if (param != "")
+            if (!param.IsEmpty())
             {
                 FindToken(param);
             }

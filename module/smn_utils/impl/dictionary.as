@@ -3,7 +3,7 @@ namespace smnu::Dict
     // Called on each iteration with the dictionaryValue from the key
     shared funcdef void Iter(dictionaryValue&);
 
-    shared void ForEach(dictionary@ const d, const Iter@ const func)
+    shared void ForEach(dictionary@ const d, Iter@ const func)
     {
         const array<string>@ const keys = d.GetKeys();
         for (uint i = 0; i < keys.Length; i++)
@@ -15,7 +15,7 @@ namespace smnu::Dict
     // Called on each iteration with the dictionary and key
     shared funcdef void IterKey(dictionary@ const, const string &in);
 
-    shared void ForEachKey(dictionary@ const d, const IterKey@ const funci)
+    shared void ForEachKey(dictionary@ const d, IterKey@ const funci)
     {
         const array<string>@ const keys = d.GetKeys();
         for (uint i = 0; i < keys.Length; i++)
@@ -27,7 +27,7 @@ namespace smnu::Dict
     // Same as IterKey, but also returns a value
     shared funcdef dictionaryValue IterKeyVal(dictionary@ const, const string &in);
 
-    shared array<dictionaryValue>@ ForEachKeyArr(dictionary@ const d, const IterKeyVal@ const funcival)
+    shared array<dictionaryValue>@ ForEachKeyArr(dictionary@ const d, IterKeyVal@ const funcival)
     {
         array<dictionaryValue> values(d.GetSize());
 
@@ -40,7 +40,7 @@ namespace smnu::Dict
         return values;
     }
 
-    shared dictionary@ ForEachKeyDict(dictionary@ const d, const IterKeyVal@ const funcival)
+    shared dictionary@ ForEachKeyDict(dictionary@ const d, IterKeyVal@ const funcival)
     {
         dictionary values;
 
