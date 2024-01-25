@@ -1,13 +1,18 @@
 namespace smnu
 {
-    // Represents the simplest interface of a bit vector
+    /**
+    * An interface shared by all {BitVector}s.
+    */
     shared interface BitVector : HandleStr
     {
         bool Get(const uint index) const;
         void Set(const uint index, const bool value);
     }
 
-    // Arbitrary-Length BitVector, based on an array of BitVector32's
+    /**
+    * A dynamically allocated {BitVector}.
+    * Backed by {BitVector32}.
+    */
     shared class BitVectorDynamic : BitVector
     {
         const uint WIDTH { get const { return 0x20; } }
@@ -69,6 +74,9 @@ namespace smnu
         }
     }
 
+    /**
+    * A static {BitVector} that picks an underlying data structure based on the given size.
+    */
     shared class BitVectorStatic : BitVector
     {
         BitVectorStatic(const uint size)
@@ -113,6 +121,7 @@ namespace smnu
         }
     }
 
+    // common fixed-size elements captured in here
     mixin class BitVectorMixin : BitVector
     {
         bool Get(const uint index) const
@@ -143,6 +152,9 @@ namespace smnu
         }
     }
 
+    /**
+    * 8-bit {BitVector}.
+    */
     shared class BitVector8 : BitVectorMixin
     {
         const uint WIDTH { get const { return 0x8; } }
@@ -160,6 +172,9 @@ namespace smnu
         }
     }
 
+    /**
+    * 16-bit {BitVector}.
+    */
     shared class BitVector16 : BitVectorMixin
     {
         const uint WIDTH { get const { return 0x10; } }
@@ -177,6 +192,9 @@ namespace smnu
         }
     }
 
+    /**
+    * 32-bit {BitVector}.
+    */
     shared class BitVector32 : BitVectorMixin
     {
         const uint WIDTH { get const { return 0x20; } }
@@ -194,6 +212,9 @@ namespace smnu
         }
     }
 
+    /**
+    * 64-bit {BitVector}.
+    */
     shared class BitVector64 : BitVectorMixin
     {
         const uint WIDTH { get const { return 0x40; } }

@@ -1,9 +1,17 @@
+// namespace vandalism
+
 namespace smnu::str
 {
-    // Stringifies the given parameter, of type T
-    // param q: to stringify
-    // returns: stringified parameter
-    //  shared string ingify(const T q);
+    // why only uint, int, uint64, int64 and not the smaller ones?
+    // given that the implicit width types (uint, int) (32 bits) are supposedly the fastest,
+    // allow smaller ints to promote, and only explicitly handle bigger widths (uint64, int64).
+
+    /**
+    * Stringifies the given parameter, of type |T|.
+    * @param q: to stringify
+    * @return: stringified parameter
+    * @poly: shared string ingify(const T q);
+    */
 
     shared string ingify(const bool b)    { const string s = b; return s; }
     shared string ingify(const uint u)    { const string s = u; return s; }

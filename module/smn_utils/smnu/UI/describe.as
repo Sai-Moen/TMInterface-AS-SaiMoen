@@ -1,35 +1,48 @@
 namespace smnu::UI
 {
-    // Makes object describable
-    // prop Name: name of the object
-    // prop Description: describes the object
+    /**
+    * Makes object describable.
+    * @prop Name: name of the object
+    * @prop Description: description of the object
+    */
     shared interface Describable
     {
         string Name { get const; }
         string Description { get const; }
     }
 
-    // Determines how to describe a Describable object
+    /**
+    * Determines how to describe a {Describable} object.
+    */
     shared funcdef void DescribeMode(const Describable@ const);
 
-    // Creates a text widget that describes the given mode
-    // param desc: Describable object
+    /**
+    * Creates a text widget that describes the given mode.
+    * @param desc: {Describable} object
+    */
     shared void DefaultDescribeMode(const Describable@ const desc)
     {
         UI::Text(desc.Name + " - " + desc.Description);
     }
 
-    // See full function
+    /**
+    * Draws a tooltip describing the modes with the default callback.
+    * @param label: text that appears at the top of the tooltip
+    * @param modes: {array} of describable objects
+    * @ret: the return value of UI::EndTooltip, or false if no tooltip
+    */
     shared bool DescribeModes(const string &in label, const array<Describable@>@ const modes)
     {
         return DescribeModes(label, modes, DefaultDescribeMode);
     }
 
-    // Draws a tooltip describing the modes
-    // param label: text that appears at the top of the tooltip
-    // param modes: array of describable objects
-    // param dm: callback to describe a mode
-    // returns: the return value of UI::EndTooltip, or false if no tooltip
+    /**
+    * Draws a tooltip describing the modes.
+    * @param label: text that appears at the top of the tooltip
+    * @param modes: {array} of describable objects
+    * @param dm: callback to describe a mode
+    * @ret: the return value of UI::EndTooltip, or false if no tooltip
+    */
     shared bool DescribeModes(const string &in label, const array<Describable@>@ const modes, DescribeMode@ const dm)
     {
         if (UI::BeginTooltip())
@@ -53,17 +66,24 @@ namespace smnu::UI
         return false;
     }
 
-    // See full function
+    /**
+    * Draws a tooltip describing the modes of the {dictionary} with the default callback.
+    * @param label: text that appears at the top of the tooltip
+    * @param map: {dictionary} of describable objects
+    * @ret: the return value of UI::EndTooltip, or false if no tooltip
+    */
     shared bool DescribeModes(const string &in label, const dictionary@ const map)
     {
         return DescribeModes(label, map, DefaultDescribeMode);
     }
 
-    // Draws a tooltip describing the modes of the dictionary
-    // param label: text that appears at the top of the tooltip
-    // param map: dictionary of describable objects
-    // param dm: callback to describe a mode
-    // returns: the return value of UI::EndTooltip, or false if no tooltip
+    /**
+    * Draws a tooltip describing the modes of the {dictionary}.
+    * @param label: text that appears at the top of the tooltip
+    * @param map: {dictionary} of describable objects
+    * @param dm: callback to describe a mode
+    * @ret: the return value of UI::EndTooltip, or false if no tooltip
+    */
     shared bool DescribeModes(const string &in label, const dictionary@ const map, DescribeMode@ const dm)
     {
         array<Describable@>@ const descs = array<Describable@>(map.GetSize());

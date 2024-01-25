@@ -1,6 +1,8 @@
 namespace smnu::dict::DV
 {
-    // Called on each iteration with the dictionaryValue from the key
+    /**
+    * Called on each iteration with the {dictionaryValue} from the key.
+    */
     shared funcdef void Iter(dictionaryValue&);
 
     // See handle.as
@@ -13,7 +15,9 @@ namespace smnu::dict::DV
         }
     }
 
-    // Same as IterKey, but also returns a value
+    /**
+    * Same as {IterKey}, but also returns a value.
+    */
     shared funcdef dictionaryValue IterKeyVal(dictionary@ const, const string &in);
 
     // See handle.as

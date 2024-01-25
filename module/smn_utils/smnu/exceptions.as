@@ -1,8 +1,10 @@
 namespace smnu
 {
-    // Throws an exception and prints the given message
-    // It is recommended to catch the exception somewhere
-    // param exception: error message to log
+    /**
+    * Throws an exception and logs the given error message.
+    * It is recommended to catch the exception somewhere.
+    * @param exception: error message to log
+    */
     shared void Throw(const string &in exception)
     {
         const uint len = exception.Length;

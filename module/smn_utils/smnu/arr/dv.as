@@ -1,6 +1,8 @@
 namespace smnu::arr::DV
 {
-    // Called on each iteration with the value from an index
+    /**
+    * Called on each iteration with the value from an index.
+    */
     shared funcdef void Iter(dictionaryValue&);
 
     // See handle.as
@@ -13,7 +15,9 @@ namespace smnu::arr::DV
         }
     }
 
-    // Called on each iteration with the array and index
+    /**
+    * Called on each iteration with the array and index.
+    */
     shared funcdef void IterIdx(array<dictionaryValue>@ const, uint);
 
     // See handle.as
@@ -26,7 +30,9 @@ namespace smnu::arr::DV
         }
     }
 
-    // Same as IterIdx, but also returns a value
+    /**
+    * Same as {IterIdx}, but also returns a value.
+    */
     shared funcdef dictionaryValue IterIdxVal(array<dictionaryValue>@ const, uint);
 
     // See handle.as

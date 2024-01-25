@@ -1,6 +1,8 @@
 namespace smnu::str
 {
-    // Minimal implementation of string wrappers
+    /**
+    * Minimal implementation of string wrappers.
+    */
     mixin class BaseWrapper
     {
         protected string content;
@@ -11,7 +13,9 @@ namespace smnu::str
         }
     }
 
-    // Wraps a string to allow for handles to be passed around
+    /**
+    * Wraps a string to allow for handles to be passed around.
+    */
     shared class Wrapper : BaseWrapper, HandleStr
     {
         Wrapper() { }
@@ -28,7 +32,9 @@ namespace smnu::str
         }
     }
 
-    // Like Wrapper, but cannot be modified
+    /**
+    * Like {Wrapper}, but cannot be modified.
+    */
     shared class FrozenWrapper : BaseWrapper, HandleStr
     {
         FrozenWrapper() { }

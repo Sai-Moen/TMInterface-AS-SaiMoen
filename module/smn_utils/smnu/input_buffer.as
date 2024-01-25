@@ -1,10 +1,12 @@
 namespace smnu
 {
-    // Makes InputCommand based on the three required parameters
-    // param timestamp: time of the input
-    // param type: type of the input (see api/global/InputType)
-    // param state: state of the input
-    // returns: a new InputCommand
+    /**
+    * Makes InputCommand based on the three required parameters.
+    * @param timestamp: time of the input
+    * @param type: type of the input (see api/global/InputType)
+    * @param state: state of the input
+    * @ret: a new InputCommand
+    */
     shared InputCommand MakeInputCommand(const ms timestamp, const InputType type, const int state)
     {
         InputCommand cmd;
@@ -14,17 +16,19 @@ namespace smnu
         return cmd;
     }
 
-    // Checks if the previous input differs from the current one
-    // param buffer: the InputEventBuffer
-    // param time: time to look for
-    // param type: type to look for
-    // param current: current state of the input, of type T
-    // returns: whether the previous input was different from the current one
-    //  shared bool DiffPreviousInput(
-    //      TM::InputEventBuffer@ const buffer,
-    //      const ms time,
-    //      const InputType type,
-    //      T& current);
+    /**
+    * Checks if the previous input differs from the current one.
+    * @param buffer: the InputEventBuffer
+    * @param time: time to look for
+    * @param type: type to look for
+    * @param current: current state of the input, of type |T|
+    * @ret: whether the previous input was different from the current one
+    * @poly: shared bool DiffPreviousInput(
+    *            TM::InputEventBuffer@ const buffer,
+    *            const ms time,
+    *            const InputType type,
+    *            T& current);
+    */
 
     shared bool DiffPreviousInput(
         TM::InputEventBuffer@ const buffer,
@@ -50,17 +54,19 @@ namespace smnu
         return new != old;
     }
 
-    // Gets the state of the last input, or the current one if there is no new input
-    // param buffer: the InputEventBuffer
-    // param time: time to look for
-    // param type: type to look for
-    // param current: current state of the input, of type T
-    // returns: the state of the most up-to-date input, of type T
-    //  shared T BufferGetLast(
-    //      TM::InputEventBuffer@ const buffer,
-    //      const ms time,
-    //      const InputType type,
-    //      const T current);
+    /**
+    * Gets the state of the last input, or the current one if there is no new input.
+    * @param buffer: the InputEventBuffer
+    * @param time: time to look for
+    * @param type: type to look for
+    * @param current: current state of the input, of type |T|
+    * @ret: the state of the most up-to-date input, of type |T|
+    * @poly: shared T BufferGetLast(
+    *            TM::InputEventBuffer@ const buffer,
+    *            const ms time,
+    *            const InputType type,
+    *            const T current);
+    */
 
     shared bool BufferGetLast(
         TM::InputEventBuffer@ const buffer,
@@ -86,11 +92,13 @@ namespace smnu
         return buffer[indices[indices.Length - 1]].Value.Analog;
     }
 
-    // Removes all inputs of a certain type in the range [start, end]
-    // param buffer: the InputEventBuffer
-    // param start: the starting time
-    // param end: the stopping time
-    // param type: the type of input to remove
+    /**
+    * Removes all inputs of a certain type in the range [start, end].
+    * @param buffer: the InputEventBuffer
+    * @param start: the starting time
+    * @param end: the stopping time
+    * @param type: the type of input to remove
+    */
     shared void BufferRemoveAll(
         TM::InputEventBuffer@ const buffer,
         const ms start,
@@ -103,9 +111,11 @@ namespace smnu
         }
     }
 
-    // Removes the given indices from the buffer
-    // param buffer: the InputEventBuffer
-    // param indices: the indices to remove from buffer
+    /**
+    * Removes the given indices from the buffer.
+    * @param buffer: the InputEventBuffer
+    * @param indices: the indices to remove from buffer
+    */
     shared void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ const indices)
     {
         if (indices.IsEmpty()) return;

@@ -1,12 +1,16 @@
 namespace smnu::dict
 {
-    // Called on each iteration with the Handle from the key
+    /**
+    * Called on each iteration with the {Handle} from the key.
+    */
     shared funcdef void Iter(Handle@);
 
-    // Executes a function for each value in the dictionary
-    // param d: dictionary to get values from
-    // param func: function to call on each value
-    //  shared void ForEach(dictionary@ const, Iter@ const);
+    /**
+    * Executes a function for each value in the {dictionary}.
+    * @param d: dictionary to get values from
+    * @param func: function to call on each value
+    * @poly: shared void ForEach(dictionary@ const, Iter@ const);
+    */
 
     shared void ForEach(dictionary@ const d, Iter@ const func)
     {
@@ -17,14 +21,18 @@ namespace smnu::dict
         }
     }
 
-    // Same as IterKey, but also returns a value
+    /**
+    * Same as {IterKey}, but also returns a value.
+    */
     shared funcdef Handle@ IterKeyVal(dictionary@ const, const string &in);
 
-    // Creates an array of the results of each IterKeyVal call
-    // param d: dictionary to use
-    // param funcival: function to call on each key
-    // returns: array of resulting Handles
-    //  shared array<T>@ ForEachKeyArr(dictionary@ const, IterKeyVal@ const);
+    /**
+    * Creates an array of the results of each IterKeyVal call.
+    * @param d: dictionary to use
+    * @param funcival: function to call on each key
+    * @ret: array of resulting Handles
+    * @poly: shared array<T>@ ForEachKeyArr(dictionary@ const, IterKeyVal@ const);
+    */
 
     shared array<Handle@>@ ForEachKeyArr(dictionary@ const d, IterKeyVal@ const funcival)
     {
@@ -39,11 +47,13 @@ namespace smnu::dict
         return values;
     }
 
-    // Creates a dictionary of the results of each IterKeyVal call
-    // param d: dictionary to use
-    // param funcival: function to call on each key
-    // returns: dictionary of results
-    //  shared dictionary@ ForEachKeyDict(dictionary@ const, IterKeyVal@ const);
+    /**
+    * Creates a dictionary of the results of each IterKeyVal call.
+    * @param d: dictionary to use
+    * @param funcival: function to call on each key
+    * @ret: dictionary of results
+    * @poly: shared dictionary@ ForEachKeyDict(dictionary@ const, IterKeyVal@ const);
+    */
 
     shared dictionary@ ForEachKeyDict(dictionary@ const d, IterKeyVal@ const funcival)
     {
