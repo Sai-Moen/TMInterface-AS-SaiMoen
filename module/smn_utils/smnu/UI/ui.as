@@ -1,9 +1,19 @@
 namespace smnu::UI
 {
     /**
+    * Callback that gives the {Handle} of the selected mode.
+    */
+    shared funcdef void OnMode(Handle@ const);
+
+    /**
     * Callback that gives the {Handle} of the new mode.
     */
     shared funcdef void OnNewMode(Handle@ const);
+
+    /**
+    * Callback that gives the name of the selected mode as a {string}.
+    */
+    shared funcdef void OnModeName(const string &in);
 
     /**
     * Callback that gives the name of the new mode as a {string}.

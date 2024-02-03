@@ -14,6 +14,7 @@ namespace smnu::UI::Combo
         const array<string>@ const modes,
         OnNewModeName@ const onNewMode)
     {
+        bool value;
         if (UI::BeginCombo(label, currentMode))
         {
             for (uint i = 0; i < modes.Length; i++)
@@ -25,10 +26,9 @@ namespace smnu::UI::Combo
                 }
             }
 
-            return UI::EndCombo();
+            value = UI::EndCombo();
         }
-
-        return false;
+        return value;
     }
 
     /**

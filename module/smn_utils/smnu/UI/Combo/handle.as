@@ -14,6 +14,7 @@ namespace smnu::UI::Combo
         const dictionary@ const modes,
         OnNewMode@ const onNewMode)
     {
+        bool value;
         if (UI::BeginCombo(label, currentMode))
         {
             Handle@ const curr = CastToHandle(modes[currentMode]);
@@ -29,10 +30,9 @@ namespace smnu::UI::Combo
                 }
             }
 
-            return UI::EndCombo();
+            value = UI::EndCombo();
         }
-
-        return false;
+        return value;
     }
 
     /**
@@ -49,6 +49,7 @@ namespace smnu::UI::Combo
         const dictionary@ const modes,
         OnNewMode@ const onNewMode)
     {
+        bool value;
         if (UI::BeginCombo(label, string(curr)))
         {
             const array<string>@ const keys = modes.GetKeys();
@@ -62,9 +63,8 @@ namespace smnu::UI::Combo
                 }
             }
 
-            return UI::EndCombo();
+            value = UI::EndCombo();
         }
-
-        return false;
+        return value;
     }
 }

@@ -4,13 +4,10 @@ namespace smnu::UI::TabBar
     * Draws a UI::TabBar based on the given {Handle}s.
     * @param label: label of the TabBar
     * @param modes: dictionary holding {Handle} objects
-    * @param onNewMode: function that is called when the mode is selected, and given the corresponding {Handle}
+    * @param onMode: function that is called when the mode is selected, and given the corresponding {Handle}
     * @ret: whether the TabBar was drawn
     */
-    shared bool Handles(
-        const string &in label,
-        const dictionary@ const modes,
-        OnNewMode@ const onNewMode)
+    shared bool Handles(const string &in label, const dictionary@ const modes, OnMode@ const onMode)
     {
         if (UI::BeginTabBar(label))
         {
@@ -20,7 +17,7 @@ namespace smnu::UI::TabBar
                 const string key = keys[i];
                 if (UI::BeginTabItem(key))
                 {
-                    onNewMode(CastToHandle(modes[key]));
+                    onMode(CastToHandle(modes[key]));
                     UI::EndTabItem();
                 }
             }
@@ -36,13 +33,10 @@ namespace smnu::UI::TabBar
     * Draws a UI::TabBar based on the given array of {HandleStr}s.
     * @param label: label of the TabBar
     * @param modes: array of {HandleStr}s
-    * @param onNewMode: function that is called when the mode is selected, and given the corresponding {Handle}
+    * @param onMode: function that is called when the mode is selected, and given the corresponding {Handle}
     * @ret: whether the TabBar was drawn
     */
-    shared bool HandleStrs(
-        const string &in label,
-        const array<HandleStr@>@ const modes,
-        OnNewMode@ const onNewMode)
+    shared bool HandleStrs(const string &in label, const array<HandleStr@>@ const modes, OnMode@ const onMode)
     {
         if (UI::BeginTabBar(label))
         {
@@ -51,7 +45,7 @@ namespace smnu::UI::TabBar
                 HandleStr@ const handle = modes[i];
                 if (UI::BeginTabItem(string(handle)))
                 {
-                    onNewMode(handle);
+                    onMode(handle);
                     UI::EndTabItem();
                 }
             }
