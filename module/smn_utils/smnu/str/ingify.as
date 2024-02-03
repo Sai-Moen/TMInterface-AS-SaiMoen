@@ -9,7 +9,7 @@ namespace smnu::str
     /**
     * Stringifies the given parameter, of type |T|.
     * @param q: to stringify
-    * @return: stringified parameter
+    * @ret: stringified parameter
     * @poly: shared string ingify(const T q);
     */
 

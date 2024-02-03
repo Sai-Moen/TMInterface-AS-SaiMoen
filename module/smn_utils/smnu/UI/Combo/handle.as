@@ -38,7 +38,7 @@ namespace smnu::UI::Combo
     /**
     * Draws a UI::Combo based on the given {HandleStr}s.
     * @param label: label of the Combo
-    * @param curr: name of the current mode, should be in |modes|
+    * @param curr: current mode, can be converted to string representation for the Combo
     * @param modes: dictionary holding {Handle} objects
     * @param onNewMode: function that is called when the mode changes, and given the new {Handle}
     * @ret: the return value of UI::EndCombo, or false if no combo
