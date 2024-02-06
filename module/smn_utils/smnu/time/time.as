@@ -1,5 +1,5 @@
-namespace smnu::time
-{   
+namespace smnu::Time
+{
     typedef int ms;
 
     /**
@@ -29,5 +29,17 @@ namespace smnu::time
     shared uint GetTickDiff(const ms start, const ms end)
     {
         return (end - start) / TICK();
+    }
+
+    /**
+    * Tries to parse the given time, outputs |value|.
+    * @param raceTime: Race Time as a {string}
+    * @param &out value: Race Time as an {int}
+    * @ret: whether |value| contains a valid time
+    */
+    shared bool TryParse(const string &in raceTime, int &out value)
+    {
+        value = Time::Parse(raceTime);
+        return value != -1;
     }
 }

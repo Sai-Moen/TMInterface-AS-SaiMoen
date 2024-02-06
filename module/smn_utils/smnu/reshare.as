@@ -6,6 +6,6 @@ namespace smnu
 
     shared const ms TICK()
     {
-        return time::TICK();
+        return Time::TICK();
     }
 }

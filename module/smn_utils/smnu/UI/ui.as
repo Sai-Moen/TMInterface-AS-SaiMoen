@@ -1,6 +1,11 @@
 namespace smnu::UI
 {
     /**
+    * Callback that will draw the UI inside a window.
+    */
+    shared funcdef void Window();
+
+    /**
     * Callback that gives the {Handle} of the selected mode.
     */
     shared funcdef void OnMode(Handle@ const);

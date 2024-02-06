@@ -9,7 +9,8 @@ namespace smnu::UI::TabBar
     */
     shared bool Handles(const string &in label, const dictionary@ const modes, OnMode@ const onMode)
     {
-        if (UI::BeginTabBar(label))
+        const bool value = UI::BeginTabBar(label);
+        if (value)
         {
             const array<string>@ const keys = modes.GetKeys();
             for (uint i = 0; i < keys.Length; i++)
@@ -23,10 +24,8 @@ namespace smnu::UI::TabBar
             }
 
             UI::EndTabBar();
-            return true;
         }
-
-        return false;
+        return value;
     }
 
     /**
@@ -38,7 +37,8 @@ namespace smnu::UI::TabBar
     */
     shared bool HandleStrs(const string &in label, const array<HandleStr@>@ const modes, OnMode@ const onMode)
     {
-        if (UI::BeginTabBar(label))
+        const bool value = UI::BeginTabBar(label);
+        if (value)
         {
             for (uint i = 0; i < modes.Length; i++)
             {
@@ -51,9 +51,7 @@ namespace smnu::UI::TabBar
             }
 
             UI::EndTabBar();
-            return true;
         }
-
-        return false;
+        return value;
     }
 }
