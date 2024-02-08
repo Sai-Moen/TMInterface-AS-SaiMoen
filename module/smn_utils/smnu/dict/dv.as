@@ -18,7 +18,7 @@ namespace smnu::dict::DV
     /**
     * Same as {IterKey}, but also returns a value.
     */
-    shared funcdef dictionaryValue IterKeyVal(dictionary@ const, const string &in);
+    shared funcdef dictionaryValue IterKeyVal(dictionary@, const string &in);
 
     // See handle.as
     shared array<dictionaryValue>@ ForEachKeyArr(dictionary@ const d, IterKeyVal@ const funcival)

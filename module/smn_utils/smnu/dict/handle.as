@@ -24,7 +24,7 @@ namespace smnu::dict
     /**
     * Same as {IterKey}, but also returns a value.
     */
-    shared funcdef Handle@ IterKeyVal(dictionary@ const, const string &in);
+    shared funcdef Handle@ IterKeyVal(dictionary@, const string &in);
 
     /**
     * Creates an array of the results of each IterKeyVal call.

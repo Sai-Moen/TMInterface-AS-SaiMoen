@@ -18,7 +18,7 @@ namespace smnu::arr::DV
     /**
     * Called on each iteration with the array and index.
     */
-    shared funcdef void IterIdx(array<dictionaryValue>@ const, uint);
+    shared funcdef void IterIdx(array<dictionaryValue>@, uint);
 
     // See handle.as
     shared void ForEachIdx(array<dictionaryValue>@ const a, IterIdx@ const funci)
@@ -33,7 +33,7 @@ namespace smnu::arr::DV
     /**
     * Same as {IterIdx}, but also returns a value.
     */
-    shared funcdef dictionaryValue IterIdxVal(array<dictionaryValue>@ const, uint);
+    shared funcdef dictionaryValue IterIdxVal(array<dictionaryValue>@, uint);
 
     // See handle.as
     shared array<dictionaryValue>@ ForEachIdxArr(array<dictionaryValue>@ const a, IterIdxVal@ const funcival)

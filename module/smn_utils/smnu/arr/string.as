@@ -1,6 +1,8 @@
 namespace smnu::arr::str
 {
-    // Called on each iteration with the value from an index
+    /**
+    * Called on each iteration with the value from an index.
+    */
     shared funcdef void Iter(string&);
 
     // See handle.as
@@ -13,8 +15,10 @@ namespace smnu::arr::str
         }
     }
 
-    // Called on each iteration with the array and index
-    shared funcdef void IterIdx(array<string>@ const, uint);
+    /**
+    * Called on each iteration with the array and index.
+    */
+    shared funcdef void IterIdx(array<string>@, uint);
 
     // See handle.as
     shared void ForEachIdx(array<string>@ const a, IterIdx@ const funci)
@@ -26,8 +30,10 @@ namespace smnu::arr::str
         }
     }
 
-    // Same as IterIdx, but also returns a value
-    shared funcdef string IterIdxVal(array<string>@ const, uint);
+    /**
+    * Same as IterIdx, but also returns a value.
+    */
+    shared funcdef string IterIdxVal(array<string>@, uint);
 
     // See handle.as
     shared array<string>@ ForEachIdxArr(array<string>@ const a, IterIdxVal@ const funcival)

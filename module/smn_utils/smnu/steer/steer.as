@@ -1,43 +1,59 @@
 namespace smnu::steer
 {
-    // Amount of possible steering values (131073)
-    shared const int VALUES_AMOUNT()
+    typedef int steeringValue;
+
+    /**
+    * Amount of possible steering values (131073).
+    */
+    shared const steeringValue VALUES_AMOUNT()
     {
         return 0x20001;
     }
 
-    // Full-steer magnitude (65536)
-    shared const int FULL()
+    /**
+    * Full-steer magnitude (65536).
+    */
+    shared const steeringValue FULL()
     {
         return 0x10000;
     }
 
-    // Half-steer magnitude (32768)
-    shared const int HALF()
+    /**
+    * Half-steer magnitude (32768).
+    */
+    shared const steeringValue HALF()
     {
         return FULL() >>> 1;
     }
 
-    // Minimum possible steering value (-65536)
-    shared const int MIN()
+    /**
+    * Minimum possible steering value (-65536).
+    */
+    shared const steeringValue MIN()
     {
         return -FULL();
     }
 
-    // Maximum possible steering value (65536)
-    shared const int MAX()
+    /**
+    * Maximum possible steering value (65536).
+    */
+    shared const steeringValue MAX()
     {
         return FULL();
     }
 
-    // Convert from float [-1, 1] to int [-65536, 65536]
-    shared int FromSmallFloat(const float small)
+    /**
+    * Convert from float [-1, 1] to int [-65536, 65536].
+    */
+    shared steeringValue FromSmallFloat(const float small)
     {
         return int(small * FULL());
     }
 
-    // Clamp int to [-65536, 65536]
-    shared int Clamp(const int steer)
+    /**
+    * Clamp int to [-65536, 65536].
+    */
+    shared steeringValue Clamp(const int steer)
     {
         return Math::Clamp(steer, MIN(), MAX());
     }

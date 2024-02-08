@@ -3,7 +3,7 @@ namespace smnu::dict
     /**
     * Called on each iteration with the {dictionary} and key.
     */
-    shared funcdef void IterKey(dictionary@ const, const string &in);
+    shared funcdef void IterKey(dictionary@, const string &in);
 
     /**
     * Executes a function for each key, giving the {dictionary} and key to the function.
