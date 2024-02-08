@@ -79,31 +79,29 @@ void OnRunStep(SimulationManager@ simManager)
 {
     if (!enabled) return;
 
+    int input;
     InputState state = simManager.GetInputState();
     if (state.Left)
     {
-        RotateInto(-FULLSTEER);
+        input = -FULLSTEER;
     }
     else if (state.Right)
     {
-        RotateInto(FULLSTEER);
+        input = FULLSTEER;
     }
     else
     {
-        RotateInto(0);
+        input = 0;
     }
 
-    simManager.SetInputState(InputType::Steer, DoubleExponentialSmoothing());
-}
-
-void RotateInto(const int input)
-{
     const uint end = SIZE - 1;
     for (uint i = 0; i < end; i++)
     {
         inputs[i] = inputs[i + 1];
     }
     inputs[end] = input;
+
+    simManager.SetInputState(InputType::Steer, DoubleExponentialSmoothing());
 }
 
 // https://en.wikipedia.org/wiki/Exponential_smoothing#Double_exponential_smoothing_(Holt_linear)
