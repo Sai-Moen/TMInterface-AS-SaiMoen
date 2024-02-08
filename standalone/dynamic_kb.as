@@ -162,4 +162,9 @@ double DES_b(const uint index)
     for (uint i = 1; i < index; i++)
     {
         iter *= 1 - SMOOTH_TREND;
-      
+        iter += (DES_s(i) - DES_s(i - 1)) * SMOOTH_TREND;
+    }
+
+    b_state[index] = true;
+    return b_tabulation[index] = iter;
+}
