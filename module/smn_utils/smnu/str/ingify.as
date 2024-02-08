@@ -38,5 +38,5 @@ namespace smnu::str
         return ingify(number);
     }
 
-    shared string ingify(const HandleStr@ const hstr) { return string(hstr); }
+    shared string ingify(const Stringifiable@ const hstr) { return string(hstr); }
 }

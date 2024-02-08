@@ -29,20 +29,20 @@ namespace smnu::UI::TabBar
     }
 
     /**
-    * Draws a UI::TabBar based on the given array of {HandleStr}s.
+    * Draws a UI::TabBar based on the given array of {Stringifiable}s.
     * @param label: label of the TabBar
-    * @param modes: array of {HandleStr}s
+    * @param modes: array of {Stringifiable}s
     * @param onMode: function that is called when the mode is selected, and given the corresponding {Handle}
     * @ret: whether the TabBar was drawn
     */
-    shared bool HandleStrs(const string &in label, const array<HandleStr@>@ const modes, OnMode@ const onMode)
+    shared bool HandleStrs(const string &in label, const array<Stringifiable@>@ const modes, OnMode@ const onMode)
     {
         const bool value = UI::BeginTabBar(label);
         if (value)
         {
             for (uint i = 0; i < modes.Length; i++)
             {
-                HandleStr@ const handle = modes[i];
+                Stringifiable@ const handle = modes[i];
                 if (UI::BeginTabItem(string(handle)))
                 {
                     onMode(handle);

@@ -16,7 +16,7 @@ namespace smnu::str
     /**
     * Wraps a string to allow for handles to be passed around.
     */
-    shared class Wrapper : BaseWrapper, HandleStr
+    shared class Wrapper : BaseWrapper, Stringifiable
     {
         Wrapper() { }
 
@@ -35,7 +35,7 @@ namespace smnu::str
     /**
     * Like {Wrapper}, but cannot be modified.
     */
-    shared class FrozenWrapper : BaseWrapper, HandleStr
+    shared class FrozenWrapper : BaseWrapper, Stringifiable
     {
         FrozenWrapper() { }
 

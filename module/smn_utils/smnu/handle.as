@@ -7,11 +7,19 @@ namespace smnu
     shared interface Handle { }
 
     /**
-    * This is a extended version of the above that can be stringified.
+    * This is an extended version of {Handle} that can be stringified.
     */
-    shared interface HandleStr : Handle
+    shared interface Stringifiable : Handle
     {
         string opConv() const;
+    }
+
+    /**
+    * This is an extended version of {Handle} that can make a hash of itself.
+    */
+    shared interface Hashable : Handle
+    {
+        uint hash() const;
     }
 
     /**
@@ -32,7 +40,7 @@ namespace smnu
     */
     shared bool TryStringifyHandle(const Handle@ const h, string &out s)
     {
-        const auto@ const hstr = cast<const HandleStr@>(h);
+        const auto@ const hstr = cast<const Stringifiable@>(h);
         const bool success = hstr !is null;
         if (success)
         {

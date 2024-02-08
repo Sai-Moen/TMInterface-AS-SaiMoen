@@ -36,7 +36,7 @@ namespace smnu::UI::Combo
     }
 
     /**
-    * Draws a UI::Combo based on the given {HandleStr}s.
+    * Draws a UI::Combo based on the given {Stringifiable}s.
     * @param label: label of the Combo
     * @param curr: current mode, can be converted to string representation for the Combo
     * @param modes: dictionary holding {Handle} objects
@@ -45,7 +45,7 @@ namespace smnu::UI::Combo
     */
     shared bool HandleStrs(
         const string &in label,
-        const HandleStr@ const curr,
+        const Stringifiable@ const curr,
         const dictionary@ const modes,
         OnNewMode@ const onNewMode)
     {

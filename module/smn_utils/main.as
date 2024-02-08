@@ -23,9 +23,9 @@ shared void log(const double d, Severity severity = Severity::Info)  { log(smnu:
 
 // log
 shared void log(const dictionaryValue dv, Severity severity = Severity::Info) { log(smnu::str::ingify(dv), severity); }
-shared void log(const smnu::HandleStr@ const hs, Severity severity = Severity::Info)
+shared void log(const smnu::Stringifiable@ const s, Severity severity = Severity::Info)
 {
-    log(smnu::str::ingify(hs), severity);
+    log(smnu::str::ingify(s), severity);
 }
 
 // print primitive
@@ -39,7 +39,7 @@ shared void print(const double d, Severity severity = Severity::Info)  { print(s
 
 // print
 shared void print(const dictionaryValue dv, Severity severity = Severity::Info) { print(smnu::str::ingify(dv), severity); }
-shared void print(const smnu::HandleStr@ const hs, Severity severity = Severity::Info)
+shared void print(const smnu::Stringifiable@ const s, Severity severity = Severity::Info)
 {
-    print(smnu::str::ingify(hs), severity);
+    print(smnu::str::ingify(s), severity);
 }

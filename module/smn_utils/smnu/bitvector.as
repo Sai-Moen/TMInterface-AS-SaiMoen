@@ -3,7 +3,7 @@ namespace smnu
     /**
     * An interface shared by all {BitVector}s.
     */
-    shared interface BitVector : HandleStr
+    shared interface BitVector : Stringifiable
     {
         bool Get(const uint index) const;
         void Set(const uint index, const bool value);
