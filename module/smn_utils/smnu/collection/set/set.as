@@ -3,19 +3,8 @@ namespace smnu
     /**
     * Represents a mathematical set.
     */
-    shared interface Set : Handle
+    shared interface Set : Collection
     {
-        /**
-        * Whether this {Set} is empty (i.e. has no elements).
-        */
-        bool IsEmpty { get const; }
-
-        /**
-        * The size of this {Set} (i.e. # of elements).
-        */
-        uint Size { get const; }
-
-
         /**
         * Returns if |handle| is in the {Set}.
         * @param handle: the handle
@@ -37,11 +26,5 @@ namespace smnu
         * @ret: whether this operation changed the {Set}
         */
         bool Remove(Handle@ handle);
-
-        /**
-        * Clears the {Set}; removes the reference to each element,
-        * the {Set} does not necessarily become empty, but all remaining elements will be null.
-        */
-        void Clear();
     }
 }
