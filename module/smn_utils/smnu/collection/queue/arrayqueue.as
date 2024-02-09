@@ -9,7 +9,7 @@ namespace smnu::queues
 
         ArrayQueue(const uint init = DEFAULT_SIZE) explicit
         {
-            elements(init);
+            elements = array<Handle@>(init);
         }
 
         protected array<Handle@> elements;
