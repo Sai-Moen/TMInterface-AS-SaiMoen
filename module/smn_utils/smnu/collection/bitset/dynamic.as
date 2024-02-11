@@ -8,9 +8,9 @@ namespace smnu::bitsets
     {
         protected const uint WIDTH { get const { return 0x20; } }
 
-        DynamicBitSet(const uint size = 0) explicit
+        DynamicBitSet(const uint init = 0) explicit
         {
-            Resize(size);
+            Resize(init);
         }
 
         array<BitSet32> bitsArray;

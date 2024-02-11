@@ -3,8 +3,6 @@
 const string ID = "incremental";
 const string NAME = "Incremental";
 
-const string FILENAME = ID + ".txt";
-
 PluginInfo@ GetPluginInfo()
 {
     auto info = PluginInfo();
@@ -442,7 +440,7 @@ void OnSimEndMain(SimulationManager@ simManager, SimulationResult result)
     print("Simulation end", Severity::Success);
 
     Eval::cmdlist.Content += Range::GetBestInputs();
-    if (Eval::cmdlist.Save(FILENAME))
+    if (Eval::cmdlist.Save(GetVariableString("bf_result_filename")))
     {
         log("Inputs saved!", Severity::Success);
     }
