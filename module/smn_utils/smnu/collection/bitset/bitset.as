@@ -14,6 +14,20 @@ namespace smnu
         uint Size { get const; }
 
         /**
+        * Gets the state of the bit at |index|.
+        * @param index: the index of the bit
+        * @ret: true if 1, false if 0
+        */
+        bool get_opIndex(const uint index) const; // implement as property
+
+        /**
+        * Sets the state of the bit at |index|.
+        * @param index: the index of the bit
+        * @param value: the new state of the bit
+        */
+        void set_opIndex(const uint index, const bool value); // implement as property
+
+        /**
         * Creates a (deep) copy of this {BitSet}.
         * @ret: deep copy of this {BitSet}
         */
@@ -28,20 +42,6 @@ namespace smnu
 
 
         /**
-        * Gets the state of the bit at |index|.
-        * @param index: the index of the bit
-        * @ret: true if 1, false if 0
-        */
-        bool Get(const uint index) const;
-
-        /**
-        * Sets the state of the bit at |index|.
-        * @param index: the index of the bit
-        * @param value: the new state of the bit
-        */
-        void Set(const uint index, const bool value);
-
-        /**
         * Resets all bits (& 0, in-place).
         */
         void Reset();
@@ -51,7 +51,6 @@ namespace smnu
         * @param index: the index of the bit
         */
         void Reset(const uint index);
-
 
         /**
         * Flips all bits (^, in-place).

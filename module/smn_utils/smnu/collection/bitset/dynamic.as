@@ -18,31 +18,31 @@ namespace smnu::bitsets
         uint Length { get const { return bitsArray.Length; } }
         uint Size { get const override { return Length * WIDTH; } }
 
-        protected uint GetRelativeIndex(const uint index) const
+        bool get_opIndex(const uint index) const property override
         {
-            return index & 0x1f;
+            if (index >= Size) return false;
+            else return bitsArray[ArrayIndex(index)][RelativeIndex(index)];
         }
 
-        protected uint GetArrayIndex(const uint index) const
+        void set_opIndex(const uint index, const bool value) property override
+        {
+            if (index >= Size) Resize(index);
+            bitsArray[ArrayIndex(index)][RelativeIndex(index)] = value;
+        }
+
+        protected uint ArrayIndex(const uint index) const
         {
             return index >> 5;
         }
 
-        protected bool CheckCompatible(const BitSet@ const other, const DynamicBitSet@ &out value)
+        protected uint RelativeIndex(const uint index) const
         {
-            const bool sizeCompatible = Size == other.Size;
-            if (sizeCompatible) @value = cast<const DynamicBitSet@>(other);
-            return sizeCompatible;
-        }
-
-        protected BitSet32 CastToBacking(BitSet@ const value)
-        {
-            return cast<BitSet32>(value);
+            return index & 0x1f;
         }
 
         void Resize(const uint size)
         {
-            bitsArray.Resize(GetArrayIndex(size));
+            bitsArray.Resize(ArrayIndex(size));
         }
 
         BitSet@ Copy() const override
@@ -64,19 +64,11 @@ namespace smnu::bitsets
             return true;
         }
 
-        bool Get(const uint index) const override
+        protected bool CheckCompatible(const BitSet@ const other, const DynamicBitSet@ &out value)
         {
-            if (index >= Size) return false;
-
-            const BitSet32 bv = bitsArray[GetArrayIndex(index)];
-            return bv.Get(GetRelativeIndex(index));
-        }
-
-        void Set(const uint index, const bool value) override
-        {
-            if (index >= Size) Resize(index);
-            BitSet32@ const bv = bitsArray[GetArrayIndex(index)];
-            bv.Set(GetRelativeIndex(index), value);
+            const bool sizeCompatible = Size == other.Size;
+            if (sizeCompatible) @value = cast<const DynamicBitSet@>(other);
+            return sizeCompatible;
         }
 
         void Reset() override
@@ -91,8 +83,8 @@ namespace smnu::bitsets
         {
             if (index >= Size) return;
 
-            BitSet32@ const bv = bitsArray[GetArrayIndex(index)];
-            bv.Reset(GetRelativeIndex(index));
+            BitSet32@ const bv = bitsArray[ArrayIndex(index)];
+            bv.Reset(RelativeIndex(index));
         }
 
         void Flip() override
@@ -107,8 +99,8 @@ namespace smnu::bitsets
         {
             if (index >= Size) return;
             
-            BitSet32@ const bv = bitsArray[GetArrayIndex(index)];
-            bv.Flip(GetRelativeIndex(index));
+            BitSet32@ const bv = bitsArray[ArrayIndex(index)];
+            bv.Flip(RelativeIndex(index));
         }
 
         BitSet@ opCom() const override
@@ -118,46 +110,35 @@ namespace smnu::bitsets
             return copy;
         }
 
-        BitSet@ opAnd(const BitSet@ const right) const override
+        funcdef BitSet@ BinaryOperation(const BitSet32, const BitSet32);
+
+        protected BitSet@ DoBinary(const BitSet@ const other, BinaryOperation@ const op)
         {
             const DynamicBitSet@ b;
-            if (!CheckCompatible(right, @b)) return null;
+            if (!CheckCompatible(other, @b)) return null;
 
             DynamicBitSet copy;
             copy.Resize(Length);
             for (uint i = 0; i < Length; i++)
             {
-                copy.bitsArray[i] = CastToBacking(bitsArray[i] & b.bitsArray[i]);
+                copy.bitsArray[i] = cast<BitSet32>(op(bitsArray[i], b.bitsArray[i]));
             }
             return copy;
         }
 
-        BitSet@ opOr(const BitSet@ const right) const override
+        BitSet@ opAnd(const BitSet@ const other) const override
         {
-            const DynamicBitSet@ b;
-            if (!CheckCompatible(right, @b)) return null;
-
-            DynamicBitSet copy;
-            copy.Resize(Length);
-            for (uint i = 0; i < Length; i++)
-            {
-                copy.bitsArray[i] = CastToBacking(bitsArray[i] | b.bitsArray[i]);
-            }
-            return copy;
+            return DoBinary(other, function(t, b) { return t & b; } );
         }
 
-        BitSet@ opXor(const BitSet@ const right) const override
+        BitSet@ opOr(const BitSet@ const other) const override
         {
-            const DynamicBitSet@ b;
-            if (!CheckCompatible(right, @b)) return null;
+            return DoBinary(other, function(t, b) { return t | b; } );
+        }
 
-            DynamicBitSet copy;
-            copy.Resize(Length);
-            for (uint i = 0; i < Length; i++)
-            {
-                copy.bitsArray[i] = CastToBacking(bitsArray[i] ^ b.bitsArray[i]);
-            }
-            return copy;
+        BitSet@ opXor(const BitSet@ const other) const override
+        {
+            return DoBinary(other, function(t, b) { return t ^ b; } );
         }
 
         string opConv() const override
