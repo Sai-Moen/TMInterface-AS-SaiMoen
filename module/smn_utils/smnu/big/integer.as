@@ -6,7 +6,7 @@ namespace smnu
     */
     shared class BigInteger : Stringifiable
     {
-        const BigInteger@ ZERO { get const { return BigInteger(); } }
+        BigInteger@ ZERO { get const { return BigInteger(); } }
         private const uint WIDTH { get const { return 0x20; } }
 
         BigInteger() { }
@@ -82,7 +82,7 @@ namespace smnu
             return copy;
         }
 
-        protected void IncreaseSize(BigInteger@ const copy, const uint increase)
+        protected void IncreaseSize(BigInteger@ const copy, const uint increase) const
         {
             copy.Resize(copy.Length + increase);
         }
@@ -145,7 +145,7 @@ namespace smnu
             
             if (carry)
             {
-                copy.IncreaseSize(1);
+                IncreaseSize(copy, 1);
                 copy[copy.Length - 1] = 1;
             }
             return copy;
@@ -187,7 +187,7 @@ namespace smnu
                 copy[i] = curr << rem | prev;
             }
 
-            copy.IncreaseSize(1);
+            IncreaseSize(copy, 1);
             copy[copy.Length - 1] = prev;
             return copy;
         }
