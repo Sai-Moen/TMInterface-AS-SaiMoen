@@ -82,6 +82,11 @@ namespace smnu
             return copy;
         }
 
+        protected void IncreaseSize(BigInteger@ const copy, const uint increase)
+        {
+            copy.Resize(copy.Length + increase);
+        }
+
         BigInteger@ opNeg()
         {
             return ~this + 1;
@@ -140,7 +145,7 @@ namespace smnu
             
             if (carry)
             {
-                copy.Resize(copy.Length + 1);
+                copy.IncreaseSize(1);
                 copy[copy.Length - 1] = 1;
             }
             return copy;
@@ -165,12 +170,52 @@ namespace smnu
 
         BigInteger@ opShl(BigInteger@ const other)
         {
-            return null;
+            BigInteger@ const copy = Copy();
+
+            uint i;
+            for (i = 1; other - i * WIDTH >= ZERO; i++)
+            {
+                copy.integerArray.InsertAt(0, 0);
+            }
+
+            const uint rem = (other - i * WIDTH)[0];
+            uint prev;
+            for (i = 0; i < copy.Length; i++)
+            {
+                const uint curr = copy[i];
+                prev = curr >> WIDTH - rem;
+                copy[i] = curr << rem | prev;
+            }
+
+            copy.IncreaseSize(1);
+            copy[copy.Length - 1] = prev;
+            return copy;
         }
 
         BigInteger@ opShr(BigInteger@ const other)
         {
-            return null;
+            if (other > Size) return ZERO;
+
+            BigInteger@ const copy = Copy();
+
+            uint i;
+            for (i = 1; other - i * WIDTH >= ZERO; i++)
+            {
+                // TODO signedness
+                copy.integerArray.RemoveAt(0);
+            }
+
+            const uint rem = (other - i * WIDTH)[0];
+            uint prev;
+            for (i = 0; i < copy.Length; i++)
+            {
+                const uint curr = copy[i];
+                prev = curr << WIDTH - rem;
+                copy[i] = curr >> rem | prev;
+            }
+
+            copy[0] = prev;
+            return copy;
         }
 
         string Binary() const
