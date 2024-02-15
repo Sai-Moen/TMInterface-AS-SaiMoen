@@ -6,13 +6,6 @@ namespace smnu
     shared interface Stack : Collection
     {
         /**
-        * Returns if this {Stack} contains the given {Handle}.
-        * @param handle: the given handle
-        * @ret: whether this {Stack} contains |handle|
-        */
-        bool Contains(Handle@ handle) const;
-
-        /**
         * Returns the element at the top of this {Stack}, null if empty.
         * @ret: top of stack, does not remove it
         */

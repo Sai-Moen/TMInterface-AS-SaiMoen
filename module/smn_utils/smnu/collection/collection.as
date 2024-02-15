@@ -19,5 +19,13 @@ namespace smnu
         * Clears the {Collection}; removes the reference to each element.
         */
         void Clear();
+
+
+        /**
+        * Returns if |handle| is in the {Collection}.
+        * @param handle: the handle
+        * @ret: whether this {Collection} contains the given {Handle}
+        */
+        bool Contains(Handle@ handle) const;
     }
 }
