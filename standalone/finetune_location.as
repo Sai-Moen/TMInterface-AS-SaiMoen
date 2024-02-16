@@ -247,7 +247,7 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
     switch (info.Phase)
     {
     case BFPhase::Initial:
-        response.Decision = OnInitial(simManager, info.Iterations);
+        OnInitial(simManager, info.Iterations);
         break;
     case BFPhase::Search:
         response.Decision = OnSearch(simManager);
@@ -257,10 +257,8 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
     return response;
 }
 
-BFEvaluationDecision OnInitial(SimulationManager@ simManager, const uint iterations)
+void OnInitial(SimulationManager@ simManager, const uint iterations)
 {
-    BFEvaluationDecision decision = BFEvaluationDecision::DoNothing;
-
     const int time = simManager.RaceTime;
     if (IsEvalTime(time) && IsBetter(simManager))
     {
@@ -268,13 +266,10 @@ BFEvaluationDecision OnInitial(SimulationManager@ simManager, const uint iterati
         best = current;
         valid = true;
     }
-    else if (IsPastEvalTime(time))
+    else if (IsAfterEvalTime(time))
     {
         print("Best at " + iterations + ": " + Text::FormatFloat(best, " ", 0, 16));
-        decision = BFEvaluationDecision::Accept;
     }
-
-    return decision;
 }
 
 BFEvaluationDecision OnSearch(SimulationManager@ simManager)
@@ -297,6 +292,11 @@ BFEvaluationDecision OnSearch(SimulationManager@ simManager)
 bool IsEvalTime(const int time)
 {
     return evalFrom <= time && time <= evalTo;
+}
+
+bool IsAfterEvalTime(const int time)
+{
+    return time == evalTo + 10;
 }
 
 bool IsPastEvalTime(const int time)
