@@ -21,20 +21,13 @@ void Main()
 }
 
 const string PREFIX = ID + "_";
-
 const string ENABLED = PREFIX + "enabled";
-const string SCALE = PREFIX + "scale";
-
 bool enabled;
-float scale;
 
 void OnRegister()
 {
     RegisterVariable(ENABLED, false);
-    RegisterVariable(SCALE, 80);
-
     enabled = GetVariableBool(ENABLED);
-    scale = GetVariableDouble(SCALE);
 }
 
 const string HELP = "help";
@@ -50,17 +43,11 @@ void OnCommand(int, int, const string &in, const array<string> &in args)
 
     const string cmd = args[0];
     if (cmd == HELP)
-    {
         LogHelp();
-    }
     else if (cmd == TOGGLE)
-    {
         SetVariable(ENABLED, enabled = !enabled);
-    }
     else
-    {
         LogHelp();
-    }
 }
 
 void LogHelp()
@@ -93,10 +80,6 @@ float baseRPM;
 void Draw(const TM::SceneVehicleCar@ const svc)
 {
     const auto@ const engine = svc.CarEngine;
-
-    scale = UI::InputFloatVar("Scale", SCALE);
-
-    UI::Separator();
 
     UI::SliderInt("Rear Gear", -engine.RearGear, -1, 0);
     UI::SliderFloat("Real Speed", svc.CurrentLocalSpeed.Length() * 3.6, 0, svc.MaxLinearSpeed * 3.6);
@@ -131,7 +114,7 @@ void Draw(const TM::SceneVehicleCar@ const svc)
                 relBaseRPM = baseRPM;
             }
 
-            UI::PushItemWidth(scale);
+            UI::PushItemWidth(-1);
             UI::SliderFloat("", relRPM, relBaseRPM, max);
             UI::PopItemWidth();
         }
