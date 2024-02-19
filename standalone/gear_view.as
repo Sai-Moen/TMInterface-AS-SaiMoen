@@ -23,13 +23,18 @@ void Main()
 const string PREFIX = ID + "_";
 
 const string ENABLED = PREFIX + "enabled";
+const string SCALE = PREFIX + "scale";
 
 bool enabled;
+float scale;
 
 void OnRegister()
 {
     RegisterVariable(ENABLED, false);
+    RegisterVariable(SCALE, 80);
+
     enabled = GetVariableBool(ENABLED);
+    scale = GetVariableDouble(SCALE);
 }
 
 const string HELP = "help";
@@ -74,19 +79,63 @@ void Render()
 
     if (UI::Begin(NAME))
     {
-        Draw(svc.CarEngine);
+        Draw(svc);
     }
     UI::End();
 }
 
-void Draw(const TM::SceneVehicleCar::Engine@ const engine)
+const uint MAX_GEAR = 5;
+uint prevGear;
+
+float prevRPM;
+float baseRPM;
+
+void Draw(const TM::SceneVehicleCar@ const svc)
 {
-    UI::SliderInt("Gear", engine.Gear, 0, 5);
-    UI::SliderInt("RearGear", -engine.RearGear, -1, 0);
+    const auto@ const engine = svc.CarEngine;
 
-    UI::SliderFloat("ActualRPM", engine.ActualRPM, 0, engine.MaxRPM);
-    UI::SliderFloat("ClampedRPM", engine.ClampedRPM, 0, engine.MaxRPM);
+    scale = UI::InputFloatVar("Scale", SCALE);
 
-    UI::SliderFloat("SlideFactor", engine.SlideFactor, 0.5, 1.5);
-    UI::SliderFloat("BrakingFactor", engine.BrakingFactor, -1, 0);
+    UI::Separator();
+
+    UI::SliderInt("Rear Gear", -engine.RearGear, -1, 0);
+    UI::SliderFloat("Real Speed", svc.CurrentLocalSpeed.Length() * 3.6, 0, svc.MaxLinearSpeed * 3.6);
+
+    const float rpm = engine.ActualRPM;
+    const float max = engine.MaxRPM;
+    const uint gear = engine.Gear;
+    if (gear != prevGear && rpm < prevRPM)
+    {
+        baseRPM = gear > 1 ? rpm : 0;
+        prevGear = gear;
+    }
+    prevRPM = rpm;
+
+    UI::Separator();
+
+    UI::SliderFloat("RPM", rpm, 0, max);
+    if (UI::BeginTable("Gears", MAX_GEAR))
+    {
+        UI::TableSetupScrollFreeze(MAX_GEAR, 1);
+
+        for (uint g = 1; g <= MAX_GEAR; g++)
+        {
+            UI::TableNextColumn();
+
+            float relRPM = 0;
+            float relBaseRPM = 0;
+            if (gear > g) relRPM = max;
+            else if (gear == g)
+            {
+                relRPM = rpm;
+                relBaseRPM = baseRPM;
+            }
+
+            UI::PushItemWidth(scale);
+            UI::SliderFloat("", relRPM, relBaseRPM, max);
+            UI::PopItemWidth();
+        }
+
+        UI::EndTable();
+    }
 }
