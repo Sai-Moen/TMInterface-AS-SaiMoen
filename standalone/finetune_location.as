@@ -43,28 +43,26 @@ const string BOUND_Z =     PREFIX + "bound_z";
 const string BOUND_YAW =   PREFIX + "bound_yaw";
 const string BOUND_PITCH = PREFIX + "bound_pitch";
 const string BOUND_ROLL =  PREFIX + "bound_roll";
+const string BOUND_SPEED = PREFIX + "bound_speed";
 
 enum Kind
 {
     NONE,
     X, Y, Z,
     YAW, PITCH, ROLL,
+    SPEED,
 }
 
 enum Compare
 {
     NONE,    // NONE
-    EQ,      // ==
-    NE,      // !=
     LESS,    // <
-    LEQ,     // <=
-    GEQ,     // >=
     GREATER, // >
 }
 
 const array<string> symbols =
 {
-    "NONE", "==", "!=", "<", "<=", ">=", ">"
+    "NONE", "<", ">"
 };
 
 class Bound
@@ -84,10 +82,10 @@ class Bound
     Compare upperCMP;
     double upper;
 
-    bool InRange(iso4 location) const
+    bool InRange(TM::HmsStateDyna@ const dyna) const
     {
         double value;
-        if (GetValue(location, kind, value)) return Conforms(value, lower, lowerCMP) && Conforms(value, upper, upperCMP);
+        if (GetValue(dyna, kind, value)) return Conforms(value, lower, lowerCMP) && Conforms(value, upper, upperCMP);
         else return false;
     }
 
@@ -97,16 +95,8 @@ class Bound
         {
         case Compare::NONE:
             return true;
-        case Compare::EQ:
-            return value == bound;
-        case Compare::NE:
-            return value != bound;
         case Compare::LESS:
             return value < bound;
-        case Compare::LEQ:
-            return value <= bound;
-        case Compare::GEQ:
-            return value >= bound;
         case Compare::GREATER:
             return value > bound;
         default:
@@ -139,8 +129,12 @@ class Bound
     }
 }
 
-bool GetValue(iso4 location, const Kind kind, double &out value)
+bool GetValue(TM::HmsStateDyna@ const dyna, const Kind kind, double &out value)
 {
+    const iso4 location = dyna.Location;
+    const vec3 position = location.Position;
+    mat3 rotation = location.Rotation;
+
     float yaw;
     float pitch;
     float roll;
@@ -148,25 +142,25 @@ bool GetValue(iso4 location, const Kind kind, double &out value)
     switch (kind)
     {
     case Kind::X:
-        value = location.Position.x;
+        value = position.x;
         break;
     case Kind::Y:
-        value = location.Position.y;
+        value = position.y;
         break;
     case Kind::Z:
-        value = location.Position.z;
+        value = position.z;
         break;
     case Kind::YAW:
-        location.Rotation.GetYawPitchRoll(yaw, pitch, roll);
-        value = yaw;
+        rotation.GetYawPitchRoll(value, void, void);
         break;
     case Kind::PITCH:
-        location.Rotation.GetYawPitchRoll(yaw, pitch, roll);
-        value = pitch;
+        rotation.GetYawPitchRoll(void, value, void);
         break;
     case Kind::ROLL:
-        location.Rotation.GetYawPitchRoll(yaw, pitch, roll);
-        value = roll;
+        rotation.GetYawPitchRoll(void, void, value);
+        break;
+    case Kind::SPEED:
+        value = dyna.LinearSpeed.Length() * 3.6;
         break;
     default:
         return false;
@@ -182,7 +176,7 @@ double target;
 
 const array<string> modes =
 {
-    "", "X", "Y", "Z", "Yaw", "Pitch", "Roll"
+    "", "X", "Y", "Z", "Yaw", "Pitch", "Roll", "Speed"
 };
 
 const dictionary bounds =
@@ -192,7 +186,8 @@ const dictionary bounds =
     { BOUND_Z,     @Bound(Kind::Z)     },
     { BOUND_YAW,   @Bound(Kind::YAW)   },
     { BOUND_PITCH, @Bound(Kind::PITCH) },
-    { BOUND_ROLL,  @Bound(Kind::ROLL)  }
+    { BOUND_ROLL,  @Bound(Kind::ROLL)  },
+    { BOUND_SPEED, @Bound(Kind::SPEED) }
 };
 
 Bound@ BoundsCast(const string &in key)
@@ -306,15 +301,15 @@ bool IsPastEvalTime(const int time)
 
 bool IsBetter(SimulationManager@ simManager)
 {
-    const iso4 location = simManager.Dyna.CurrentState.Location;
+    TM::HmsStateDyna@ const dyna = simManager.Dyna.CurrentState;
 
     const array<string>@ const keys = bounds.GetKeys();
     for (uint i = 0; i < keys.Length; i++)
     {
-        if (!BoundsCast(keys[i]).InRange(location)) return false;
+        if (!BoundsCast(keys[i]).InRange(dyna)) return false;
     }
 
-    if (!GetValue(location, mode, current)) return false;
+    if (!GetValue(dyna, mode, current)) return false;
 
     diff = Math::Abs(current - target);
     return diff < lowest || !valid;
@@ -344,6 +339,7 @@ void OnSettings()
 
 void DrawBound()
 {
+    // using public fields here, might want to refactor later
     const string label = modes[active.kind];
     if (!UI::CollapsingHeader(label)) return;
 
@@ -358,6 +354,12 @@ void DrawBound()
         function(key) { active.upperCMP = Compare(Find(symbols, key)); }
     );
     active.upper = UI::InputFloat("Upper " + label + " bound", active.upper);
+
+    if (UI::Button("Reset " + label + " bounds?"))
+    {
+        active.lowerCMP = Compare::NONE;
+        active.upperCMP = Compare::NONE;
+    }
 }
 
 // For some reason array<string>.Find does not work...
