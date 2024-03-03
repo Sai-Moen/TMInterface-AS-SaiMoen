@@ -9,7 +9,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = TITLE;
-    info.Version = "v2.0.1.0";
+    info.Version = "v2.0.1.1";
     return info;
 }
 
@@ -53,18 +53,6 @@ enum Kind
     SPEED,
 }
 
-enum Compare
-{
-    NONE,    // NONE
-    LESS,    // <
-    GREATER, // >
-}
-
-const array<string> symbols =
-{
-    "NONE", "<", ">"
-};
-
 class Bound
 {
     protected const string SEP { get const { return " "; } }
@@ -76,56 +64,34 @@ class Bound
 
     Kind kind;
 
-    Compare lowerCMP;
+    bool enableLower;
     double lower;
 
-    Compare upperCMP;
+    bool enableUpper;
     double upper;
 
     bool InRange(TM::HmsStateDyna@ const dyna) const
     {
         double value;
-        if (GetValue(dyna, kind, value)) return Conforms(value, lower, lowerCMP) && Conforms(value, upper, upperCMP);
+        if (GetValue(dyna, kind, value)) return (!enableLower || lower < value) && (!enableUpper || value < upper);
         else return false;
-    }
-
-    protected bool Conforms(const double value, const double bound, const Compare cmp) const
-    {
-        switch (cmp)
-        {
-        case Compare::NONE:
-            return true;
-        case Compare::LESS:
-            return value < bound;
-        case Compare::GREATER:
-            return value > bound;
-        default:
-            return false;
-        }
     }
 
     string opConv() const
     {
         const string l = lower;
         const string u = upper;
-        const array<string> a = { l, symbols[lowerCMP], symbols[upperCMP], u };
+        const array<string> a = { l, u };
         return Text::Join(a, SEP);
     }
 
     void FromString(const string &in s)
     {
         const array<string>@ const a = s.Split(SEP);
-        if (a.Length != 4) return;
+        if (a.Length != 2) return;
 
         lower = Text::ParseFloat(a[0]);
-        lowerCMP = DeserializeCMP(a[1]);
-        upperCMP = DeserializeCMP(a[2]);
-        upper = Text::ParseFloat(a[3]);
-    }
-
-    protected Compare DeserializeCMP(const string &in cmp) const
-    {
-        return Compare(Math::Max(Find(symbols, cmp), 0));
+        upper = Text::ParseFloat(a[1]);
     }
 }
 
@@ -339,27 +305,31 @@ void OnSettings()
 
 void DrawBound()
 {
-    // using public fields here, might want to refactor later
     const string label = modes[active.kind];
-    if (!UI::CollapsingHeader(label)) return;
 
+    UI::Separator();
+
+    active.enableLower = UI::Checkbox("Enable Lower " + label + " bound", active.enableLower);
+    UI::SameLine();
+    active.enableUpper = UI::Checkbox("Enable Upper " + label + " bound", active.enableUpper);
+
+    UI::PushItemWidth(200);
+
+    UI::BeginDisabled(!active.enableLower);
     active.lower = UI::InputFloat("Lower " + label + " bound", active.lower);
-    ComboHelper("Lower " + label + " comparison", symbols[active.lowerCMP], symbols,
-        function(key) { active.lowerCMP = Compare(Find(symbols, key)); }
-    );
+    UI::EndDisabled();
 
-    UI::TextDimmed(label);
+    UI::SameLine();
+    UI::TextDimmed(" < " + label + " < ");
+    UI::SameLine();
 
-    ComboHelper("Upper " + label + " comparison", symbols[active.upperCMP], symbols,
-        function(key) { active.upperCMP = Compare(Find(symbols, key)); }
-    );
+    UI::BeginDisabled(!active.enableUpper);
     active.upper = UI::InputFloat("Upper " + label + " bound", active.upper);
+    UI::EndDisabled();
 
-    if (UI::Button("Reset " + label + " bounds?"))
-    {
-        active.lowerCMP = Compare::NONE;
-        active.upperCMP = Compare::NONE;
-    }
+    UI::PopItemWidth();
+
+    UI::Separator();
 }
 
 // For some reason array<string>.Find does not work...
