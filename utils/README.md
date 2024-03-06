@@ -19,7 +19,3 @@ As well as bats to remove those links.
 - `lnsta` Link Standalone
 - `rmmod` Remove Module
 - `rmsta` Remove Standalone
-
-And also, if you want to use a test directory (actually just random files that git doesn't need to see),
-- `lntest`  Link Test Plugin (standalone)
-- `lntests` Link Test Plugin (module)
