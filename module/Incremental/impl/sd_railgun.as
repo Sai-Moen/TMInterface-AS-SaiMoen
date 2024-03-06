@@ -10,12 +10,9 @@ namespace SD
         OnBegin, OnStep
     );
 
-    const string PrefixVar(const string &in var)
-    {
-        return ::PrefixVar("sd_" + var);
-    }
+    const string PREFIX = ::PREFIX + "sd_";
 
-    const string MODE = PrefixVar("mode");
+    const string MODE = PREFIX + "mode";
 
     string modeStr;
     array<string> modes;
@@ -99,13 +96,10 @@ namespace SD::Classic
         OnBegin, OnStep
     );
 
-    const string PrefixVar(const string &in var)
-    {
-        return SD::PrefixVar("classic_" + var);
-    }
+    const string PREFIX = SD::PREFIX + "classic_";
 
-    const string SEEK = PrefixVar("seek");
-    const string DIRECTION = PrefixVar("direction");
+    const string SEEK      = PREFIX + "seek";
+    const string DIRECTION = PREFIX + "direction";
 
     namespace DEFAULT
     {
@@ -140,7 +134,6 @@ namespace SD::Classic
     void OnSettings()
     {
         seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
-
         ComboHelper("Direction", directionStr, directions, ChangeMode);
     }
 
@@ -236,12 +229,10 @@ namespace SD::Normal
         OnBegin, OnStep
     );
 
-    const string PrefixVar(const string &in var)
-    {
-        return SD::PrefixVar("normal_" + var);
-    }
+    const string PREFIX = SD::PREFIX + "normal_";
 
-    const string SEEK = PrefixVar("seek");
+    const string SEEK = PREFIX + "seek";
+
     ms seek;
 
     void OnRegister()
@@ -339,13 +330,10 @@ namespace SD::Wiggle
         OnBegin, OnStep
     );
 
-    const string PrefixVar(const string &in var)
-    {
-        return SD::PrefixVar("wiggle_" + var);
-    }
+    const string PREFIX = SD::PREFIX + "wiggle_";
     
-    const string ANGLE    = PrefixVar("angle");
-    const string POSITION = PrefixVar("position");
+    const string ANGLE    = PREFIX + "angle";
+    const string POSITION = PREFIX + "position";
 
     const double ANGLE_MIN = 0;
     const double ANGLE_MAX = 45;

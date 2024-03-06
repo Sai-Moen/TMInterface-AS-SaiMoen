@@ -1,20 +1,17 @@
 // Settings/vars/ui Script, extension of common
 
-const string PrefixVar(const string &in var)
-{
-    return ID + "_" + var;
-}
+const string PREFIX = ID + "_";
 
-const string MODE = PrefixVar("mode");
+const string MODE = PREFIX + "mode";
 
-const string EVAL_RANGE = PrefixVar("eval_range");
-const string EVAL_TO    = PrefixVar("eval_to");
-const string TIME_FROM  = PrefixVar("time_from");
-const string TIME_TO    = PrefixVar("time_to");
+const string EVAL_RANGE = PREFIX + "eval_range";
+const string EVAL_TO    = PREFIX + "eval_to";
+const string TIME_FROM  = PREFIX + "time_from";
+const string TIME_TO    = PREFIX + "time_to";
 
-const string RANGE_MODE = PrefixVar("range_mode");
+const string RANGE_MODE = PREFIX + "range_mode";
 
-const string SHOW_INFO = PrefixVar("show_info");
+const string SHOW_INFO = PREFIX + "show_info";
 
 string modeStr;
 array<string> modes;

@@ -10,12 +10,9 @@ namespace WH
         OnBegin, OnStep
     );
 
-    const string PrefixVar(const string &in var)
-    {
-        return ::PrefixVar("wh_" + var);
-    }
+    const string PREFIX = ::PREFIX + "wh_";
 
-    const string MODE = PrefixVar("mode");
+    const string MODE = PREFIX + "mode";
 
     string modeStr;
     array<string> modes;
@@ -75,13 +72,10 @@ namespace WH::Classic
         OnBegin, OnStep
     );
 
-    const string PrefixVar(const string &in var)
-    {
-        return WH::PrefixVar("classic_" + var);
-    }
+    const string PREFIX = WH::PREFIX + "classic_";
 
-    const string SEEK = PrefixVar("seek");
-    const string DIRECTION = PrefixVar("direction");
+    const string SEEK      = PREFIX + "seek";
+    const string DIRECTION = PREFIX + "direction";
 
     const ms DEFAULT_SEEK = 600;
     const float MAX_VEL_LOSS = 0.002; // per ms
@@ -111,7 +105,6 @@ namespace WH::Classic
     void OnSettings()
     {
         seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
-
         ComboHelper("Direction", directionStr, directions, ChangeMode);
     }
 
@@ -151,24 +144,12 @@ namespace WH::Classic
             const bool crashed =
                 svcCurr.LastHasAnyLateralContactTime != svcPrev.LastHasAnyLateralContactTime ||
                 svcCurr.CurrentLocalSpeed.Length() < (svcPrev.CurrentLocalSpeed.Length() - maxVelocityLoss);
-            if (crashed)
-            {
-                collider = steer;
-            }
-            else
-            {
-                avoider = steer;
-            }
+            if (crashed) collider = steer;
+            else avoider = steer;
 
             isDone = Math::Abs(avoider - collider) <= 1;
-            if (isDone)
-            {
-                steer = avoider;
-            }
-            else
-            {
-                steer = (avoider + collider) >>> 1;
-            }
+            if (isDone) steer = avoider;
+            else steer = (avoider + collider) >>> 1;
 
             Eval::Rewind(simManager);
         }
