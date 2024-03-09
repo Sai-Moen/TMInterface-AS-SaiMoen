@@ -313,10 +313,12 @@ void DrawBound()
     UI::SameLine();
     active.enableUpper = UI::Checkbox("Enable Upper " + label + " bound", active.enableUpper);
 
-    UI::PushItemWidth(200);
+    UI::PushItemWidth(192);
 
     UI::BeginDisabled(!active.enableLower);
-    active.lower = UI::InputFloat("Lower " + label + " bound", active.lower);
+    UI::PushID(label + " Lower");
+    active.lower = UI::InputFloat("", active.lower);
+    UI::PopID();
     UI::EndDisabled();
 
     UI::SameLine();
@@ -324,7 +326,9 @@ void DrawBound()
     UI::SameLine();
 
     UI::BeginDisabled(!active.enableUpper);
-    active.upper = UI::InputFloat("Upper " + label + " bound", active.upper);
+    UI::PushID(label + " Upper");
+    active.upper = UI::InputFloat("", active.upper);
+    UI::PopID();
     UI::EndDisabled();
 
     UI::PopItemWidth();
