@@ -32,17 +32,17 @@ void OnDisabled()
 const string PREFIX = ID + "_";
 
 const string EVAL_FROM = PREFIX + "eval_from";
-const string EVAL_TO =   PREFIX + "eval_to";
+const string EVAL_TO   = PREFIX + "eval_to";
 
-const string MODE =   PREFIX + "mode";
+const string MODE   = PREFIX + "mode";
 const string TARGET = PREFIX + "target";
 
-const string BOUND_X =     PREFIX + "bound_x";
-const string BOUND_Y =     PREFIX + "bound_y";
-const string BOUND_Z =     PREFIX + "bound_z";
-const string BOUND_YAW =   PREFIX + "bound_yaw";
+const string BOUND_X     = PREFIX + "bound_x";
+const string BOUND_Y     = PREFIX + "bound_y";
+const string BOUND_Z     = PREFIX + "bound_z";
+const string BOUND_YAW   = PREFIX + "bound_yaw";
 const string BOUND_PITCH = PREFIX + "bound_pitch";
-const string BOUND_ROLL =  PREFIX + "bound_roll";
+const string BOUND_ROLL  = PREFIX + "bound_roll";
 const string BOUND_SPEED = PREFIX + "bound_speed";
 
 enum Kind
@@ -183,6 +183,7 @@ void OnRegister()
 }
 
 bool valid;
+int impTime;
 
 double current;
 double best;
@@ -193,6 +194,7 @@ double lowest;
 void OnSimulationBegin(SimulationManager@)
 {
     valid = false;
+    impTime = -1;
 
     current = 0;
     best = 0;
@@ -204,7 +206,6 @@ void OnSimulationBegin(SimulationManager@)
 BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluationInfo &in info)
 {
     BFEvaluationResponse response;
-
     switch (info.Phase)
     {
     case BFPhase::Initial:
@@ -214,7 +215,6 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
         response.Decision = OnSearch(simManager);
         break;
     }
-
     return response;
 }
 
@@ -223,20 +223,24 @@ void OnInitial(SimulationManager@ simManager, const uint iterations)
     const int time = simManager.RaceTime;
     if (IsEvalTime(time) && IsBetter(simManager))
     {
+        impTime = time;
         lowest = diff;
         best = current;
         valid = true;
     }
     else if (IsAfterEvalTime(time))
     {
-        print("Best at " + iterations + ": " + Text::FormatFloat(best, " ", 0, 16));
+        const string absolute = modes[mode] + ": " + PreciseFormat(best);
+        const string relative = ", Difference: " + PreciseFormat(lowest);
+        const string timestamp = ", Time: " + impTime;
+        const string iter = ", Iterations: " + iterations;
+        print(absolute + relative + timestamp + iter);
     }
 }
 
 BFEvaluationDecision OnSearch(SimulationManager@ simManager)
 {
     BFEvaluationDecision decision = BFEvaluationDecision::DoNothing;
-
     const int time = simManager.RaceTime;
     if (IsEvalTime(time) && IsBetter(simManager)) 
     {
@@ -246,7 +250,6 @@ BFEvaluationDecision OnSearch(SimulationManager@ simManager)
     {
         decision = BFEvaluationDecision::Reject;
     }
-
     return decision;
 }
 
@@ -334,6 +337,11 @@ void DrawBound()
     UI::PopItemWidth();
 
     UI::Separator();
+}
+
+string PreciseFormat(const double value)
+{
+    return Text::FormatFloat(value, " ", 0, 16);
 }
 
 // For some reason array<string>.Find does not work...
