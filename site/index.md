@@ -24,7 +24,7 @@ I will document API's here (e.g. for giving callbacks to a custom bruteforce con
 
 ---
 
-### [Blog]() (Work In Progress)
+### [Blog](blog.md)
 
 One of the blogs of all time.
 
