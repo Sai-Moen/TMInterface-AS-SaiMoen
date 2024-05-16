@@ -23,7 +23,7 @@ Whenever `import` works, I will document API's here (e.g. for giving callbacks t
 
 ---
 
-### [Blog]() (Work In Progress)
+### [Blog](blog.md)
 
 One of the blogs of all time.
 
