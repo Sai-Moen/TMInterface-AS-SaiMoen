@@ -25,8 +25,11 @@ const string STRENGTH = "strength";
 const string FWD = "forwards";
 const string BWD = "backwards";
 
+const string INDENT = "    ";
+const int INVALID_TIME = -1;
+
 double direction = 0;
-int whenthe = -1;
+int whenthe = INVALID_TIME;
 
 double strength = 8;
 
@@ -47,7 +50,9 @@ void OnCommand(int t, int, const string &in, const array<string> &in args)
     {
         if (args.Length <= 1)
         {
-            LogHelp();
+            log(ROTATE + " needs one of the following sub-arguments:", Severity::Error);
+            log(    INDENT + FWD, Severity::Error);
+            log(    INDENT + BWD, Severity::Error);
             return;
         }
 
@@ -57,7 +62,7 @@ void OnCommand(int t, int, const string &in, const array<string> &in args)
         log("Direction = " + direction, Severity::Success);
 
         whenthe = t;
-        if (whenthe == -1)
+        if (whenthe == INVALID_TIME)
         {
             DoBug();
         }
@@ -70,8 +75,13 @@ void OnCommand(int t, int, const string &in, const array<string> &in args)
     {
         if (args.Length <= 1)
         {
-            LogHelp();
+            log(STRENGTH + " needs a value (default 8) as a sub-argument.", Severity::Error);
             return;
+        }
+
+        if (t != INVALID_TIME)
+        {
+            log(STRENGTH + " ignored the given time parameter " + t + " ...", Severity::Warning);
         }
 
         const string arg = args[1];
@@ -84,15 +94,14 @@ void OnCommand(int t, int, const string &in, const array<string> &in args)
     }
 }
 
-const string INDENT = "    ";
-
 void LogHelp()
 {
     log("Available Commands:");
     log(HELP + " - log this message");
     log(ROTATE + " - rotate the car in a certain direction");
-    log(    INDENT + "forwards");
-    log(    INDENT + "backwards");
+    log(    INDENT + FWD);
+    log(    INDENT + BWD);
+    log(STRENGTH + " - sets strength of the bug (default 8)");
 }
 
 void OnRunStep(SimulationManager@ simManager)
