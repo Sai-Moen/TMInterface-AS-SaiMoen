@@ -18,20 +18,17 @@ void Main()
     RegisterCustomCommand(CMD, "Use: " + CMD + " help", OnCommand);
 }
 
+const string INDENT = "    ";
+
 const string HELP = "help";
 const string ROTATE = "rotate";
 const string STRENGTH = "strength";
 
-const string FWD = "forwards";
-const string BWD = "backwards";
-
-const string INDENT = "    ";
 const int INVALID_TIME = -1;
-
-double direction = 0;
 int whenthe = INVALID_TIME;
 
-double strength = 8;
+const vec3 DEFAULT_STRENGTH = vec3(6, 2, 4);
+vec3 strength = DEFAULT_STRENGTH;
 
 void OnCommand(int t, int, const string &in, const array<string> &in args)
 {
@@ -48,19 +45,6 @@ void OnCommand(int t, int, const string &in, const array<string> &in args)
     }
     else if (cmd == ROTATE)
     {
-        if (args.Length <= 1)
-        {
-            log(ROTATE + " needs one of the following sub-arguments:", Severity::Error);
-            log(    INDENT + FWD, Severity::Error);
-            log(    INDENT + BWD, Severity::Error);
-            return;
-        }
-
-        const string arg = args[1];
-        if (arg == FWD)      direction = 1;
-        else if (arg == BWD) direction = -1;
-        log("Direction = " + direction, Severity::Success);
-
         whenthe = t;
         if (whenthe == INVALID_TIME)
         {
@@ -73,9 +57,9 @@ void OnCommand(int t, int, const string &in, const array<string> &in args)
     }
     else if (cmd == STRENGTH)
     {
-        if (args.Length <= 1)
+        if (args.Length < 4)
         {
-            log(STRENGTH + " needs a value (default 8) as a sub-argument.", Severity::Error);
+            log(STRENGTH + " needs a vector (default " + DEFAULT_STRENGTH.ToString() + ") as a sub-argument.", Severity::Error);
             return;
         }
 
@@ -84,9 +68,8 @@ void OnCommand(int t, int, const string &in, const array<string> &in args)
             log(STRENGTH + " ignored the given time parameter " + t + " ...", Severity::Warning);
         }
 
-        const string arg = args[1];
-        strength = Text::ParseFloat(arg);
-        log("Strength = " + strength, Severity::Success);
+        strength = Text::ParseVec3(Text::Join({ args[1], args[2], args[3] }, " "));
+        log("Strength = " + strength.ToString(), Severity::Success);
     }
     else
     {
@@ -99,9 +82,7 @@ void LogHelp()
     log("Available Commands:");
     log(HELP + " - log this message");
     log(ROTATE + " - rotate the car in a certain direction");
-    log(    INDENT + FWD);
-    log(    INDENT + BWD);
-    log(STRENGTH + " - sets strength of the bug (default 8)");
+    log(STRENGTH + " - sets strength of the bug (default " + DEFAULT_STRENGTH.ToString() + ")");
 }
 
 void OnRunStep(SimulationManager@ simManager)
@@ -117,7 +98,7 @@ void DoBug(SimulationManager@ simManager = GetSimulationManager())
 {
     auto@ const curr = simManager.Dyna.RefStateCurrent;
     vec3 aspeed = curr.AngularSpeed;
-    aspeed.x += direction * strength;
+    aspeed += strength;
     curr.AngularSpeed = RotateAngularSpeed(curr.Location.Rotation, aspeed);
 }
 
