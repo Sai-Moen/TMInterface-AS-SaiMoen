@@ -70,7 +70,7 @@ void LogHelp(Severity severity = Severity::Info)
     log("Available Commands:", severity);
     log(cmd::HELP + " - log this message", severity);
     log(cmd::ROTATE + " - rotate the car in a certain direction", severity);
-    log(cmd::REMOVE + " - removes the prepended time from the given type of bug", severity);
+    log(cmd::REMOVE + " - removes the prepended timestamp from the given type of bug", severity);
     log(cmd::LIST + " - lists all timestamps at which bugs occur", severity);
     log("", severity); // xdd
 
@@ -107,12 +107,6 @@ void OnCommandRotate(int timeFrom, const array<string> &in args)
 
 void OnCommandRemove(int timeFrom, const array<string> &in args)
 {
-    if (timeFrom == INVALID_TIME)
-    {
-        log("Not a time that can be removed (prepend a time to the command)", Severity::Error);
-        return;
-    }
-
     if (args.Length < 2)
     {
         const Severity severity = Severity::Error;
@@ -136,6 +130,13 @@ void OnCommandRemove(int timeFrom, const array<string> &in args)
         return;
     }
 
+    if (timeFrom == INVALID_TIME)
+    {
+        d.DeleteAll();
+        log("Removed all timestamps for " + bugType, Severity::Success);
+        return;
+    }
+
     const string key = timeFrom;
     if (d.Delete(key))
     {
@@ -143,7 +144,7 @@ void OnCommandRemove(int timeFrom, const array<string> &in args)
     }
     else
     {
-        log("The time was not found and could therefore not be removed: " + key, Severity::Warning);
+        log("The timestamp was not found and could therefore not be removed: " + key, Severity::Warning);
     }
 }
 
@@ -174,7 +175,14 @@ void OnRunStep(SimulationManager@ simManager)
 
 void DoBugRotation(const vec3 rotation, SimulationManager@ simManager = GetSimulationManager())
 {
-    auto@ const curr = simManager.Dyna.RefStateCurrent;
+    const auto@ const dyna = simManager.Dyna;
+    if (dyna is null)
+    {
+        log("Could not execute " + BUG_NAME_ROTATION, Severity::Warning);
+        return;
+    }
+
+    auto@ const curr = dyna.RefStateCurrent;
     vec3 aspeed = curr.AngularSpeed;
     aspeed += rotation;
     curr.AngularSpeed = RotateAngularSpeed(curr.Location.Rotation, aspeed);
@@ -182,5 +190,5 @@ void DoBugRotation(const vec3 rotation, SimulationManager@ simManager = GetSimul
 
 vec3 RotateAngularSpeed(mat3 rot, vec3 aspeed)
 {
-    return vec3(Math::Dot(rot.x, aspeed), Math::Dot(rot.y, aspeed), Math::Dot(rot.z, aspeed));
+    return vec3(Math::Dot(aspeed, rot.x), Math::Dot(aspeed, rot.y), Math::Dot(aspeed, rot.z));
 }
