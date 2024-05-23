@@ -19,7 +19,8 @@ Each individual page will also list all downloadable versions, and a guide for t
 
 ### [Dev](dev.md)
 
-Whenever `import` works, I will document API's here (e.g. for giving callbacks to a custom bruteforce controller).
+When `import` starts working in TMInterface AngelScript,
+I will document API's here (e.g. for giving callbacks to a custom bruteforce controller).
 
 ---
 

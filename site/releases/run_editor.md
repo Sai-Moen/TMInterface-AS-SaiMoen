@@ -15,6 +15,6 @@ Standalone plugin versions.
 - [2.0.1.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/run_editor_v2.0.1.1/run_editor.as)
 - [2.0.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/run_editor_v2.0.1.0/run_editor.as)
 
-## Usage
+## Guide
 
 Run the `repp help` command to figure out the possible commands (like: toggling the user interface).

@@ -12,7 +12,7 @@
 
 - [1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
-## Usage
+## Guide
 
 For guidance on usage, consult the README.md in the .zip file, or the one on the GitHub repository:
 [README](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/blob/main/module/Incremental/README.md)

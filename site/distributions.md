@@ -18,6 +18,7 @@ Similarly, an older plugin has a decent chance of still working on newer version
 - [Finetune Location](releases/finetune_location.md)
 - [Incremental](releases/incremental.md)
 - [RammFinder](releases/rammfinder.md)
+- [Sim Bug](releases/sim_bug.md)
 
 ### Archived
 

@@ -6,7 +6,7 @@ A command-line calculator.
 
 - [2.0.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/pre_docs/calculator.as)
 
-## Usage
+## Guide
 
 There are two commands:
 
