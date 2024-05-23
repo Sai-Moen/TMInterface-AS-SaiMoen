@@ -18,87 +18,165 @@ void Main()
     RegisterCustomCommand(CMD, "Use: " + CMD + " help", OnCommand);
 }
 
+const int INVALID_TIME = -1;
+
 const string INDENT = "    ";
 
-const string HELP = "help";
-const string ROTATE = "rotate";
-const string STRENGTH = "strength";
+namespace cmd
+{
+    const string HELP = "help";
+    const string ROTATE = "rotate";
+    const string REMOVE = "remove";
+    const string LIST = "list";
+}
 
-const int INVALID_TIME = -1;
-int whenthe = INVALID_TIME;
+const string BUG_NAME_ROTATION = "rotation";
+const string BUG_TYPE_ROTATIONS = "rotations";
+dictionary rotations;
 
-const vec3 DEFAULT_STRENGTH = vec3(6, 2, 4);
-vec3 strength = DEFAULT_STRENGTH;
-
-void OnCommand(int t, int, const string &in, const array<string> &in args)
+void OnCommand(int timeFrom, int, const string &in, const array<string> &in args)
 {
     if (args.IsEmpty())
     {
-        LogHelp();
+        LogHelp(Severity::Warning);
         return;
     }
 
     const string cmd = args[0];
-    if (cmd == HELP)
+    if (cmd == cmd::HELP)
     {
         LogHelp();
     }
-    else if (cmd == ROTATE)
+    else if (cmd == cmd::ROTATE)
     {
-        whenthe = t;
-        if (whenthe == INVALID_TIME)
-        {
-            DoBug();
-        }
-        else
-        {
-            log("Time = " + whenthe, Severity::Success);
-        }
+        OnCommandRotate(timeFrom, args);
     }
-    else if (cmd == STRENGTH)
+    else if (cmd == cmd::REMOVE)
     {
-        if (args.Length < 4)
-        {
-            log(STRENGTH + " needs a vector (default " + DEFAULT_STRENGTH.ToString() + ") as a sub-argument.", Severity::Error);
-            return;
-        }
-
-        if (t != INVALID_TIME)
-        {
-            log(STRENGTH + " ignored the given time parameter " + t + " ...", Severity::Warning);
-        }
-
-        strength = Text::ParseVec3(Text::Join({ args[1], args[2], args[3] }, " "));
-        log("Strength = " + strength.ToString(), Severity::Success);
+        OnCommandRemove(timeFrom, args);
+    }
+    else if (cmd == cmd::LIST)
+    {
+        OnCommandList();
     }
     else
     {
-        LogHelp();
+        LogHelp(Severity::Error);
     }
 }
 
-void LogHelp()
+void LogHelp(Severity severity = Severity::Info)
 {
-    log("Available Commands:");
-    log(HELP + " - log this message");
-    log(ROTATE + " - rotate the car in a certain direction");
-    log(STRENGTH + " - sets strength of the bug (default " + DEFAULT_STRENGTH.ToString() + ")");
+    log("Available Commands:", severity);
+    log(cmd::HELP + " - log this message", severity);
+    log(cmd::ROTATE + " - rotate the car in a certain direction", severity);
+    log(cmd::REMOVE + " - removes the prepended time from the given type of bug", severity);
+    log(cmd::LIST + " - lists all timestamps at which bugs occur", severity);
+    log("", severity); // xdd
+
+    LogBugTypes(severity);
+}
+
+void LogBugTypes(Severity severity = Severity::Info)
+{
+    log("Available types of bugs:", severity);
+    log(    INDENT + BUG_TYPE_ROTATIONS, severity);
+}
+
+void OnCommandRotate(int timeFrom, const array<string> &in args)
+{
+    if (args.Length < 4)
+    {
+        log(cmd::ROTATE + " needs a vector (e.g. bug rotate 6 2 4)", Severity::Error);
+        return;
+    }
+
+    vec3 rotation = Text::ParseVec3(Text::Join({ args[1], args[2], args[3] }, " "));
+    log("Rotation vector = " + rotation.ToString(), Severity::Success);
+
+    if (timeFrom == INVALID_TIME)
+    {
+        DoBugRotation(rotation);
+        return;
+    }
+
+    const string key = timeFrom;
+    rotations[key] = rotation;
+    log("Added " + BUG_NAME_ROTATION + " at " + key, Severity::Success);
+}
+
+void OnCommandRemove(int timeFrom, const array<string> &in args)
+{
+    if (timeFrom == INVALID_TIME)
+    {
+        log("Not a time that can be removed (prepend a time to the command)", Severity::Error);
+        return;
+    }
+
+    if (args.Length < 2)
+    {
+        const Severity severity = Severity::Error;
+        log("Specify the type of bug from which to remove a timestamp:", severity);
+        LogBugTypes(severity);
+        return;
+    }
+
+    dictionary@ d;
+    string bugName;
+
+    const string bugType = args[1];
+    if (bugType == BUG_TYPE_ROTATIONS)
+    {
+        @d = rotations;
+        bugName = BUG_NAME_ROTATION;
+    }
+    else
+    {
+        LogBugTypes(Severity::Error);
+        return;
+    }
+
+    const string key = timeFrom;
+    if (d.Delete(key))
+    {
+        log("Removed " + bugName + " at " + key, Severity::Success);
+    }
+    else
+    {
+        log("The time was not found and could therefore not be removed: " + key, Severity::Warning);
+    }
+}
+
+void OnCommandList()
+{
+    log("-- Rotations --");
+    const auto@ const keys = rotations.GetKeys();
+    for (uint i = 0; i < keys.Length; i++)
+    {
+        const string key = keys[i];
+        const vec3 value = vec3(rotations[key]);
+        log(key + ": " + value.ToString());
+    }
+    log("----");
 }
 
 void OnRunStep(SimulationManager@ simManager)
 {
     const int time = simManager.RaceTime;
-    if (time == whenthe)
+
+    const string key = time;
+    vec3 rotation;
+    if (rotations.Get(key, rotation))
     {
-        DoBug(simManager);
+        DoBugRotation(rotation, simManager);
     }
 }
 
-void DoBug(SimulationManager@ simManager = GetSimulationManager())
+void DoBugRotation(const vec3 rotation, SimulationManager@ simManager = GetSimulationManager())
 {
     auto@ const curr = simManager.Dyna.RefStateCurrent;
     vec3 aspeed = curr.AngularSpeed;
-    aspeed += strength;
+    aspeed += rotation;
     curr.AngularSpeed = RotateAngularSpeed(curr.Location.Rotation, aspeed);
 }
 
