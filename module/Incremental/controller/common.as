@@ -1,5 +1,3 @@
-// Common Script, defines many common elements or constants.
-
 typedef int ms;
 const ms TICK = 10;
 const ms TWO_TICKS = TICK << 1;
@@ -364,6 +362,11 @@ class SteeringRange
     }
 }
 
+void log()
+{
+    log("");
+}
+
 void log(const uint u, Severity severity = Severity::Info)
 {
     log("" + u, severity);
@@ -382,6 +385,11 @@ void log(const float f, Severity severity = Severity::Info)
 void log(const double d, Severity severity = Severity::Info)
 {
     log("" + d, severity);
+}
+
+void print()
+{
+    print("");
 }
 
 void print(const uint u, Severity severity = Severity::Info)

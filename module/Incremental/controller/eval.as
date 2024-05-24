@@ -22,10 +22,7 @@ namespace Time
 
     ms Input
     {
-        get
-        {
-            return input;
-        }
+        get { return input; }
         set
         {
             min = value - TICK;
@@ -35,21 +32,18 @@ namespace Time
 
     ms Eval
     {
-        set
-        {
-            eval = value;
-        }
+        set { eval = value; }
     }
 
     void OffsetEval(const ms evalOffset)
     {
         eval = input + evalOffset;
     }
+}
 
-    bool LimitExceeded()
-    {
-        return input > Settings::timeTo;
-    }
+bool BeforeRange(const ms time)
+{
+    return time < Time::pre;
 }
 
 bool BeforeInput(SimulationManager@ simManager)
@@ -72,6 +66,16 @@ bool IsInputTime(const ms time)
 bool IsEvalTime(const ms time)
 {
     return time == Time::eval;
+}
+
+bool LimitExceeded()
+{
+    return Time::input > Settings::timeTo;
+}
+
+bool OutOfBounds(const ms time)
+{
+    return minState is null && time > Time::min;
 }
 
 class InputsResult
@@ -127,6 +131,7 @@ bool respawn;
 void Reset()
 {
     cmdlist.Content = "";
+    @minState = null;
 
     irIndex = 0;
     @inputsResult = null;

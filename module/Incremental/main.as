@@ -9,7 +9,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = NAME;
-    info.Version = "v2.0.1.0";
+    info.Version = "v2.0.1.1";
     return info;
 }
 
@@ -60,8 +60,17 @@ void OnSimulationBegin(SimulationManager@ simManager)
     @Eval::inputsResult = Eval::inputsResults[0];
 
     ModeDispatch(modeStr, modeMap, mode);
-    print(NAME + " : " + modeStr + "\n");
+    print();
+    print(NAME + " w/ " + modeStr);
+    print();
     mode.OnBegin(simManager);
+
+    if (Settings::useSaveState)
+    {
+        // cannot load states at this point, temporarily dispatch to special step function
+        @backingStep = step;
+        @step = OnSimStepState;
+    }
 }
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
@@ -104,10 +113,25 @@ void PointCallbacksToEmpty()
 */
 funcdef void OnSimStep(SimulationManager@ simManager);
 const OnSimStep@ step;
+const OnSimStep@ backingStep;
+
+void OnSimStepState(SimulationManager@ simManager)
+{
+    const auto@ const start = simManager.SaveState();
+    Settings::TryLoadStateFile(simManager);
+    if (Eval::OutOfBounds(simManager.RaceTime))
+    {
+        print("Attempted to load state that occurs too late! Reverting to start...", Severity::Warning);
+        simManager.RewindToState(start);
+    }
+
+    @step = backingStep;
+    @backingStep = null;
+}
 
 void OnSimStepSingle(SimulationManager@ simManager)
 {
-    if (Eval::Time::LimitExceeded())
+    if (Eval::LimitExceeded())
     {
         simManager.ForceFinish();
         return;
@@ -120,7 +144,7 @@ void OnSimStepSingle(SimulationManager@ simManager)
 void OnSimStepRangePre(SimulationManager@ simManager)
 {
     const ms time = simManager.TickTime;
-    if (time < Eval::Time::pre) return;
+    if (Eval::BeforeRange(time)) return;
 
     @Range::startingState = simManager.SaveState();
     @step = OnSimStepRangeMain;
@@ -129,7 +153,7 @@ void OnSimStepRangePre(SimulationManager@ simManager)
 void OnSimStepRangeMain(SimulationManager@ simManager)
 {
     if (Eval::BeforeInput(simManager)) return;
-    else if (Eval::Time::LimitExceeded())
+    else if (Eval::LimitExceeded())
     {
         Range::ApplyStartingEvents(simManager.InputEvents);
 
@@ -140,7 +164,7 @@ void OnSimStepRangeMain(SimulationManager@ simManager)
             return;
         }
 
-        print("");
+        print();
 
         Eval::NextRangeTime(simManager);
         mode.OnBegin(simManager);

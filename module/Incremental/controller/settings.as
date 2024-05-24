@@ -1,5 +1,3 @@
-// Settings/vars/ui Script, extension of common
-
 const string PREFIX = ID + "_";
 
 const string MODE = PREFIX + "mode";
@@ -8,6 +6,9 @@ const string EVAL_RANGE = PREFIX + "eval_range";
 const string EVAL_TO    = PREFIX + "eval_to";
 const string TIME_FROM  = PREFIX + "time_from";
 const string TIME_TO    = PREFIX + "time_to";
+
+const string USE_SAVE_STATE =  PREFIX + "use_save_state";
+const string SAVE_STATE_NAME = PREFIX + "save_state_name";
 
 const string RANGE_MODE = PREFIX + "range_mode";
 
@@ -22,6 +23,23 @@ namespace Settings
     ms evalTo;
     ms timeFrom;
     ms timeTo;
+
+    bool useSaveState;
+    string saveStateName;
+    void TryLoadStateFile(SimulationManager@ simManager)
+    {
+        auto@ const statefile = SimulationStateFile();
+        string error;
+        if (statefile.Load(saveStateName, error))
+        {
+            simManager.RewindToState(statefile.ToState());
+        }
+        else
+        {
+            print("There was an error with the savestate:", Severity::Error);
+            print(error, Severity::Error);
+        }
+    }
 
     bool showInfo;
     void PrintInfo(SimulationManager@ simManager, const string &in script)
@@ -45,6 +63,9 @@ void OnRegister()
     RegisterVariable(TIME_FROM, 0);
     RegisterVariable(TIME_TO, 10000);
 
+    RegisterVariable(USE_SAVE_STATE, false);
+    RegisterVariable(SAVE_STATE_NAME, "");
+
     RegisterVariable(RANGE_MODE, Range::modes[0]);
 
     RegisterVariable(SHOW_INFO, true);
@@ -67,6 +88,9 @@ void OnRegister()
     Settings::timeFrom  = ms(GetVariableDouble(TIME_FROM));
     Settings::timeTo    = ms(GetVariableDouble(TIME_TO));
 
+    Settings::useSaveState  = GetVariableBool(USE_SAVE_STATE);
+    Settings::saveStateName = GetVariableString(SAVE_STATE_NAME);
+
     Range::mode = GetVariableString(RANGE_MODE);
     Range::ChangeMode(Range::mode);
 
@@ -77,8 +101,7 @@ void OnSettings()
 {
     if (UI::CollapsingHeader("General"))
     {
-        Settings::evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE);
-        if (Settings::evalRange)
+        if (Settings::evalRange = UI::CheckboxVar("Evaluate timerange?", EVAL_RANGE))
         {
             Settings::timeFrom = UI::InputTimeVar("Minimum starting time", TIME_FROM);
             CapMax(EVAL_TO, Settings::timeFrom, Settings::evalTo);
@@ -97,6 +120,11 @@ void OnSettings()
         }
         CapMax(TIME_TO, Settings::timeFrom, Settings::timeTo);
         Settings::timeTo = UI::InputTimeVar("Maximum evaluation time", TIME_TO);
+
+        if (Settings::useSaveState = UI::CheckboxVar("Use savestate?", USE_SAVE_STATE))
+        {
+            Settings::saveStateName = UI::InputTextVar("Filename", SAVE_STATE_NAME);
+        }
     }
 
     if (UI::CollapsingHeader("Modes"))
