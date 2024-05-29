@@ -65,49 +65,33 @@ then it can take a lot more paths that can only be described as a mistake.
 ## The meaning of a path
 
 This 'path' that I'm talking about does not need to refer solely to the movement of the car.
-Think about the 'space' of all possible states (the combination of position, angle, velocity, etc.) the car can be in,
+Think about all possible states (the combination of position, angle, velocity, etc.) the car can be in,
 at some time.
-The path could also be seen as a path across this space,
+The path could also be seen as a path across the 'space' of these states,
 where bruteforce finds a state that could, for example, have a similar position but with a higher velocity.
 
 Sounds a bit abstract (because it is), so here is an example of this space:
 
-![Simple Path Example](path1.png)
+![Simple](simple.png)
 
-Keep in mind that this is not an overhead view of the car, I will explain the color scheme first:
-- The blue circle is the current best run found by bruteforce.
+This model has a simple color scheme:
+- The gray section represents all possible states in the game.
+- The blue dot is the current best run found by bruteforce.
 - The yellow circle around it represents all possible states we can find ourselves in,
 within one improvement.
 - The green section represents the attempts that would be accepted.
 - The orange section represents the attempts that would be rejected.
-- The gray section represents all possible states in the game.
-- The red section is a subset of the gray section,
-that indicates which 'possible' states are not reachable due to our base run and configuration.
 
-Let's say we're bruteforcing for speed on some map, and we have to SD past a wall, so we bruteforce the speed afterwards.
-Had we done the evaluation before,
-then there would've been nothing stopping it from just SD'ing straight into the wall on the next tick.
+To reiterate, this is not an overhead view of the car or something like that,
+this is a simplified view of the combination of the car's state.
+The x-axis is something about the state that we are trying to optimize,
+the y-axis is the state that is not directly influenced by that (or a subset of it, to illustrate a point).
 
-Because of an imperfect angle, we can build up more speed by going closer to the wall.
-It can be easily seen that any state with less speed that we can reach in one attempt, must be orange,
-since we are bruteforcing speed. Vice versa for the green section.
+So essentially, whenever bruteforce changes the state (due to finding an improvement),
+the blue dot moves to the right, and possibly also vertically.
+To put it simply, the more radically different an improvement is, the further away the blue dot moves.
 
-However, as you can see from the red section, if the path tends to go towards the green section,
-we will eventually get a decreasing amount of improvements, because this will happen:
-
-![Decreasing](path2.png)
-
-The darker red color represents the attempts that would have been an improvement if the wall wasn't there.
-Meaning that you will waste attempts due to poor planning, which will make it even harder to get good results from bruteforce.
-
-Had we started further away from the wall then we would've been able to get more speed,
-and kept a higher improvement rate, increasing the speed faster.
-In other words, if our path started lower in the diagram,
-then we would've gotten more results from bruteforce.
-
-Lastly, consider what a bad and good run could look like in this type of diagram:
-
-![BadVersusGood](path3.png)
+From this simple example, we can draw some simple conclusions:
 
 If a run is bad, then basically any change will improve it, hence the green section is large.
 If a run is good, it becomes quite hard to actually find an improvement,
@@ -117,7 +101,34 @@ Now, good or bad depends on what you want to do.
 In these diagrams I tend to just show that something is good by making the blue section go to the right,
 but if you have a near-perfect SD, while you wanted a noseboost, then the diagram would still show a 'bad' run.
 
-## Analyzing NoseBoosts
+### Example 1
+
+Let's say we're bruteforcing for speed on some map, and we have to SD past a wall, so we bruteforce the speed afterwards.
+Had we done the evaluation before,
+then there would've been nothing stopping it from just SD'ing straight into the wall on the next tick.
+
+![First Case Study Initial](case1_initial.png)
+
+The red part is a representation of the wall blocking our path as we attempt to gain more speed.
+
+Because of an imperfect angle, we can build up more speed by going closer to the wall.
+It can be easily seen that any state with less speed that we can reach in one attempt, must be orange,
+since we are bruteforcing speed. Vice versa for the green section.
+
+However, as you can see from the red section, if the path tends to go towards the green section,
+we will eventually get a decreasing amount of improvements, because this will happen:
+
+![First Case Study Problem](case1_problem.png)
+
+The darker red color represents the attempts that would have been an improvement if the wall wasn't there.
+Meaning that you will waste attempts due to poor planning, which will make it even harder to get good results from bruteforce.
+
+Had we started further away from the wall then we would've been able to get more speed,
+and kept a higher improvement rate, increasing the speed faster.
+In other words, if our path started lower in the diagram,
+then we would've gotten more results from bruteforce.
+
+### Example 2
 
 So why is it so hard to get a noseboost out of a bad run, I mean, shouldn't the green section be large if it's a bad run?
 
@@ -135,6 +146,47 @@ This essentially starts you off at a point from which it is possible, if not eas
 The reason a plugin even exists for getting a stable nosepos is because noseboosts need such a specific setup,
 which can be explained by the yellow section that actually leads to a noseboost being very thin.
 So, there are not that many states that actually lead towards a noseboost.
+
+The following diagram is a way in which noseboosts can be modeled, where I was inspired by the original case.
+The clip that was replied to is no longer available, but as a reminder,
+the problem was that the car was tipping over instead of doing a noseboost.
+
+![Second Case Disjoint](case2_disjoint.png)
+
+As you can see there are multiple separate little pockets for when you hit a certain amount of nosebugs in the chain.
+However, due to the bruteforce setup,
+the most likely outcome is actually that we change the state a lot without gaining much speed.
+The reason is that it's much easier to tip the car back on its wheels and start accelerating,
+than it is to find a (fast) nosebug.
+By doing this, the bruteforce locks itself out of being able to noseboost after some improvements,
+when the pitch becomes too low.
+
+At the same time, it becomes more effective to keep tipping over sooner,
+because the nosepos appears to be bad according to speed bruteforce.
+
+![Second Case Worsened](case2_worsened.png)
+
+Even though we know that the noseboost could annihilate the car's acceleration,
+the bruteforce does not, and is more likely to go for the easier improvements.
+This is known as a Local Optimum.
+
+There are two main ways to get rid of this.
+
+1. Add constraint(s)
+
+If you constrain the pitch to be within a certain range,
+then you can't reach the states where you tip over, and you must find the noseboost eventually.
+
+2. Improve Base Run
+
+If you provide a base run such that bruteforce doesn't really have an incentive to find anything other than a noseboost,
+then iterations will be spent on finding noseboosts.
+This could be done by, e.g. doing the first nosebug, or the first few nosebugs, manually.
+
+There is a bit of a balance between the two, as improving a base run to the point of doing the noseboosts manually,
+sort of defeats the purpose of having bruteforce in the first place, and is not time-efficient.
+However, if you have to add a whole bunch of contraints due to a poorly thought out base run,
+not many iterations will actually be close to improving it without being filtered out by the contraints.
 
 ## How this relates to general Bruteforce settings
 
@@ -172,12 +224,13 @@ Of course, if you change an earlier input, it will have an increasingly strong e
 because of the [Butterfly Effect](https://en.wikipedia.org/wiki/Butterfly_effect),
 which basically explains that a small change in a chaotic system can have massive implications down the line.
 
-In fact, most bruteforcing is done with a timeframe of 2s-6s, depending on the situation.
+In fact, most bruteforcing is done with a timeframe of at most 6s, depending on the situation.
 Anything much longer will usually not be able to change the first inputs,
 and a longer timeframe slows down the bruteforcer, which just wastes time.
 
-A really short timeframe doesn't really give bruteforce the means to change the run a lot,
-which sounds like it could be good for optimization, but it does mean you will be optimizing only that small timeframe.
+A really short timeframe may not give bruteforce the means to change the run a lot,
+which sounds like it could be good for optimization, but it does mean you will be optimizing only that small timeframe (which could very well be what you need).
+
 It can still be helpful to add a bit more context to the timeframe for better optimization,
 decreasing other settings instead to avoid changing more than you need to.
 
@@ -201,3 +254,10 @@ they are quite tricky to set up and take a lot of time to train.
 This is not practical if you are trying to TAS, and you should really be doing the routing yourself,
 and when optimizing smaller sections of a track (as a TASer),
 bruteforce with a good base run will probably win against AI anyway.
+
+Maybe in the future, when they are easier to set up for laymen, we could see some kind of AI assistance for TASing emerge.
+
+## Conclusion
+
+To summarize the most practical information:
+(TODO Insert Summary List)
