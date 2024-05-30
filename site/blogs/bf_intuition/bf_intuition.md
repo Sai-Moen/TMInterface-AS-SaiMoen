@@ -1,6 +1,6 @@
 # Understanding Bruteforce Intuitively
 
-By SaiMoen.
+By SaiMoen. With the help of threadd.
 
 It is assumed the reader is roughly familiar with how bruteforce works in TMInterface
 ([what-is-bf](https://donadigo.com/tminterface/what-is-bf)).
@@ -202,6 +202,10 @@ Analyzing this using the 'path through a space' model, it is likely going to exp
 Looking at the 'good or bad' scenario, it could make improvements more likely for worse runs,
 since the green section becomes larger compared to the orange section.
 
+A bad run with a low IMC vs. a high IMC:
+
+![Bad Low vs High IMC](imc.png)
+
 Furthermore, it makes sense that higher values are typically associated with doing harder to pull off tricks like noseboosts.
 Expanding their yellow section will lead to more attempts going to further states, which is what you want,
 since getting that first improvement that starts snowballing your speed is hard to do with only small changes.
@@ -225,12 +229,11 @@ because of the [Butterfly Effect](https://en.wikipedia.org/wiki/Butterfly_effect
 which basically explains that a small change in a chaotic system can have massive implications down the line.
 
 In fact, most bruteforcing is done with a timeframe of at most 6s, depending on the situation.
-Anything much longer will usually not be able to change the first inputs,
+Anything much longer will usually not be able to change the inputs at the start,
 and a longer timeframe slows down the bruteforcer, which just wastes time.
 
-A really short timeframe may not give bruteforce the means to change the run a lot,
-which sounds like it could be good for optimization, but it does mean you will be optimizing only that small timeframe (which could very well be what you need).
-
+A really short timeframe may not give bruteforce the means to change the run a lot, which could be good for optimization,
+but it does mean you will be optimizing only that small timeframe (which may be what you need, it depends on the situation).
 It can still be helpful to add a bit more context to the timeframe for better optimization,
 decreasing other settings instead to avoid changing more than you need to.
 
@@ -244,6 +247,9 @@ it can go quite low without preventing you from finding important improvements (
 
 There's not much to say about this one, except that it another example of a 'coarse' setting,
 just like trying to change an early input, that can only make big changes to the state.
+
+Then again, it's still useful to see how bruteforce moves the inputs affected by this setting around,
+and how e.g. the length of time between a gas and brake input changes.
 
 ## Why not replace Bruteforce with AI
 
