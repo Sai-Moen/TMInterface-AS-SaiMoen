@@ -1,30 +1,37 @@
-"""Zips the file in argv[1] and puts that zip in lab/archive"""
+"""Zips the given plugin and puts that zip in lab/archive."""
 
-from pathlib import Path
 from sys import argv
 from zipfile import ZipFile, ZIP_DEFLATED
 
-def main():
-    if len(argv) < 2:
+from utils import PROJECT_ROOT, find_plugin
+
+def main_args(args: list[str] = argv):
+    if len(args) < 2:
         print("You should provide a filename as an argument to this script.")
         return
 
-    cwd = Path.cwd()
-    assert cwd.stem == "utils", "safety check"
+    main(args[1])
 
-    p = Path(argv[1])
-    plugin_name = p.stem
+ARCHIVE = PROJECT_ROOT / "lab" / "archive"
+"""This is where the zip will be placed."""
 
-    root = cwd.parent
-    base_name = root / "lab" / "archive" / plugin_name
-    root_dir = root / p
-    assert root_dir.is_dir(), "argv[1] is not a valid Path"
+def main(arg: str):
+    p = find_plugin(arg)
+    out = ARCHIVE / p.stem
+    name = p.name
+    with ZipFile(out.with_suffix(".zip"), 'w', ZIP_DEFLATED, compresslevel=9) as zf:
+        if p.is_file():
+            zf.write(p, name)
+            return
 
-    with ZipFile(base_name.with_suffix(".zip"), 'w', ZIP_DEFLATED, compresslevel=9) as zf:
-        for dirpath, _, filenames in root_dir.walk():
-            relative = plugin_name / dirpath.relative_to(root_dir)
-            for f in filenames:
-                zf.write(dirpath / f, relative / f)
+        for root, _, files in p.walk():
+            relative = name / root.relative_to(p)
+            for file in files:
+                absolute = root / file
+                if file.casefold() == "readme.md":
+                    zf.write(absolute, file)
+                else:
+                    zf.write(absolute, relative / file)
 
 if __name__ == "__main__":
-    main()
+    main_args()

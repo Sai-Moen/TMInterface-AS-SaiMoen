@@ -1,1 +1,0 @@
-del ..\..\Plugins\%~nx1
