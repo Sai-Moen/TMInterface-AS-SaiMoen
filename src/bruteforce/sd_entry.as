@@ -9,37 +9,26 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = NAME;
-    info.Version = "v2.0.1.0";
+    info.Version = "v2.1.0a";
     return info;
 }
 
 void Main()
 {
     OnRegister();
-    Resize();
     RegisterBruteforceEvaluation(ID, NAME, OnEvaluate, OnSettings);
 }
+
+const string PREFIX = ID + "_";
+
+const string EVAL_FROM = PREFIX + "eval_from";
+const string EVAL_TO   = PREFIX + "eval_to";
 
 typedef int ms;
 const ms TICK = 10;
 
-uint GetTickDiff(const ms start, const ms end)
-{
-    return (end - start) / TICK;
-}
-
-void CapMax(const string &in variableName, const ms tfrom, const ms tto)
-{
-    SetVariable(variableName, Math::Max(tfrom, tto));
-}
-
-const string PrefixVar(const string &in var)
-{
-    return ID + "_" + var;
-}
-
-const string EVAL_FROM = PrefixVar("eval_from");
-const string EVAL_TO = PrefixVar("eval_to");
+ms evalFrom;
+ms evalTo;
 
 void OnRegister()
 {
@@ -48,14 +37,8 @@ void OnRegister()
 
     evalFrom = ms(GetVariableDouble(EVAL_FROM));
     evalTo   = ms(GetVariableDouble(EVAL_TO));
+    Resize();
 }
-
-ms evalFrom;
-ms evalTo;
-
-typedef float score;
-score best;
-array<score> scores;
 
 void OnSettings()
 {
@@ -64,13 +47,12 @@ void OnSettings()
 
     CapMax(EVAL_TO, evalFrom, evalTo);
     evalTo = ms(GetVariableDouble(EVAL_TO));
-
     Resize();
 }
 
 void Resize()
 {
-    const uint size = GetTickDiff(evalFrom, evalTo) + 1; // Inclusive range so add 1
+    const uint size = GetTickDiff(evalFrom, evalTo) + 1; // inclusive range so add 1
     if (size > 0xffff)
     {
         log("Large size detected, not resizing!", Severity::Warning);
@@ -80,9 +62,18 @@ void Resize()
     scores.Resize(size);
 }
 
+void CapMax(const string &in variableName, const ms tfrom, const ms tto)
+{
+    SetVariable(variableName, Math::Max(tfrom, tto));
+}
+
+typedef float score;
+score best;
+array<score> scores;
+
 BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluationInfo &in info)
 {
-    BFEvaluationResponse@ const response = BFEvaluationResponse();
+    auto@ const response = BFEvaluationResponse();
 
     const ms raceTime = simManager.RaceTime;
     if (IsEvalTime(raceTime))
@@ -98,7 +89,8 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
             if (IsAfterEvalTime(raceTime))
             {
                 best = GetAverageScore(scores);
-                print("Best at " + info.Iterations + " = " + best);
+                print("Best at " + info.Iterations + " iterations is " + best);
+                response.Decision = BFEvaluationDecision::Accept;
             }
             break;
         case BFPhase::Search:
@@ -123,17 +115,17 @@ score GetScore(SimulationManager@ simManager)
     return svc.IsSliding ? svc.TotalCentralForceAdded.z : 0;
 }
 
-score GetAverageScore(const array<score> &in scores)
+score GetAverageScore(const array<score>@ const scores)
 {
-    score best = 0;
+    score total = 0;
 
     const uint len = scores.Length;
     for (uint i = 0; i < len; i++)
     {
-        best += scores[i];
+        total += scores[i];
     }
 
-    return best / len;
+    return total / len;
 }
 
 bool IsEvalTime(const ms raceTime)
@@ -149,4 +141,9 @@ bool IsPastEvalTime(const ms raceTime)
 bool IsAfterEvalTime(const ms raceTime)
 {
     return raceTime == evalTo + TICK;
+}
+
+uint GetTickDiff(const ms start, const ms end)
+{
+    return (end - start) / TICK;
 }

@@ -1,4 +1,4 @@
-// Version Control System for TMInterface!
+// Version Control System for TMInterface scripts!
 
 PluginInfo@ GetPluginInfo()
 {
@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "script_vcs";
     info.Description = "Script Version Control System";
-    info.Version = "v2.0.1.0";
+    info.Version = "v2.1.0";
     return info;
 }
 

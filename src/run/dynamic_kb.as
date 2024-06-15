@@ -1,4 +1,4 @@
-// Interpret keyboard input as rolling average pad input
+// KB helpers
 
 const string ID = "dynamic_kb";
 const string CMD = "dkb";
@@ -8,72 +8,75 @@ PluginInfo@ GetPluginInfo()
     PluginInfo info;
     info.Author = "SaiMoen";
     info.Name = ID;
-    info.Description = "Dynamically interprets keyboard input as rolling average pad input.";
-    info.Version = "v2.0.1.1";
+    info.Description = "Keyboard helpers.";
+    info.Version = "v2.1.0a";
     return info;
+}
+
+void Main()
+{
+    OnRegister();
+    RegisterCustomCommand(CMD, "Internal " + ID + " command, do not use.", OnDKB);
+    RegisterSettingsPage(ID, Window);
 }
 
 const int FULLSTEER = 0x10000;
 
-void Main()
+const string PREFIX = ID + "_";
+
+const string ENABLED = PREFIX + "enabled";
+bool enabled;
+
+const string SMOOTH_ENABLED = PREFIX + "smooth_enabled";
+const string SMOOTH_SIZE    = PREFIX + "smooth_size";
+const string SMOOTH_DATA    = PREFIX + "smooth_data";
+const string SMOOTH_TREND   = PREFIX + "smooth_trend";
+
+const string AK_ENABLED  = PREFIX + "ak_enabled";
+const string AK_REGISTRY = PREFIX + "ak_registry";
+
+const uint MIN_SMOOTH_SIZE = 2;
+
+const string SEP_AK = ",";
+const string SEP_AKS = ";";
+
+bool smoothEnabled;
+uint smoothSize; uint SmoothSize { set { SetVariable(SMOOTH_SIZE, smoothSize = value); } }
+double smoothData;
+double smoothTrend;
+
+array<int> inputs;
+
+bool akEnabled;
+dictionary akRegistry;
+
+void OnRegister()
 {
-    RegisterCustomCommand(CMD, ID, OnDKB);
+    RegisterVariable(ENABLED, false);
+
+    RegisterVariable(SMOOTH_ENABLED, false);
+    RegisterVariable(SMOOTH_SIZE, 64);
+    RegisterVariable(SMOOTH_DATA, 0.2);
+    RegisterVariable(SMOOTH_TREND, 0.05);
+
+    RegisterVariable(AK_ENABLED, false);
+    RegisterVariable(AK_REGISTRY, "");
+
+
+    enabled = GetVariableBool(ENABLED);
+
+    smoothEnabled = GetVariableBool(SMOOTH_ENABLED);
+    smoothSize = uint(GetVariableDouble(SMOOTH_SIZE));
+    inputs.Resize(smoothSize);
+    smoothData = GetVariableDouble(SMOOTH_DATA);
+    smoothTrend = GetVariableDouble(SMOOTH_TREND);
+
+    akEnabled = GetVariableBool(AK_ENABLED);
+    akRegistry = DeserializeRegistry(GetVariableString(AK_REGISTRY));
+    ApplyRegistry();
 }
 
-bool enabled = false;
-
-void OnDKB(int, int, const string &in, const array<string> &in args)
-{
-    if (args.IsEmpty())
-    {
-        enabled = !enabled;
-        return;
-    }
-
-    if (args.Length < 2)
-    {
-        log("Not enough args!", Severity::Warning);
-        return;
-    }
-
-    const string mode = args[0];
-    if (mode == "data")
-    {
-        double d;
-        if (TryParseDouble(args[1], d))
-        {
-            SMOOTH_DATA = d;
-            log("Data Smoothing = " + SMOOTH_DATA);
-        }
-        else
-        {
-            log("Could not parse number", Severity::Error);
-        }
-    }
-    else if (mode == "trend")
-    {
-        double d;
-        if (TryParseDouble(args[1], d))
-        {
-            SMOOTH_TREND = d;
-            log("Trend Smoothing = " + SMOOTH_TREND);
-        }
-        else
-        {
-            log("Could not parse number", Severity::Error);
-        }
-    }
-}
-
-bool TryParseDouble(const string &in s, double &out d)
-{
-    uint byteCount;
-    d = Text::ParseFloat(s, byteCount);
-    return byteCount != 0;
-}
-
-const uint SIZE = 64;
-array<int> inputs(SIZE);
+uint magnitude = FULLSTEER;
 
 void OnRunStep(SimulationManager@ simManager)
 {
@@ -94,75 +97,168 @@ void OnRunStep(SimulationManager@ simManager)
         input = 0;
     }
 
-    const uint end = SIZE - 1;
-    for (uint i = 0; i < end; i++)
+    if (smoothEnabled)
     {
-        inputs[i] = inputs[i + 1];
+        const uint end = smoothSize - 1;
+        for (uint i = 0; i < end; i++)
+        {
+            inputs[i] = inputs[i + 1];
+        }
+        inputs[end] = input;
+        input = DoubleExponentialSmoothing();
     }
-    inputs[end] = input;
 
-    simManager.SetInputState(InputType::Steer, DoubleExponentialSmoothing());
+    if (akEnabled)
+    {
+        input = Math::Clamp(input, -magnitude, magnitude);
+    }
+
+    simManager.SetInputState(InputType::Steer, input);
+}
+
+void OnDKB(int, int, const string &in, const array<string> &in args)
+{
+    if (args.IsEmpty())
+    {
+        log("Cannot execute Action Key, args is empty!", Severity::Error);
+        return;
+    }
+
+    const uint m = Math::Clamp(Text::ParseUInt(args[0]), 0, FULLSTEER);
+    magnitude = m != magnitude ? m : FULLSTEER;
+}
+
+string keybindName;
+
+void Window()
+{
+    enabled = UI::CheckboxVar("Enable (and convert steer)", ENABLED);
+    UI::BeginDisabled(!enabled);
+
+    UI::Separator();
+
+    smoothEnabled = UI::CheckboxVar("Enable Smoothing?", SMOOTH_ENABLED);
+    UI::BeginDisabled(!smoothEnabled);
+
+    const int tempSmoothSize = UI::InputIntVar("Smoothing size (in ticks)", SMOOTH_SIZE);
+    SmoothSize = tempSmoothSize < MIN_SMOOTH_SIZE ? MIN_SMOOTH_SIZE : tempSmoothSize;
+    inputs.Resize(smoothSize);
+
+    smoothData = UI::SliderFloatVar("Smoothing data factor", SMOOTH_DATA, 0, 1);
+    smoothTrend = UI::SliderFloatVar("Smoothing trend factor", SMOOTH_TREND, 0, 1);
+
+    UI::EndDisabled();
+
+    UI::Separator();
+
+    akEnabled = UI::CheckboxVar("Enable Action Keys?", AK_ENABLED);
+    UI::BeginDisabled(!akEnabled);
+
+    keybindName = UI::InputText("New keybind name", keybindName);
+    if (UI::Button("Add Action Key?"))
+    {
+        akRegistry[keybindName] = FULLSTEER;
+        keybindName = "";
+        UpdateRegistry();
+    }
+    
+    if (UI::Button("Rebind"))
+    {
+        UpdateRegistry();
+    }
+
+    UI::Separator();
+    const auto@ const keys = akRegistry.GetKeys();
+    for (uint i = 0; i < keys.Length; i++)
+    {
+        const string key = keys[i];
+        const uint value = uint(akRegistry[key]);
+
+        UI::Text("Key " + key);
+        akRegistry[key] = UI::InputInt("Value " + key, value);
+
+        if (UI::Button("Delete " + key))
+        {
+            akRegistry.Delete(key);
+            UpdateRegistry();
+        }
+
+        UI::Separator();
+    }
+
+    UI::EndDisabled();
+
+
+    UI::EndDisabled();
 }
 
 // https://en.wikipedia.org/wiki/Exponential_smoothing#Double_exponential_smoothing_(Holt_linear)
 
-double SMOOTH_DATA = 0.2;
-double SMOOTH_TREND = 0.05;
+array<double> des_s;
+array<double> des_b;
 
 int DoubleExponentialSmoothing()
 {
-    DES_wipe(s_state);
-    s_tabulation.Resize(SIZE);
+    des_s.Resize(smoothSize);
+    des_b.Resize(smoothSize);
 
-    DES_wipe(b_state);
-    b_tabulation.Resize(SIZE);
+    des_s[0] = inputs[0];
+    des_b[0] = inputs[1] - inputs[0];
 
-    const int steer = int(DES_s(inputs.Length - 1));
+    const double invData = 1 - smoothData;
+    const double invTrend = 1 - smoothTrend;
+
+    for (uint t = 1; t < smoothSize; t++)
+    {
+        const double prevS = des_s[t - 1];
+        const double prevB = des_b[t - 1];
+
+        des_s[t] = smoothData * inputs[t] + invData * (prevS + prevB);
+        des_b[t] = smoothTrend * (des_s[t] - prevS) + invTrend * prevB;
+    }
+
+    const int steer = int(des_s[smoothSize - 1]);
     return Math::Clamp(steer, -FULLSTEER, FULLSTEER);
 }
 
-void DES_wipe(array<bool>@ const b)
+string SerializeRegistry(const dictionary@ const registry)
 {
-    b.Resize(SIZE);
-    for (uint i = 0; i < SIZE; i++)
+    array<string> builder;
+    const auto@ const keys = registry.GetKeys();
+    for (uint i = 0; i < keys.Length; i++)
     {
-        b[i] = false;
+        const string key = keys[i];
+        builder.Add(key + SEP_AK + uint(registry[key]));
     }
+    return Text::Join(builder, SEP_AKS);
 }
 
-array<bool> s_state;
-array<double> s_tabulation;
-
-double DES_s(const uint index)
+dictionary@ DeserializeRegistry(const string &in s)
 {
-    if (s_state[index]) return s_tabulation[index];
-
-    double iter = inputs[0];
-    for (uint i = 1; i < index; i++)
+    dictionary builder;
+    const auto@ const split = s.Split(SEP_AKS);
+    for (uint i = 0; i < split.Length; i++)
     {
-        iter += DES_b(i - 1);
-        iter *= 1 - SMOOTH_DATA;
-        iter += inputs[i] * SMOOTH_DATA;
-    }
+        const auto@ const keyval = split[i].Split(SEP_AK);
+        if (keyval.Length < 2) continue;
 
-    s_state[index] = true;
-    return s_tabulation[index] = iter;
+        builder[keyval[0]] = Text::ParseUInt(keyval[1]);
+    }
+    return builder;
 }
 
-array<bool> b_state;
-array<double> b_tabulation;
-
-double DES_b(const uint index)
+void UpdateRegistry()
 {
-    if (b_state[index]) return b_tabulation[index];
+    SetVariable(AK_REGISTRY, SerializeRegistry(akRegistry));
+    ApplyRegistry();
+}
 
-    double iter = inputs[1] - inputs[0];
-    for (uint i = 1; i < index; i++)
+void ApplyRegistry()
+{
+    const auto@ const keys = akRegistry.GetKeys();
+    for (uint i = 0; i < keys.Length; i++)
     {
-        iter *= 1 - SMOOTH_TREND;
-        iter += (DES_s(i) - DES_s(i - 1)) * SMOOTH_TREND;
+        const string key = keys[i];
+        ExecuteCommand("bind " + key + " \"" + CMD + " " + uint(akRegistry[key]) + "\"");
     }
-
-    b_state[index] = true;
-    return b_tabulation[index] = iter;
 }

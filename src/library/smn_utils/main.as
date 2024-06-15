@@ -6,6 +6,6 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "smn_utils";
     info.Description = "SaiMoen's Utilities Library";
-    info.Version = "v2.0.1.0";
+    info.Version = "v2.1.0";
     return info;
 }
