@@ -77,11 +77,14 @@ void Window()
     if (UI::CheckboxVar("Enable point view", ENABLED))
     {
         enabled = true;
-        Size = vec3(UI::InputFloatVar("Size", SIZE));
     }
     else if (enabled)
     {
         enabled = false;
         OnDisabled();
     }
+
+    UI::BeginDisabled(!enabled);
+    Size = vec3(UI::InputFloatVar("Size", SIZE));
+    UI::EndDisabled();
 }
