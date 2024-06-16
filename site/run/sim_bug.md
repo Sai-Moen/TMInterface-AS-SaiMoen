@@ -4,6 +4,7 @@ Bug Simulator (e.g. Ramm/Blue bugs).
 
 ## Installation
 
+- [2.1.0a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v2.1.0a_small/sim_bug.zip)
 - [2.0.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/sim_bug_v2.0.1.0/sim_bug.as)
 
 ## Guide
@@ -12,8 +13,13 @@ Use `bug help` to get a list of all commands and what they do.
 
 ### Types of Bugs
 
-Currently, the only type of bug is `rotations`, which rotates the car by adding angular velocity.
-In the future, other types could be added.
+There are two types:
+
+- `bug rotate x y z`
+- `bug speed x y z`
+
+Both will add that vector to the car's local angular and linear speed respectively.
+The bugs can also be scheduled by placing a time in front of them.
 
 ### Example Command
 

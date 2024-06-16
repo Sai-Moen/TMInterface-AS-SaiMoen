@@ -14,14 +14,40 @@ Similarly, an older plugin has a decent chance of still working on newer version
 
 ### Active
 
-- [Calculator](releases/calculator.md)
-- [Finetune Location](releases/finetune_location.md)
-- [Incremental](releases/incremental.md)
-- [RammFinder](releases/rammfinder.md)
-- [Sim Bug](releases/sim_bug.md)
+#### Run
+
+Run mode plugins.
+
+- [Dynamic Keyboard](run/dynamic_kb.md)
+- [Sim Bug](run/sim_bug.md)
+
+#### Bruteforce
+
+Bruteforce plugins.
+These will show up as modes under the built-in bruteforce controller
+(Bruteforce page -> Optimization tab, where e.g. trigger and point are).
+
+- [Finetune Location](bruteforce/finetune_location.md)
+- [SD Entry](bruteforce/sd_entry.md)
+
+#### Controller
+
+Bruteforce controllers, also known as Validation Handlers.
+You can select them to replace the built-in bruteforce controller
+(Top of the Bruteforce page).
+
+- [Incremental](controller/incremental.md)
+
+#### Utility
+
+Anything that is not specific to run mode or simulation.
+
+- [Calculator](utility/calculator.md)
+- [Point View](utility/point_view.md)
 
 ### Archived
 
 #### Active up to 2.1
 
-- [RunEditor](releases/run_editor.md)
+- [RammFinder](old/rammfinder.md)
+- [RunEditor](old/run_editor.md)

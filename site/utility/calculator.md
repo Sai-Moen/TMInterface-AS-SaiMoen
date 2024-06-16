@@ -4,9 +4,14 @@ A command-line calculator.
 
 ## Installation
 
+- [2.1.0a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v2.1.0a_small/calculator.zip)
 - [2.0.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/pre_docs/calculator.as)
 
 ## Guide
+
+Everything has to be passed in as a separate argument (so whitespace inbetween), e.g.:
+
+`calc_expr 2 * ( 31 + 4 )` yields 70.
 
 There are two commands:
 

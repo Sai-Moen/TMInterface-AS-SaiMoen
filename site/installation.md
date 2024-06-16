@@ -15,15 +15,20 @@ If you have an .as file, let's say `plugin.as`,
 then you can just place it directly into the Plugins folder,
 such that you end up with `Plugins/plugin.as`.
 
+If you have a .zip that just contains a single .as file, then it's a standalone plugin.
+The file can be copied into the Plugins folder.
+You should still end up with the file structure mentioned above.
+
 ## Module
 
-If you have a .zip file, then it means the plugin is most likely a folder instead of a file (let's say `plugin`).
-In order to install this plugin you will have to extract that folder in the Plugins folder,
-such that you end up with `Plugins/plugin/`.
-
-If the .zip just contains a single .as file, then it's a standalone plugin.
-This is not common as of writing, but this may change in the future.
-
 If the .zip just contains a single folder, then it can be directly copied into the Plugins folder.
-If the .zip contains multiple folders/files, then those need to be extracted into a folder in the Plugins folder.
-The Windows "Extract all..." context option (right click on it) should make this pretty easy.
+You should end up with something like `Plugins/plugin/` as a file structure.
+
+## README
+
+If you have a .zip, there might be a README file included with it.
+This file is not required for the plugin to function,
+but instead it might make it easier for you to function with the plugin.
+
+Therefore, it doesn't need to end up in the Plugins folder,
+but you might want to read it, as it is most likely a guide for the plugin.
