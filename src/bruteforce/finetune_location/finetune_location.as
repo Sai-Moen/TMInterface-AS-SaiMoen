@@ -158,7 +158,7 @@ bool IsBetter(SimulationManager@ simManager)
 {
     for (uint i = 0; i < bounds.Length; i++)
     {
-        bounds[i].Validate(simManager);
+        if (!bounds[i].Validate(simManager)) return false;
     }
 
     if (!GetValue(simManager, mode, current)) return false;

@@ -137,11 +137,11 @@ bool GetValue(SimulationManager@ simManager, const Kind kind, double &out value)
 
 class Group
 {
-    Group(const dictionary g, const string &in s, const string &in e)
+    Group(const dictionary &in g, const string &in s, const string &in prefix)
     {
         group = g;
         name = s;
-        ENABLED = e + "enabled";
+        ENABLED = prefix + "enabled";
     }
 
     dictionary group;
