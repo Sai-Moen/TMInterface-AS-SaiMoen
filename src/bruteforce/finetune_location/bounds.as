@@ -4,9 +4,9 @@ const string BOUND_PREFIX = PREFIX + "bound_";
 
 array<Group@> bounds =
 {
-    @Group(boundsPosition, "Position", PREFIX + "position_"),
-    @Group(boundsRotation, "Rotation", PREFIX + "rotation_"),
-    @Group(boundsSpeed, "Speed", PREFIX + "speed_")
+    Group(boundsPosition, "Position", PREFIX + "position_"),
+    Group(boundsRotation, "Rotation", PREFIX + "rotation_"),
+    Group(boundsSpeed, "Speed", PREFIX + "speed_")
 };
 
 const string BOUND_X = BOUND_PREFIX + "x";

@@ -46,18 +46,20 @@ void OnRegister()
 {
     RegisterVariable(EVAL_FROM, 0);
     RegisterVariable(EVAL_TO, 0);
-    evalFrom = int(GetVariableDouble(EVAL_FROM));
-    evalTo = int(GetVariableDouble(EVAL_TO));
 
     RegisterVariable(MODE, Kind::NONE);
     RegisterVariable(TARGET, 0);
-    mode = Kind(GetVariableDouble(MODE));
-    target = GetVariableDouble(TARGET);
 
     for (uint i = 0; i < bounds.Length; i++)
     {
         bounds[i].Register();
     }
+
+    evalFrom = int(GetVariableDouble(EVAL_FROM));
+    evalTo = int(GetVariableDouble(EVAL_TO));
+
+    mode = Kind(GetVariableDouble(MODE));
+    target = GetVariableDouble(TARGET);
 }
 
 bool valid;
@@ -188,7 +190,7 @@ void OnSettings()
 
 void DrawGroup(Group@ const group)
 {
-    group.enabled = UI::CheckboxVar("Enable Group?", group.ENABLED);
+    group.enabled = UI::CheckboxVar("Enable Group: " + group.name + "?", group.ENABLED);
     UI::BeginDisabled(!group.enabled);
 
     const auto@ const keys = group.GetKeys();

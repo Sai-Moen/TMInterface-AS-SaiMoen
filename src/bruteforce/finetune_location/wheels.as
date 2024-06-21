@@ -9,10 +9,10 @@ const string BL = "Back Left Wheel";
 
 void Main()
 {
-    bounds.Add(@Group(boundsFL, FL, PREFIX + "fl_"));
-    bounds.Add(@Group(boundsFR, FR, PREFIX + "fr_"));
-    bounds.Add(@Group(boundsBR, BR, PREFIX + "br_"));
-    bounds.Add(@Group(boundsBL, BL, PREFIX + "bl_"));
+    bounds.Add(Group(boundsFL, FL, PREFIX + "fl_"));
+    bounds.Add(Group(boundsFR, FR, PREFIX + "fr_"));
+    bounds.Add(Group(boundsBR, BR, PREFIX + "br_"));
+    bounds.Add(Group(boundsBL, BL, PREFIX + "bl_"));
 
     for (uint i = 0; i < modes.Length; i++)
     {
