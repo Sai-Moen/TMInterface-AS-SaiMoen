@@ -2,7 +2,7 @@
 
 Welcome to the homepage, this shows all sections of the website with a short description.
 
----
+## Sections
 
 ### [Installation](installation.md)
 
@@ -17,15 +17,15 @@ Each individual page will also list all downloadable versions, and a guide for t
 
 ---
 
+### [Blog](blog/blog.md)
+
+One of the blogs of all time.
+
+---
+
 ### [Dev](dev.md)
 
 When `import` starts working in TMInterface AngelScript,
 I will document API's here (e.g. for giving callbacks to a custom bruteforce controller).
-
----
-
-### [Blog](blog.md)
-
-One of the blogs of all time.
 
 ---
