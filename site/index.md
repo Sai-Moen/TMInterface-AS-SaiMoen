@@ -10,7 +10,7 @@ Short guide on installing plugins.
 
 ---
 
-### [Distributions](distributions.md)
+### [Distributions](distributions/distributions.md)
 
 List of all plugins and their development status.
 Each individual page will also list all downloadable versions, and a guide for the specific plugin.
