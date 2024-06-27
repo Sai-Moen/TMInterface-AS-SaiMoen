@@ -11,6 +11,8 @@ or learning from how others use bruteforce in practice.
 This blog is aimed more at understanding how to actually reason about what it's doing,
 and why, from first principles.
 
+I will also be adding some wikipedia links for further reading, feel free to ignore these.
+
 ## Intro
 
 Recently, I was reading some messages in the TMInterface Discord server, when I came across the following
@@ -25,28 +27,30 @@ I agree with the general take, so now I will try to expand on it a little more.
 
 ## You Cannot Try Everything
 
-So wait, why do we use this thing again?
-Well, TMNF has a lot of possible states the car can be in.
+So wait, why can't we just find the best inputs for each frame, from start to finish?
+Well, ignoring the fact that 'best' can't really be defined, TMNF has a lot of possible states the car can be in.
 The basic calculation shows that the car could branch out to (up to) 524292 different possible states from one tick to the next.
 
 This is mostly because of the following:
 there are 65536 steering values to the left, 0 steer exists, and then there are 65536 steering values to the right.
-Ignoring (digital) gas and brake (the explanation for the extra factor of 4 in the earlier number),
-this means that trying all possible permutations of steering values,
+So even if we only consider `steer` inputs, we can never look through all of them for any non-trivial amount of time.
+For example, trying all possible permutations of steering values, i.e. global/exhaustive search,
 assuming an attempt rate of 1000/s over just 4 ticks (0.04s in-game), would take about 9.353 billion years.
 
-Since that won't be happening, the next best thing is to try stuff randomly,
-and then only keep improved versions of the run we started with (the **base** run), so that the result improves over time.
+Since that won't be happening, we have to search in a different way
+([Local Search](https://en.wikipedia.org/wiki/Local_search_(optimization))).
+The way bruteforce does this, is to try stuff randomly.
+If we only keep improved versions of the run we started with (the **base** run), the result improves over time.
 Which begs the question, what do we count as an improvement?
 
 ## Determining The Objective
 
 The gut reaction of any TrackMania player would probably be to just count speed increase as an improvement.
 This is actually a strategy that works in many situations, but it has some problems:
-the bruteforcer can really just go anywhere and do anything to get improvements.
+the bruteforce algorithm can really just go anywhere and do anything to get improvements.
 
 This highlights an intrinsic fact about bruteforce, which is that it doesn't care about your run at all.
-And if a certain set of inputs results in, as threadd describes it,
+And if a certain set of inputs results in, as threadd described it,
 a 'lower energy state' compared to another, then bruteforce is more likely to do that.
 As long as it gets attempts that are 'improvements' to it, along the way.
 To make it more likely to take a path you want, you must make your path the most likely one (if it isn't already).
@@ -62,6 +66,8 @@ Another important aspect to this is the quality of the base run, see the followi
 I'm not trying to roast your runs, that is just what this phenomenon is called.
 If bruteforce gets a bad base run (compared to what you want to happen),
 then it has many opportunities to go down a trail of 'improvements' that are not really what you wanted.
+Sure, you can argue that the base run can't be perfect because then you wouldn't need bruteforce anymore,
+but what I'm trying to say is that there is a base run that makes you work with bruteforce as efficiently as possible.
 
 ## Search Space
 
@@ -80,7 +86,7 @@ Here are some possible cases:
 - We walk so far that basically any attempt at another step fails.
   This can happen when the bruteforce result becomes very optimized.
   Just to reiterate, this doesn't mean *you* will find it maxed,
-  just that according to your bruteforce setup it is *supposed* to be maxed.
+  just that it is hard to find a run that is better (in this analogy: a step forwards) according to your bruteforce setup.
 - We walk until we get to a state where we are not quite maxed,
   but we can't progress because of something specific to the run that is eating all our attempts, like an obstacle.
   If we could just step back and try a different approach, we could get around it.
@@ -96,10 +102,13 @@ where the local optimum is also the global optimum (or at least very close to it
 In any case, at some point bruteforce will get locked into a certain local optimum,
 so you better set it up with a base run and settings so that it finds a good one.
 
+Bruteforce 'locking' itself into a specific run also has to do with what it does to your inputs,
+but this is a topic for another time...
+
 ## Relation To Settings
 
 To preface, here is a short definition for 'bruteforce controller' (also known as validation handler):
-A mode which can basically do anything in the simulation context, e.g. Bruteforce, Incremental, etc.
+A mode which can basically do anything in the simulation context, e.g. Bruteforce, Incremental, DrawFuture, etc.
 
 This part covers the Input Modification settings found in the built-in bruteforce controller.
 I might also phrase things using the 'walking' anology from earlier.
@@ -173,7 +182,7 @@ Hopefully, whoever wrote the bruteforce mode or plugin has documented its settin
 If you want to get a deeper understanding of what they do,
 and what values you should consider setting, then make sure to read it.
 
-You might not completely understand the documentation, but hopefully it gives you a better idea on what to do.
+You might not always completely understand the documentation, but hopefully it gives you a better idea on what to do.
 
 ### Eval Is Not Input Change
 
@@ -203,10 +212,11 @@ It all depends on what works best for the bruteforce mode and the run.
 
 The most practical information:
 
-- Use the right tool for the job.
-- Know how the tool works conceptually (don't need to know how the code works).
-- Understand the settings, and try to imagine how certain values lead to certain states being searched.
-- Supply it with a good base run that doesn't allow it to 'walk' the wrong way when it makes improvements.
+- Know why we use bruteforce, and what it can/can't do for you.
+- Understand what the settings do, and how they can help you while bruteforcing.
+- Provide base runs that make it more difficult for bruteforce to find anything that you don't want,
+  which is usually ensured by the base run being good enough to avoid bad outcomes.
+- Try to reason about what bruteforce is doing as improvements come in (ask yourself where it is going with this).
 - Experiment!
 
 The following bonus sections add some more thoughts on various related subjects.
