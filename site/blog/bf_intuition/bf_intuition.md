@@ -8,9 +8,6 @@ It is assumed the reader is roughly familiar with how bruteforce works in TMInte
 It's also mostly theoretical, as the practical part can only truly be learned by doing it yourself,
 or learning from how others use bruteforce in practice.
 
-This blog is aimed more at understanding how to actually reason about what it's doing,
-and why, from first principles.
-
 I will also be adding some wikipedia links for further reading, feel free to ignore these.
 
 ## Intro
@@ -24,17 +21,18 @@ So, threadd explains that you can't just throw something into bruteforce and exp
 [Image of messages](initial_msg.png)
 
 I agree with the general take, so now I will try to expand on it a little more.
+You see, when using bruteforce, you really get the time to think about why it all works this way.
 
-## You Cannot Try Everything
+## Trying Everything
 
 So wait, why can't we just find the best inputs for each frame, from start to finish?
-Well, ignoring the fact that 'best' can't really be defined, TMNF has a lot of possible states the car can be in.
+Well, ignoring the fact that 'best' can hardly be defined, TMNF has a lot of possible states the car can be in.
 The basic calculation shows that the car could branch out to (up to) 524292 different possible states from one tick to the next.
 
 This is mostly because of the following:
 there are 65536 steering values to the left, 0 steer exists, and then there are 65536 steering values to the right.
 So even if we only consider `steer` inputs, we can never look through all of them for any non-trivial amount of time.
-For example, trying all possible permutations of steering values, i.e. global/exhaustive search,
+For example, trying all possible permutations of steering values (i.e. global/exhaustive search)
 assuming an attempt rate of 1000/s over just 4 ticks (0.04s in-game), would take about 9.353 billion years.
 
 Since that won't be happening, we have to search in a different way
@@ -43,7 +41,7 @@ The way bruteforce does this, is to try stuff randomly.
 If we only keep improved versions of the run we started with (the **base** run), the result improves over time.
 Which begs the question, what do we count as an improvement?
 
-## Determining The Objective
+## Looking For Improvements
 
 The gut reaction of any TrackMania player would probably be to just count speed increase as an improvement.
 This is actually a strategy that works in many situations, but it has some problems:
@@ -67,7 +65,7 @@ I'm not trying to roast your runs, that is just what this phenomenon is called.
 If bruteforce gets a bad base run (compared to what you want to happen),
 then it has many opportunities to go down a trail of 'improvements' that are not really what you wanted.
 Sure, you can argue that the base run can't be perfect because then you wouldn't need bruteforce anymore,
-but what I'm trying to say is that there is a base run that makes you work with bruteforce as efficiently as possible.
+but what I'm trying to say is that there exists a base run that makes you work with bruteforce as efficiently as possible.
 
 ## Search Space
 
@@ -103,14 +101,15 @@ In any case, at some point bruteforce will get locked into a certain local optim
 so you better set it up with a base run and settings so that it finds a good one.
 
 Bruteforce 'locking' itself into a specific run also has to do with what it does to your inputs,
-but this is a topic for another time...
+but that is a topic for another time...
 
 ## Relation To Settings
 
 To preface, here is a short definition for 'bruteforce controller' (also known as validation handler):
 A mode which can basically do anything in the simulation context, e.g. Bruteforce, Incremental, DrawFuture, etc.
 
-This part covers the Input Modification settings found in the built-in bruteforce controller.
+This part covers the Input Modification settings found in the built-in bruteforce controller,
+which you should be familiar with already.
 I might also phrase things using the 'walking' anology from earlier.
 
 ### Input Modify Count
@@ -123,6 +122,7 @@ In practice, people usually prefer a certain value or range of values for a cert
 ### Input Change Timeframe
 
 These are the From/To times that determine when bruteforce gets to change inputs.
+The length of the timeframe is the difference between the From and To times.
 
 What happens every so often,
 is that someone who is new to TMInterface will try to bruteforce the entirety of their manually driven run in finish time.
@@ -159,14 +159,9 @@ And again, if the run doesn't need to radically change, just become more optimiz
 
 ### Maximum Time Difference
 
-This is a relatively 'coarse' setting, and if you convert keyboard steering to analog steering, even more so.
-It can optimize up/down press/rel timings, which can help for something like noseboosts, to try out more different states.
+This can optimize up/down press/rel timings, which can help for something like noseboosts, to try out more different states.
 Since it works based on time, just like the [Input Change Timeframe](#input-change-timeframe),
-a slightly different value can have a considerable impact (hence it is a coarse setting).
-
-To be entirely honest, I don't even know if I should make a recommendation for this setting,
-whenever I used it, I kept it at 10ms and that worked when I had to do small steps.
-I suppose with bigger steps come bigger time differences.
+a slightly different value can have a considerable impact.
 
 ### Fill Inputs
 
@@ -178,7 +173,7 @@ therefore I tend to have it enabled.
 
 ### Read The Docs
 
-Hopefully, whoever wrote the bruteforce mode or plugin has documented its settings.
+Hopefully, whoever wrote the bruteforce mode or plugin has documented its settings in some way.
 If you want to get a deeper understanding of what they do,
 and what values you should consider setting, then make sure to read it.
 
@@ -263,4 +258,5 @@ Interestingly, this kind of plugin can actually be useful for bruteforce.
 If steering values are closer together, then basically any change will result in a different run,
 meaning that no attempts go to waste on meaningless changes.
 
-I will spare you the details on how that works (hint: turning rate), as it could be an entire blog post by itself.
+I will spare you the details on how that works (hint: turning rate).
+As I said, that is a topic for another time...
