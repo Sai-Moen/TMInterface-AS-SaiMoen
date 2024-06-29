@@ -5,7 +5,7 @@ const string NAME = "SD Entry Helper";
 
 PluginInfo@ GetPluginInfo()
 {
-    auto info = PluginInfo();
+    PluginInfo info;
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = NAME;
