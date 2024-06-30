@@ -1,4 +1,4 @@
-[<<<<](../index.md)
+[<<<<](..)
 
 # Developers Developers Developers
 

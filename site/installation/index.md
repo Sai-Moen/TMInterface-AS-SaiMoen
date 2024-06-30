@@ -1,4 +1,4 @@
-[<<<<](../index.md)
+[<<<<](..)
 
 # Installing a plugin
 

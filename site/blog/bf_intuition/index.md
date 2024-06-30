@@ -1,4 +1,4 @@
-[<<<<](../index.md)
+[<<<<](..)
 
 # Understanding Bruteforce Intuitively
 

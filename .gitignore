@@ -1,4 +1,8 @@
-**/__pycache__
+# if you want to build the site locally
+site_local/
 
-# for experimenting locally with a plugin
+# for experimenting locally with a plugin, also a utils dumping ground
 lab/
+
+# ignores utils pycache
+**/__pycache__

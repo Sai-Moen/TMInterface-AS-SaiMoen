@@ -1,4 +1,4 @@
-[<<<<](../index.md)
+[<<<<](..)
 
 # Incremental
 
@@ -18,4 +18,6 @@
 ## Guide
 
 For guidance on usage, consult the README.md in the .zip file, or the one on the GitHub repository:
-[README](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/blob/main/module/Incremental/README.md)
+[README][1]
+
+[1]: https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/blob/main/module/Incremental/README.md
