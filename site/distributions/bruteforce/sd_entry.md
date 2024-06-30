@@ -1,3 +1,5 @@
+[<<<<](../index.md)
+
 # SD Entry
 
 Bruteforces a speedslide entry.

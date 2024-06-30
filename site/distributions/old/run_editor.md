@@ -1,3 +1,5 @@
+[<<<<](../index.md)
+
 # Run Editor
 
 Deprecated for TMInterface version 2.1 or later, due to being implemented into TMInterface itself.

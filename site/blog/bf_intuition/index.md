@@ -1,3 +1,5 @@
+[<<<<](../index.md)
+
 # Understanding Bruteforce Intuitively
 
 By SaiMoen.

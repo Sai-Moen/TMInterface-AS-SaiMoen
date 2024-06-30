@@ -1,3 +1,5 @@
+[<<<<](../index.md)
+
 # Installing a plugin
 
 This short guide is intended for the plugins from this website, but it should apply to most plugin installations.

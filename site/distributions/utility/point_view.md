@@ -1,3 +1,5 @@
+[<<<<](../index.md)
+
 # Point View
 
 Visualizes the point from the built-in Single Point bruteforce mode.

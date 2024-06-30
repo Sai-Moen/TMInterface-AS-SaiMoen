@@ -1,3 +1,5 @@
+[<<<<](../index.md)
+
 # Finetune Location
 
 Allows you to specify a certain location to be contained within, and to bruteforce towards a certain goal.

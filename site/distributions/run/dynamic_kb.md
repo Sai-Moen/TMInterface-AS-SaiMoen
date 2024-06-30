@@ -1,3 +1,5 @@
+[<<<<](../index.md)
+
 # Dynamic Keyboard
 
 Features to help keyboard users (smoothing and action keys).

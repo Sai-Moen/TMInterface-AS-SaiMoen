@@ -1,3 +1,5 @@
+[<<<<](../index.md)
+
 # Distributions
 
 A plugin might include a README file, or I will try to document the plugins on their respective release pages.
