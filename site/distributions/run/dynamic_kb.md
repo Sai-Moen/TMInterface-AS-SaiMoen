@@ -1,4 +1,4 @@
-[<<<<](..)
+{{ site.header }}
 
 # Dynamic Keyboard
 
