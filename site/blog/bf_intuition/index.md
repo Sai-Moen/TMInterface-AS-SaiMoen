@@ -205,6 +205,88 @@ since you still want to change some of the SD inputs themselves.
 
 It all depends on what works best for the bruteforce mode and the run.
 
+## Overview Of Built-in Bruteforce Modes
+
+Written with TMInterface 2.1 in mind.
+
+### Checkpoint Time
+
+This is probably the least useful one, but it does have its moments.
+The main use of it is to get the lowest time on a given checkpoint.
+That might sound like an opportunity to make your run faster at every checkpoint, but there are two problems:
+
+1. Reaching it faster could be bad long-term,
+  e.g. losing all your speed to take a turn tighter doesn't work after the checkpoint.
+2. Time-based bruteforce without extra precision might need a big change to the base run to actually save 0.01s.
+
+If your goal is to respawn at the checkpoint, the first problem goes away,
+because you always respawn in the same way, so only the time you reach the checkpoint matters.
+This is why, if you want to keep going after the checkpoint,
+you are most likely better off ignoring the fact that there is a checkpoint and using another bruteforce mode anyway.
+
+### Finish Time
+
+This is a mode that also solves the second problem (as seen above).
+It uses 'precise time', a way to measure time more precisely than the game engine actually allows for.
+By halving the speed on the tick before you finish,
+if the car still makes it, the time is somewhere below .xx5 and vice versa (then the process repeats), but I digress.
+
+As we've already covered before, trying to bruteforce an entire run on this mode (or any mode really) won't work.
+If your run has a decent end, this mode can bring the finish time down a bit, maybe a few hundredths, maybe even more.
+
+Unfortunately, if you do a bugfin, precise time breaks (with the current implementation).
+
+### Trigger
+
+This mode allows you to create a trigger,
+which will make it so bruteforce will only evaluate whether a run is better when the car is inside of the trigger.
+So, you can essentially force all improvements to stay where the trigger is.
+That doesn't mean an improvement can't do something unexpected, but at least it doesn't go somewhere else entirely.
+
+As for the distance/speed ratio, if you just need speed, then obviously go for (mostly) speed.
+When you set it more to the distance side, then something interesting happens.
+The car tends to turn more towards the trigger, until it's perpendicular with the nearest face.
+If it succeeds at this, then you will end up with a weird looking turn,
+where the car aligns itself to go straight into the trigger.
+
+Otherwise, you can use this to take a turn really sharply, by entering the trigger at a very sharp angle.
+When you bruteforce for trigger distance, it will try to reach the trigger sooner, so it will straighten out that angle.
+Here is a crude drawing as an example:
+
+![Crude Drawing](trigger_distance.png)
+
+The blue arrow is the base run, and the green arrow is what could happen in trigger distance,
+when the car straightens out due to the rotation of the trigger compared to the rotation of the car.
+
+If the base run does not hit the trigger, there are some additional things to consider.
+
+For example, if you are trying to noseboost to some place further away,
+then placing a trigger in that place will mean that the trigger's angular size is very small when viewed from the noseboost.
+In other words, it's very unlikely that you will be able to hit it from the place you noseboost from.
+This can be solved by not using triggers, or by aiming with a closer trigger, then slowly moving the trigger away,
+and bruteforcing each time you move the trigger (so your aim becomes increasingly precise).
+
+As a final note on this mode, let's consider how one might use Custom Stop Time.
+Usually it just comes down to knowing when you want to reach the trigger,
+and not allowing bruteforce to find some random nonsense that happens after that time.
+If the replay you're using is a bit too long, you can also use this setting instead of making a new replay.
+
+### Single Point
+
+In this mode, there is just a single point in 3D space, around which everything happens.
+There is a tradeoff between this and triggers, where forcing the car to be in a trigger is both an upside and a downside.
+If you use point mode, then you are always able to find improvements, regardless of how far you are away from the point.
+However, if it can find enough speed, then it can decide to go somewhere else without being stopped by a trigger.
+
+As for the distance/speed ratio, using more distance generally helps when aiming the car to take a certain line.
+Using more speed will make the mode behave more like 'speed bf', which is completely fine as well, even 100% is useful.
+An additional advantage to triggers is that more distance doesn't really make it turn towards a face of a trigger,
+because there is just a point, and that's it.
+
+If you have 100% distance/speed set, then the Eval timeframe should just be set to at which point you want to maximize speed.
+Otherwise, the position of the point actually becomes important,
+so you should set it to be around when you expect to be closest to the point (with some margin, of course).
+
 ## Summary
 
 The most practical information:
