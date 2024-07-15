@@ -9,7 +9,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = NAME;
-    info.Version = "v2.0.1.1";
+    info.Version = "v2.1.0a";
     return info;
 }
 
@@ -32,8 +32,6 @@ void OnSimulationBegin(SimulationManager@ simManager)
     simManager.RemoveStateValidation();
 
     auto@ const buffer = simManager.InputEvents;
-    Eval::cmdlist.Content += buffer.ToCommandsText() + "\n\n";
-
     const uint duration = simManager.EventsDuration;
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Left);
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Right);
@@ -133,6 +131,7 @@ void OnSimStepSingle(SimulationManager@ simManager)
 {
     if (Eval::LimitExceeded())
     {
+        Eval::EndRangeTime(simManager);
         simManager.ForceFinish();
         return;
     }
@@ -155,7 +154,7 @@ void OnSimStepRangeMain(SimulationManager@ simManager)
     if (Eval::BeforeInput(simManager)) return;
     else if (Eval::LimitExceeded())
     {
-        Range::ApplyStartingEvents(simManager.InputEvents);
+        print();
 
         if (Range::startingTimes.IsEmpty())
         {
@@ -164,7 +163,7 @@ void OnSimStepRangeMain(SimulationManager@ simManager)
             return;
         }
 
-        print();
+        Range::ApplyStartingEvents(simManager.InputEvents);
 
         Eval::NextRangeTime(simManager);
         mode.OnBegin(simManager);
@@ -187,14 +186,15 @@ void OnSimEndMain(SimulationManager@ simManager)
 {
     print("Simulation end", Severity::Success);
 
-    Eval::cmdlist.Content += Range::GetBestInputs();
-    if (Eval::cmdlist.Save(GetVariableString("bf_result_filename")))
+    Eval::cmdlist.Content = Range::GetBestInputs();
+    const string filename = GetVariableString("bf_result_filename");
+    if (Eval::cmdlist.Save(filename))
     {
-        log("Inputs saved!", Severity::Success);
+        log("Inputs saved! Filename: " + filename, Severity::Success);
     }
     else
     {
-        log("Inputs not saved.", Severity::Error);
+        log("Inputs not saved! Filename: " + filename, Severity::Error);
     }
     Eval::Reset();
     Range::Reset();

@@ -269,7 +269,7 @@ void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ 
 
     uint contiguous = 1;
     uint old = indices[indices.Length - 1];
-    for (int i = indices.Length - 2; i >= 0; i--)
+    for (int i = indices.Length - 2; i != -1; i--)
     {
         const uint new = indices[i];
         if (new == old - 1)
@@ -286,82 +286,60 @@ void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ 
     buffer.RemoveAt(old, contiguous);
 }
 
-class SteeringRange
+abstract class Range
 {
-    int midpoint;
-    int Midpoint
+    Range() {}
+
+    Range(const int start, const int stop, const int step)
     {
-        set
-        {
-            midpoint = value;
-            Create();
-        }
+        this.start = start;
+        this.stop = stop;
+        this.step = step;
     }
 
-    uint step;
-    uint deviation;
-    uint shift;
-    bool IsDone { get const { return step <= 1; } }
-    bool IsLast { get const { return step < uint(1 << shift); } }
+    protected int start;
+    protected int stop;
+    protected int step;
 
-    uint len;
-    array<int> range;
-    bool IsEmpty { get const { return range.IsEmpty(); } }
+    bool Done { get const { return true; } }
 
-    SteeringRange() {}
-
-    SteeringRange(
-        const int _midpoint,
-        const uint _step,
-        const uint _deviation,
-        const uint _shift = 1)
+    int Iter()
     {
-        midpoint = _midpoint;
-        step = _step;
-        deviation = _deviation;
-        shift = _shift;
+        if (Done) return 0;
 
-        len = (_deviation / _step + 1) << 1;
-
-        Create();
-    }
-
-    void Create()
-    {
-        int prevL = Math::INT_MAX;
-        int prevR = Math::INT_MAX;
-
-        uint i = 0;
-        range = array<int>(len);
-        for (int offset = deviation; offset > 0; offset -= step)
-        {
-            const int steerL = ClampSteer(midpoint - offset);
-            if (steerL != prevL) range[i++] = steerL;
-            prevL = steerL;
-
-            const int steerR = ClampSteer(midpoint + offset);
-            if (steerR != prevR) range[i++] = steerR;
-            prevR = steerR;
-        }
-    }
-
-    void Magnify(const int _midpoint)
-    {
-        midpoint = _midpoint;
-        step >>= shift;
-        deviation >>= shift;
-
-        Create();
-    }
-
-    int Pop()
-    {
-        int pop = range[0];
-        range.RemoveAt(0);
-        return pop;
+        const int temp = start;
+        start += step;
+        if (temp > STEER::MAX) return STEER::MAX;
+        else if (temp < STEER::MIN) return STEER::MIN;
+        else return temp;
     }
 }
 
+class RangeIncl : Range
+{
+    RangeIncl() { super(); }
+
+    RangeIncl(const int start, const int stop, const int step)
+    {
+        super(start, stop, step);
+    }
+
+    bool Done { get const override { return start > stop || step == 0; } }
+}
+
+class RangeExcl : Range
+{
+    RangeExcl() { super(); }
+
+    RangeExcl(const int start, const int stop, const int step)
+    {
+        super(start, stop, step);
+    }
+
+    bool Done { get const override { return start >= stop || step == 0; } }
+}
+
+// log
 void log()
 {
     log("");
@@ -387,6 +365,7 @@ void log(const double d, Severity severity = Severity::Info)
     log("" + d, severity);
 }
 
+// print
 void print()
 {
     print("");

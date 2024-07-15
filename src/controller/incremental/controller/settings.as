@@ -10,8 +10,6 @@ const string TIME_TO    = PREFIX + "time_to";
 const string USE_SAVE_STATE =  PREFIX + "use_save_state";
 const string SAVE_STATE_NAME = PREFIX + "save_state_name";
 
-const string RANGE_MODE = PREFIX + "range_mode";
-
 const string SHOW_INFO = PREFIX + "show_info";
 
 string modeStr;
@@ -47,7 +45,7 @@ namespace Settings
         string printable = script;
         if (showInfo)
         {
-            printable += " -> " + simManager.SceneVehicleCar.CurrentLocalSpeed.Length() + " m/s";
+            printable += " -> " + simManager.Dyna.RefStateCurrent.LinearSpeed.Length() + " m/s";
         }
         print(printable);
     }
@@ -66,7 +64,7 @@ void OnRegister()
     RegisterVariable(USE_SAVE_STATE, false);
     RegisterVariable(SAVE_STATE_NAME, "");
 
-    RegisterVariable(RANGE_MODE, Range::modes[0]);
+    RegisterVariable(Range::MODE, Range::modes[0]);
 
     RegisterVariable(SHOW_INFO, true);
 
@@ -91,7 +89,7 @@ void OnRegister()
     Settings::useSaveState  = GetVariableBool(USE_SAVE_STATE);
     Settings::saveStateName = GetVariableString(SAVE_STATE_NAME);
 
-    Range::mode = GetVariableString(RANGE_MODE);
+    Range::mode = GetVariableString(Range::MODE);
     Range::ChangeMode(Range::mode);
 
     Settings::showInfo = GetVariableBool(SHOW_INFO);

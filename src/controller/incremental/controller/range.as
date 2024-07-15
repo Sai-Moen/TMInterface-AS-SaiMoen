@@ -2,7 +2,7 @@ namespace Range
 {
 
 
-const string PREFIX = ::PREFIX + "_range";
+const string PREFIX = ::PREFIX + "range_";
 
 const string MODE = PREFIX + "mode";
 
@@ -39,7 +39,7 @@ string GetBestInputs()
             @best = other;
         }
     }
-    return best.ToString();
+    return best.inputs;
 }
 
 bool Speed(const Eval::InputsResult@ const best, const Eval::InputsResult@ const other)
@@ -82,8 +82,9 @@ void OnBegin(const TM::InputEventBuffer@ const buffer)
         startingTimes.Add(i);
     }
 
-    startingEvents.Resize(buffer.Length);
-    for (uint i = 0; i < buffer.Length; i++)
+    const uint len = buffer.Length;
+    startingEvents.Resize(len);
+    for (uint i = 0; i < len; i++)
     {
         startingEvents[i] = buffer[i];
     }
@@ -93,7 +94,8 @@ void ApplyStartingEvents(TM::InputEventBuffer@ const buffer)
 {
     // How this is faster than only undoing the things I changed is beyond me
     buffer.Clear();
-    for (uint i = 0; i < startingEvents.Length; i++)
+    const uint len = startingEvents.Length;
+    for (uint i = 0; i < len; i++)
     {
         buffer.Add(startingEvents[i]);
     }
@@ -101,8 +103,8 @@ void ApplyStartingEvents(TM::InputEventBuffer@ const buffer)
 
 void Reset()
 {
-    startingTimes.Resize(0);
-    startingEvents.Resize(0);
+    startingTimes.Clear();
+    startingEvents.Clear();
     @startingState = null;
 }
 

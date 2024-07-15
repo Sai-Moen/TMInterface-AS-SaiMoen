@@ -3,7 +3,7 @@
 namespace SD
 {
     const string NAME = "SD Railgun";
-    const string DESCRIPTION = "SpeedDrift script, needs to start already drifting.";
+    const string DESCRIPTION = "SpeedDrift scripts.";
     const Mode@ const mode = Mode(
         NAME, DESCRIPTION,
         OnRegister, OnSettings,
@@ -62,28 +62,11 @@ namespace SD
         sdMode.OnStep(simManager);
     }
 
-    Result evalBest;
-
     int steer;
-    SteeringRange steerRange;
+    RangeIncl range;
 
-    typedef float score;
-    class Result
-    {
-        int steer;
-        score result;
-
-        Result()
-        {
-            result = -16;
-        }
-
-        Result(const int _steer, const score _result)
-        {
-            steer = _steer;
-            result = _result;
-        }
-    }
+    int bestSteer;
+    double bestResult;
 }
 
 namespace SD::Classic
@@ -101,14 +84,6 @@ namespace SD::Classic
     const string SEEK      = PREFIX + "seek";
     const string DIRECTION = PREFIX + "direction";
 
-    namespace DEFAULT
-    {
-        const ms SEEK = 120;
-            
-        const uint STEP = 0x4000;
-        const uint DEVIATION = 0x6000;
-    }
-
     ms seek;
 
     enum Direction
@@ -123,7 +98,7 @@ namespace SD::Classic
 
     void OnRegister()
     {
-        RegisterVariable(SEEK, DEFAULT::SEEK);
+        RegisterVariable(SEEK, 120);
         RegisterVariable(DIRECTION, directions[0]);
 
         seek = ms(GetVariableDouble(SEEK));
@@ -144,6 +119,9 @@ namespace SD::Classic
         directionStr = newMode;
     }
 
+    const int LAST_OFFSET = 8;
+
+    int step;
     bool isNormalDirection;
 
     void OnBegin(SimulationManager@ simManager)
@@ -156,7 +134,7 @@ namespace SD::Classic
         const ms time = simManager.TickTime;
         if (Eval::IsInputTime(time))
         {
-            steer = steerRange.Pop();
+            steer = range.Iter();
         }
         
         if (Eval::IsEvalTime(time))
@@ -172,50 +150,64 @@ namespace SD::Classic
 
     void OnEval(SimulationManager@ simManager)
     {
-        const score result = simManager.SceneVehicleCar.CurrentLocalSpeed.Length();
-        if (result > evalBest.result) evalBest = Result(steer, result);
-
-        if (!steerRange.IsEmpty)
+        const double result = simManager.Dyna.RefStateCurrent.LinearSpeed.Length();
+        if (result > bestResult)
         {
-            return;
+            bestSteer = steer;
+            bestResult = result;
         }
-        else if (steerRange.IsDone)
+
+        if (!range.Done) return; // not done with range
+        
+        if (step <= 1) // done with iteration
         {
-            const bool switchDirection = isNormalDirection && evalBest.steer * direction < 0;
+            const bool switchDirection = isNormalDirection && bestSteer * direction < 0;
             if (switchDirection)
             {
                 isNormalDirection = false;
 
                 const int midpoint = -STEER::HALF * direction;
-                steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION, 2);
+                step = 0x4000;
+                SetRangeAroundMidpoint(midpoint);
             }
             else
             {
-                Eval::Advance(simManager, evalBest.steer);
+                Eval::Advance(simManager, bestSteer);
                 Reset();
             }
         }
-        else if (steerRange.IsLast)
+        else if (DecreaseStep() <= 1) // last step before we are done
         {
-            const int midpoint = STEER::HALF * direction;
-            steerRange = SteeringRange(midpoint, 1, 16);
+            const int midpoint = bestSteer;
+            range = RangeIncl(midpoint - LAST_OFFSET, midpoint + LAST_OFFSET, 1);
         }
-        else
+        else // not done with iteration, keep 'magnifying'
         {
-            steerRange.Magnify(evalBest.steer);
+            DecreaseStep();
+            SetRangeAroundMidpoint(bestSteer);
         }
     }
 
     void Reset()
     {
         Eval::Time::OffsetEval(seek);
-
-        evalBest = Result();
+        bestResult = -1;
 
         const int midpoint = STEER::HALF * direction;
-        steerRange = SteeringRange(midpoint, DEFAULT::STEP, DEFAULT::DEVIATION, 2);
-
+        step = 0x4000;
+        SetRangeAroundMidpoint(midpoint);
         isNormalDirection = true;
+    }
+
+    void SetRangeAroundMidpoint(const int midpoint)
+    {
+        const int offset = step * 3 / 2;
+        range = RangeIncl(midpoint - offset, midpoint + offset, step);
+    }
+
+    int DecreaseStep()
+    {
+        return step >>= 2;
     }
 }
 
@@ -246,27 +238,30 @@ namespace SD::Normal
         seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
     }
 
+    const OnSim@ onStep;
+    int step; // not confusing whatsoever
+
     void OnBegin(SimulationManager@ simManager)
     {
         Reset();
     }
 
-    const OnSim@ step;
-
     void OnStep(SimulationManager@ simManager)
     {
-        step(simManager);
+        onStep(simManager);
     }
 
     void OnStepPre(SimulationManager@ simManager)
     {
         const float prevTurningRate = Eval::MinState.SceneVehicleCar.TurningRate;
         const float turningRate = simManager.SceneVehicleCar.TurningRate;
-        evalBest.steer = RoundAway(turningRate * STEER::FULL, turningRate - prevTurningRate);
-        steerRange.Midpoint = evalBest.steer;
+        bestSteer = RoundAway(turningRate * STEER::FULL, turningRate - prevTurningRate);
 
-        @step = OnStepMain;
-        step(simManager);
+        step = 0x4000;
+        SetRangeAroundMidpoint(bestSteer);
+
+        @onStep = OnStepMain;
+        onStep(simManager);
     }
 
     void OnStepMain(SimulationManager@ simManager)
@@ -274,7 +269,7 @@ namespace SD::Normal
         const ms time = simManager.TickTime;
         if (Eval::IsInputTime(time))
         {
-            steer = steerRange.Pop();
+            steer = range.Iter();
         }
         
         if (Eval::IsEvalTime(time))
@@ -290,32 +285,39 @@ namespace SD::Normal
 
     void OnEval(SimulationManager@ simManager)
     {
-        const score result = simManager.SceneVehicleCar.CurrentLocalSpeed.Length();
-        if (result > evalBest.result) evalBest = Result(steer, result);
-
-        if (!steerRange.IsEmpty)
+        const double result = simManager.Dyna.RefStateCurrent.LinearSpeed.Length();
+        if (result > bestResult)
         {
-            return;
+            bestSteer = steer;
+            bestResult = result;
         }
-        else if (steerRange.IsDone)
+
+        if (!range.Done) return;
+
+        if (step == 0)
         {
-            Eval::Advance(simManager, evalBest.steer);
+            Eval::Advance(simManager, bestSteer);
             Reset();
         }
         else
         {
-            steerRange.Magnify(evalBest.steer);
+            step >>= 2;
+            SetRangeAroundMidpoint(bestSteer);
         }
     }
 
     void Reset()
     {
         Eval::Time::OffsetEval(seek);
+        bestResult = -1;
 
-        evalBest = Result();
-        steerRange = SteeringRange(0, 0x1000, 0x2000);
+        @onStep = OnStepPre;
+    }
 
-        @step = OnStepPre;
+    void SetRangeAroundMidpoint(const int midpoint)
+    {
+        const int offset = step * 3 / 2;
+        range = RangeIncl(midpoint - offset, midpoint + offset, step);
     }
 }
 

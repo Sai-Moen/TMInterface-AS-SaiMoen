@@ -37,7 +37,7 @@ namespace Time
 
     void OffsetEval(const ms evalOffset)
     {
-        eval = input + evalOffset;
+        Eval = input + evalOffset;
     }
 }
 
@@ -80,37 +80,28 @@ bool OutOfBounds(const ms time)
 
 class InputsResult
 {
-    array<InputCommand> inputs;
+    string inputs;
     SimulationState@ finalState;
-
-    void AddInputCommand(const InputCommand &in cmd)
-    {
-        inputs.Add(cmd);
-    }
-
-    string ToString() const
-    {
-        string builder;
-        if (inputs.IsEmpty()) return builder;
-
-        InputCommand prev = inputs[0];
-        builder += prev.ToScript() + "\n";
-        for (uint i = 1; i < inputs.Length; i++)
-        {
-            InputCommand curr = inputs[i];
-            if (curr.Type != prev.Type || curr.State != prev.State)
-            {
-                builder += curr.ToScript() + "\n";
-            }
-            prev = curr;
-        }
-        return builder;
-    }
 }
 
 uint irIndex = 0;
 InputsResult@ inputsResult;
 array<InputsResult> inputsResults;
+
+void Advance(SimulationManager@ simManager, const int state)
+{
+    const ms timestamp = Time::input;
+    const InputType type = InputType::Steer;
+
+    auto@ const buffer = simManager.InputEvents;
+    BufferRemoveIndices(buffer, buffer.Find(timestamp, type));
+    buffer.Add(timestamp, type, state);
+
+    InputCommand cmd = MakeInputCommand(timestamp, type, state);
+    Settings::PrintInfo(simManager, cmd.ToScript());
+
+    Time::Input += TICK;
+}
 
 void NextRangeTime(SimulationManager@ simManager)
 {
@@ -121,56 +112,21 @@ void NextRangeTime(SimulationManager@ simManager)
 
 void EndRangeTime(SimulationManager@ simManager)
 {
+    auto@ const buffer = simManager.InputEvents;
+    BufferRemoveAll(buffer, Time::input, Time::eval - TICK * 2, InputType::Steer);
+    inputsResult.inputs = buffer.ToCommandsText();
+
     @inputsResult.finalState = simManager.SaveState();
 }
 
-bool up;
-bool down;
-bool respawn;
-
 void Reset()
 {
-    cmdlist.Content = "";
+    cmdlist = CommandList();
     @minState = null;
 
     irIndex = 0;
     @inputsResult = null;
     inputsResults.Clear();
-
-    up = false;
-    down = false;
-    respawn = false;
-}
-
-void Advance(SimulationManager@ simManager, const int state)
-{
-    const ms timestamp = Eval::Time::input;
-    const InputType type = InputType::Steer;
-
-    const auto@ const buffer = simManager.InputEvents;
-    BufferRemoveIndices(buffer, buffer.Find(timestamp, type));
-
-    SaveExistingInput(buffer, timestamp, InputType::Respawn, respawn);
-    SaveExistingInput(buffer, timestamp, InputType::Up, up);
-    SaveExistingInput(buffer, timestamp, InputType::Down, down);
-    buffer.Add(timestamp, type, state);
-
-    InputCommand cmd = MakeInputCommand(timestamp, type, state);
-    inputsResult.AddInputCommand(cmd);
-    Settings::PrintInfo(simManager, cmd.ToScript());
-
-    Time::Input += TICK;
-}
-
-void SaveExistingInput(
-    TM::InputEventBuffer@ const buffer,
-    const int time,
-    const InputType type,
-    const bool current)
-{
-    const int state = current ? 1 : 0;
-    if (DiffPreviousInput(buffer, time, type, current))
-        inputsResult.AddInputCommand(MakeInputCommand(time, type, state));
 }
 
 

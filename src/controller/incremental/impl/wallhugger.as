@@ -174,7 +174,7 @@ namespace WH::Classic
 namespace WH::Normal
 {
     const string NAME = "Normal";
-    const string DESCRIPTION = "More aggressive, tries to get as much sideways force as possible";
+    const string DESCRIPTION = "";
     const Mode@ const mode = Mode(
         NAME, DESCRIPTION,
         OnRegister, OnSettings,
