@@ -16,10 +16,17 @@ To find it, open the TMInterface settings, and look below all the built-in setti
 To enable it, tick the checkbox at the top of the page.
 
 An object will appear at the point.
-- In v2.1.0, this is done by placing a trigger.
+Note: In v2.1.*, this is done by placing a trigger.
 
 If you need to get rid of the trigger, then untick the checkbox.
 
 ### Size
 
 This setting changes how big the object around the point is.
+
+## Patch Notes
+
+### v2.1.0a
+
+- Remove temporary trigger id logic, `SetTrigger` will return it (a bug was fixed in TMInterface 2.1.0).
+- Remove CLI, Add settings page.

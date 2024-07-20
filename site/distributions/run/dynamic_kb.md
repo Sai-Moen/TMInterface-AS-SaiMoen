@@ -44,3 +44,11 @@ To change an action key's value, type a value in its text box, and press the reb
 To delete an action key, press its delete button.
 
 The console will also show binds taking place.
+
+## Patch Notes
+
+### v2.1.0a
+
+- Rewrote smoothing logic to increase performance.
+- Added Action Keys.
+- Remove CLI, Add settings page.

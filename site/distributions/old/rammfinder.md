@@ -6,7 +6,7 @@ Finds rammstein bugs by attempting to maximize wheel height.
 
 ## Installation
 
-- [2.0.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/pre_docs/rammfinder.as)
+- [v2.0.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/pre_docs/rammfinder.as)
 
 ## Guide
 
