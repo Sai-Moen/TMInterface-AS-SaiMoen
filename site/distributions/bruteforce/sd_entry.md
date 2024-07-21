@@ -6,7 +6,7 @@ Bruteforces a speedslide entry.
 
 ## Installation
 
-- [v2.1.0a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v2.1.0a_small/sd_entry.zip)
+- [v2.1.0a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v2.1.0a_middle/sd_entry.zip)
 
 - [v2.0.1.0]() (Unavailable)
 

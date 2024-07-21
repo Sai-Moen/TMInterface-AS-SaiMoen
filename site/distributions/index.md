@@ -44,6 +44,7 @@ You can select them to replace the built-in bruteforce controller
 
 Anything that is not specific to run mode or simulation.
 
+- [Bruteforce Diagnosis](utility/bf_diagnosis.md)
 - [Calculator](utility/calculator.md)
 - [Point View](utility/point_view.md)
 
