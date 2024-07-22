@@ -73,23 +73,23 @@ array<score> scores;
 
 BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluationInfo &in info)
 {
-    auto@ const response = BFEvaluationResponse();
+    BFEvaluationResponse response;
 
-    const ms raceTime = simManager.RaceTime;
-    if (IsEvalTime(raceTime))
+    const ms time = simManager.RaceTime;
+    if (IsEvalTime(time))
     {
-        const uint index = GetTickDiff(evalFrom, raceTime);
+        const uint index = GetTickDiff(evalFrom, time);
         scores[index] = GetScore(simManager);
     }
-    else if (IsPastEvalTime(raceTime))
+    else if (IsPastEvalTime(time))
     {
         switch (info.Phase)
         {
         case BFPhase::Initial:
-            if (IsAfterEvalTime(raceTime))
+            if (IsAfterEvalTime(time))
             {
                 best = GetAverageScore(scores);
-                print("Best at " + info.Iterations + " iterations is " + best);
+                print("Best is " + best + " at " + info.Iterations + " iterations");
                 response.Decision = BFEvaluationDecision::Accept;
             }
             break;
@@ -128,19 +128,19 @@ score GetAverageScore(const array<score>@ const scores)
     return total / len;
 }
 
-bool IsEvalTime(const ms raceTime)
+bool IsEvalTime(const ms time)
 {
-    return raceTime >= evalFrom && raceTime <= evalTo;
+    return time >= evalFrom && time <= evalTo;
 }
 
-bool IsPastEvalTime(const ms raceTime)
+bool IsAfterEvalTime(const ms time)
 {
-    return raceTime > evalTo;
+    return time == evalTo + TICK;
 }
 
-bool IsAfterEvalTime(const ms raceTime)
+bool IsPastEvalTime(const ms time)
 {
-    return raceTime == evalTo + TICK;
+    return time > evalTo;
 }
 
 uint GetTickDiff(const ms start, const ms end)
