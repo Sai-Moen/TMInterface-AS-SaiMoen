@@ -24,7 +24,7 @@ void OnSimulationBegin(SimulationManager@)
 {
     inputsMinTime = ms(GetVariableDouble("bf_inputs_min_time"));
     needStunt = true;
-    needBest = true;
+    best = 0;
 }
 
 const string PREFIX = ID + "_";
@@ -91,7 +91,6 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
     return response;
 }
 
-bool needBest;
 uint current;
 uint best;
 
@@ -102,7 +101,6 @@ BFEvaluationDecision OnInitial(SimulationManager@ simManager, uint iterations)
     const ms time = simManager.RaceTime;
     if (IsEvalTime(time) && IsBetter(simManager))
     {
-        needBest = false;
         best = current;
     }
     else if (IsAfterEvalTime(time))
@@ -135,7 +133,7 @@ BFEvaluationDecision OnSearch(SimulationManager@ simManager)
 bool IsBetter(SimulationManager@ simManager)
 {
     current = simManager.PlayerInfo.StuntsScore;
-    return current > best || needBest;
+    return current > best;
 }
 
 bool IsBeforeInputsTime(const ms time)
