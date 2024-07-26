@@ -31,6 +31,7 @@ These will show up as modes under the built-in bruteforce controller
 
 - [Finetune Location](bruteforce/finetune_location.md)
 - [SD Entry](bruteforce/sd_entry.md)
+- [Speed Ladder](bruteforce/speed_ladder.md)
 
 #### Controller
 
