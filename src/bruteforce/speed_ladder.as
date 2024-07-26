@@ -116,7 +116,7 @@ BFEvaluationDecision OnInitial(SimulationManager@ simManager, uint iterations)
     {
         print("Best is " + PreciseFormat(best) + " @" + bestTime + "ms w/ " + iterations + " iterations");
 
-        decision = BFEvaluationDecision::Accept;
+        decision = IsSpeedCap(best) ? BFEvaluationDecision::Stop : BFEvaluationDecision::Accept;
     }
 
     return decision;
@@ -158,4 +158,12 @@ bool IsAfterEvalTime(const ms time)
 string PreciseFormat(const double val)
 {
     return Text::FormatFloat(val, "", 0, 6);
+}
+
+// need to simulate the floating point error in the game
+const float speedCap = 1000.0f / 3.6f * 3.6f;
+
+bool IsSpeedCap(const float val)
+{
+    return val >= speedCap;
 }
