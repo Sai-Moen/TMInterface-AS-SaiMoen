@@ -27,7 +27,6 @@ void OnSimulationBegin(SimulationManager@)
 const string PREFIX = ID + "_";
 
 const string LIMIT     = PREFIX + "limit";
-const string OFFSET    = PREFIX + "offset";
 const string EVAL_FROM = PREFIX + "eval_from";
 const string EVAL_TO   = PREFIX + "eval_to";
 
@@ -35,19 +34,16 @@ typedef int ms;
 const ms TICK = 10;
 
 uint limit;
-ms offset;
 ms evalFrom;
 ms evalTo;
 
 void OnRegister()
 {
     RegisterVariable(LIMIT, 5000);
-    RegisterVariable(OFFSET, 50);
     RegisterVariable(EVAL_FROM, 0);
     RegisterVariable(EVAL_TO, 10000);
 
     limit    = uint(GetVariableDouble(LIMIT));
-    offset   = ms(GetVariableDouble(OFFSET));
     evalFrom = ms(GetVariableDouble(EVAL_FROM));
     evalTo   = ms(GetVariableDouble(EVAL_TO));
 }
@@ -55,7 +51,6 @@ void OnRegister()
 void OnSettings()
 {
     limit    = UI::InputIntVar("Iteration limit", LIMIT);
-    offset   = UI::InputTimeVar("Time offset", OFFSET);
     evalFrom = UI::InputTimeVar("Evaluate from", EVAL_FROM);
     evalTo   = UI::InputTimeVar("Evaluate to", EVAL_TO);
 
@@ -78,6 +73,8 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
     if (iterations >= nextStep)
     {
         nextStep = iterations + limit;
+
+        const ms offset = bestTime - evalFrom;
         evalFrom += offset;
         evalTo += offset;
 
