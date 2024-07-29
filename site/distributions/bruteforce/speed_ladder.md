@@ -6,6 +6,7 @@ A Speed Bruteforce mode that moves the Evaluation Timeframe after a certain amou
 
 ## Installation
 
+- [v2.1.0b](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.0a/speed_ladder.zip)
 - [v2.1.0a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/speed_ladder_v2.1.0a/speed_ladder.zip)
 
 ## Guide
@@ -24,6 +25,10 @@ For example, suppose we have the following best speed in an eval timeframe of 68
 So, evalFrom becomes the best known time and evalTo stays ahead of it with the same time difference.
 
 ## Patch Notes
+
+### v2.1.0b
+
+- Added Yaw/Pitch/Roll and wheel contact number constraints.
 
 ### v2.1.0a
 
