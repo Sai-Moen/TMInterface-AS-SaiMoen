@@ -257,7 +257,7 @@ namespace SD::Normal
         const float turningRate = simManager.SceneVehicleCar.TurningRate;
         bestSteer = RoundAway(turningRate * STEER::FULL, turningRate - prevTurningRate);
 
-        step = 0x4000;
+        step = 0x2000;
         SetRangeAroundMidpoint(bestSteer);
 
         @onStep = OnStepMain;
