@@ -251,16 +251,52 @@ int BufferGetLast(
     return buffer[indices[indices.Length - 1]].Value.Analog;
 }
 
+array<array<uint>@>@ BufferGetAllIndices(
+    TM::InputEventBuffer@ const buffer,
+    const ms start, const ms end,
+    const InputType type, uint &out lenTotal)
+{
+    lenTotal = 0;
+    array<array<uint>@> indexArrayArray;
+
+    for (ms t = start; t <= end; t += TICK)
+    {
+        auto@ const indexArray = buffer.Find(t, type);
+        lenTotal += indexArray.Length;
+        indexArrayArray.Add(indexArray);
+    }
+    return indexArrayArray;
+}
+
 void BufferRemoveAll(
     TM::InputEventBuffer@ const buffer,
-    const ms start,
-    const ms end,
+    const ms start, const ms end,
     const InputType type)
 {
-    for (ms i = start; i <= end; i += TICK)
-    {
-        BufferRemoveIndices(buffer, buffer.Find(i, type));
-    }
+    if (start > end)
+        return;
+
+    uint lenTotal;
+    const auto@ const indexArrayArray = BufferGetAllIndices(buffer, start, end, type, lenTotal);
+
+    const auto@ const indices = ConcatIndices(indexArrayArray, lenTotal, 0);
+    BufferRemoveIndices(buffer, indices);
+}
+
+void BufferRemoveAllExceptFirst(
+    TM::InputEventBuffer@ const buffer,
+    const ms start, const ms end,
+    const InputType type)
+{
+    if (start > end)
+        return;
+
+    uint lenTotal;
+    const auto@ const indexArrayArray = BufferGetAllIndices(buffer, start, end, type, lenTotal);
+    lenTotal -= (end - start) / TICK + 1;
+
+    const auto@ const indices = ConcatIndices(indexArrayArray, lenTotal, 1);
+    BufferRemoveIndices(buffer, indices);
 }
 
 void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ const indices)
@@ -284,6 +320,21 @@ void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ 
         old = new;
     }
     buffer.RemoveAt(old, contiguous);
+}
+
+array<uint>@ ConcatIndices(const array<array<uint>@>@ const indexArrayArray, const int capacity, const uint innerIndex)
+{
+    array<uint> indices(capacity);
+    uint index = 0;
+    for (uint i = 0; i < indexArrayArray.Length; i++)
+    {
+        const auto@ const indexArray = indexArrayArray[i];
+        for (uint j = innerIndex; j < indexArray.Length; j++)
+        {
+            indices[index++] = indexArray[j];
+        }
+    }
+    return indices;
 }
 
 abstract class Range

@@ -155,7 +155,7 @@ namespace WH::Classic
         }
         else
         {
-            simManager.SetInputState(InputType::Steer, steer);
+            Eval::AddInput(simManager, time, InputType::Steer, steer); // workaround for SetInputState
         }
     }
 

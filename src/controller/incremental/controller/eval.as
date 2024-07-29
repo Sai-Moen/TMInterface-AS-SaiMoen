@@ -19,6 +19,7 @@ namespace Time
     ms input; // When to do inputs for this iteration
     ms eval;  // When to check the results of a sub-iteration,
                 // may change within an iteration, but that is up to the implementing mode(s)
+    ms max;   // The maximum time at which an input has been added (used for cleanup)
 
     ms Input
     {
@@ -88,6 +89,36 @@ uint irIndex = 0;
 InputsResult@ inputsResult;
 array<InputsResult> inputsResults;
 
+void AddInput(SimulationManager@ simManager, int time, InputType type, int value)
+{
+    AddInput(simManager.InputEvents, time, type, value);
+}
+
+void AddInput(TM::InputEventBuffer@ const buffer, int time, InputType type, int value)
+{
+    if (time > Time::max)
+        Time::max = time;
+
+    const auto indices = buffer.EventIndices;
+    TM::InputEventValue eventValue;
+    switch (type)
+    {
+    case InputType::Steer:
+        eventValue.EventIndex = indices.SteerId;
+        eventValue.Analog = value;
+        break;
+    default:
+        log("Unknown type being added...", Severity::Error);
+        return;
+    }
+
+    TM::InputEvent event;
+    event.Time = time + 100010;
+    event.Value = eventValue;
+
+    buffer.Add(event);
+}
+
 void Advance(SimulationManager@ simManager, const int state)
 {
     const ms timestamp = Time::input;
@@ -95,7 +126,7 @@ void Advance(SimulationManager@ simManager, const int state)
 
     auto@ const buffer = simManager.InputEvents;
     BufferRemoveIndices(buffer, buffer.Find(timestamp, type));
-    buffer.Add(timestamp, type, state);
+    AddInput(buffer, timestamp, type, state); // workaround for TM::InputEventBuffer::Add
 
     InputCommand cmd = MakeInputCommand(timestamp, type, state);
     Settings::PrintInfo(simManager, cmd.ToScript());
@@ -113,7 +144,8 @@ void NextRangeTime(SimulationManager@ simManager)
 void EndRangeTime(SimulationManager@ simManager)
 {
     auto@ const buffer = simManager.InputEvents;
-    BufferRemoveAll(buffer, Time::input, Time::eval - TICK * 2, InputType::Steer);
+    BufferRemoveAllExceptFirst(buffer, Time::input, Time::max, InputType::Steer);
+    Time::max = 0;
     inputsResult.inputs = buffer.ToCommandsText();
 
     @inputsResult.finalState = simManager.SaveState();
