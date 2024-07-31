@@ -7,6 +7,7 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v2.1.0b](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.0b/incremental.zip)
 - [v2.1.0a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.0a/incremental.zip)
 
 - [v2.0.1.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.0.1.1/incremental.zip)
@@ -27,6 +28,13 @@ For guidance on usage, consult the README.md in the .zip file, or the one on the
 [1]: https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/blob/main/module/Incremental/README.md
 
 ## Patch Notes
+
+### v2.1.0b
+
+- Removed SD Classic.
+- Improved SD Normal.
+- Info now prints km/h instead of m/s.
+- Eval no longer tries to save old inputs when cleaning up.
 
 ### v2.1.0a
 
