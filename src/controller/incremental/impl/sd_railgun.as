@@ -22,9 +22,8 @@ namespace SD
 
     void OnRegister()
     {
-        RegisterVariable(MODE, Classic::NAME);
+        RegisterVariable(MODE, Normal::NAME);
 
-        ModeRegister(sdMap, Classic::mode);
         ModeRegister(sdMap, Normal::mode);
         //ModeRegister(sdMap, Wiggle::mode); // not yet implemented
 
@@ -65,150 +64,10 @@ namespace SD
     int steer;
     RangeIncl range;
 
+    array<int> triedSteers;
+
     int bestSteer;
     double bestResult;
-}
-
-namespace SD::Classic
-{
-    const string NAME = "Classic";
-    const string DESCRIPTION = "The original sd_railgun normal sdmode, ported to AngelScript.";
-    const Mode@ const mode = Mode(
-        NAME, DESCRIPTION,
-        OnRegister, OnSettings,
-        OnBegin, OnStep
-    );
-
-    const string PREFIX = SD::PREFIX + "classic_";
-
-    const string SEEK      = PREFIX + "seek";
-    const string DIRECTION = PREFIX + "direction";
-
-    ms seek;
-
-    enum Direction
-    {
-        left = -1,
-        right = 1,
-    }
-
-    Direction direction;
-    string directionStr;
-    const array<string> directions = {"Left", "Right"};
-
-    void OnRegister()
-    {
-        RegisterVariable(SEEK, 120);
-        RegisterVariable(DIRECTION, directions[0]);
-
-        seek = ms(GetVariableDouble(SEEK));
-        directionStr = GetVariableString(DIRECTION);
-        direction = directions[0] == directionStr ? Direction::left : Direction::right;
-    }
-
-    void OnSettings()
-    {
-        seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
-        ComboHelper("Direction", directionStr, directions, ChangeMode);
-    }
-
-    void ChangeMode(const string &in newMode)
-    {
-        SetVariable(DIRECTION, newMode);
-        direction = directions[0] == newMode ? Direction::left : Direction::right;
-        directionStr = newMode;
-    }
-
-    const int LAST_OFFSET = 8;
-
-    int step;
-    bool isNormalDirection;
-
-    void OnBegin(SimulationManager@ simManager)
-    {
-        Reset();
-    }
-
-    void OnStep(SimulationManager@ simManager)
-    {
-        const ms time = simManager.TickTime;
-        if (Eval::IsInputTime(time))
-        {
-            steer = range.Iter();
-        }
-        
-        if (Eval::IsEvalTime(time))
-        {
-            OnEval(simManager);
-            Eval::Rewind(simManager);
-        }
-        else
-        {
-            Eval::AddInput(simManager, time, InputType::Steer, steer); // workaround for SetInputState
-        }
-    }
-
-    void OnEval(SimulationManager@ simManager)
-    {
-        const double result = simManager.Dyna.RefStateCurrent.LinearSpeed.Length();
-        if (result > bestResult)
-        {
-            bestSteer = steer;
-            bestResult = result;
-        }
-
-        if (!range.Done) return; // not done with range
-        
-        if (step <= 1) // done with iteration
-        {
-            const bool switchDirection = isNormalDirection && bestSteer * direction < 0;
-            if (switchDirection)
-            {
-                isNormalDirection = false;
-
-                const int midpoint = -STEER::HALF * direction;
-                step = 0x4000;
-                SetRangeAroundMidpoint(midpoint);
-            }
-            else
-            {
-                Eval::Advance(simManager, bestSteer);
-                Reset();
-            }
-        }
-        else if (DecreaseStep() <= 1) // last step before we are done
-        {
-            const int midpoint = bestSteer;
-            range = RangeIncl(midpoint - LAST_OFFSET, midpoint + LAST_OFFSET, 1);
-        }
-        else // not done with iteration, keep 'magnifying'
-        {
-            DecreaseStep();
-            SetRangeAroundMidpoint(bestSteer);
-        }
-    }
-
-    void Reset()
-    {
-        Eval::Time::OffsetEval(seek);
-        bestResult = -1;
-
-        const int midpoint = STEER::HALF * direction;
-        step = 0x4000;
-        SetRangeAroundMidpoint(midpoint);
-        isNormalDirection = true;
-    }
-
-    void SetRangeAroundMidpoint(const int midpoint)
-    {
-        const int offset = step * 3 / 2;
-        range = RangeIncl(midpoint - offset, midpoint + offset, step);
-    }
-
-    int DecreaseStep()
-    {
-        return step >>= 2;
-    }
 }
 
 namespace SD::Normal
@@ -224,7 +83,6 @@ namespace SD::Normal
     const string PREFIX = SD::PREFIX + "normal_";
 
     const string SEEK = PREFIX + "seek";
-
     ms seek;
 
     void OnRegister()
@@ -238,10 +96,15 @@ namespace SD::Normal
         seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
     }
 
+    const int RANGE_SIZE = 4;
+
+    const int STEP_DONE = -1;
+    const int STEP_LAST_DEVIATION = RANGE_SIZE / 2;
+
     const OnSim@ onStep;
     int step; // not confusing whatsoever
 
-    void OnBegin(SimulationManager@ simManager)
+    void OnBegin(SimulationManager@)
     {
         Reset();
     }
@@ -257,7 +120,7 @@ namespace SD::Normal
         const float turningRate = simManager.SceneVehicleCar.TurningRate;
         bestSteer = RoundAway(turningRate * STEER::FULL, turningRate - prevTurningRate);
 
-        step = 0x2000;
+        step = 0x8000 / RANGE_SIZE;
         SetRangeAroundMidpoint(bestSteer);
 
         @onStep = OnStepMain;
@@ -269,7 +132,15 @@ namespace SD::Normal
         const ms time = simManager.TickTime;
         if (Eval::IsInputTime(time))
         {
-            steer = range.Iter();
+            while (!range.Done)
+            {
+                steer = range.Iter();
+                if (triedSteers.IsEmpty() || triedSteers.Find(steer) == -1)
+                {
+                    triedSteers.Add(steer);
+                    break;
+                }
+            }
         }
         
         if (Eval::IsEvalTime(time))
@@ -288,27 +159,36 @@ namespace SD::Normal
         const double result = simManager.Dyna.RefStateCurrent.LinearSpeed.Length();
         if (result > bestResult)
         {
-            bestSteer = steer;
             bestResult = result;
+            bestSteer = steer;
         }
 
-        if (!range.Done) return;
+        if (!range.Done)
+            return;
 
-        if (step == 0)
+        switch (step)
         {
+        case STEP_DONE:
             Eval::Advance(simManager, bestSteer);
             Reset();
-        }
-        else
-        {
-            step >>= 2;
+            break;
+        case 0:
+        case 1:
+            step = STEP_DONE;
+            range = RangeIncl(bestSteer - STEP_LAST_DEVIATION, bestSteer + STEP_LAST_DEVIATION, 1);
+            break;
+        default:
+            step >>= 1;
             SetRangeAroundMidpoint(bestSteer);
+            break;
         }
     }
 
     void Reset()
     {
         Eval::Time::OffsetEval(seek);
+
+        triedSteers.Clear();
         bestResult = -1;
 
         @onStep = OnStepPre;
@@ -316,7 +196,7 @@ namespace SD::Normal
 
     void SetRangeAroundMidpoint(const int midpoint)
     {
-        const int offset = step * 3 / 2;
+        const int offset = step * (RANGE_SIZE - 1) / 2;
         range = RangeIncl(midpoint - offset, midpoint + offset, step);
     }
 }
@@ -324,8 +204,7 @@ namespace SD::Normal
 namespace SD::Wiggle
 {
     const string NAME = "Wiggle";
-    const string DESCRIPTION = "Goes in the direction of the point,"
-        + " switching directions when facing too far away.";
+    const string DESCRIPTION = "Goes in the direction of the point, switching directions when facing too far away.";
     const Mode@ const mode = Mode(
         NAME, DESCRIPTION,
         OnRegister, OnSettings,

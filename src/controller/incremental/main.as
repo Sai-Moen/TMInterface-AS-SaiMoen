@@ -9,7 +9,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = NAME;
-    info.Version = "v2.1.0a";
+    info.Version = "v2.1.0b";
     return info;
 }
 

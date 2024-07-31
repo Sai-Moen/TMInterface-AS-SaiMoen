@@ -144,7 +144,7 @@ void NextRangeTime(SimulationManager@ simManager)
 void EndRangeTime(SimulationManager@ simManager)
 {
     auto@ const buffer = simManager.InputEvents;
-    BufferRemoveAllExceptFirst(buffer, Time::input, Time::max, InputType::Steer);
+    BufferRemoveAll(buffer, Time::input, Time::max, InputType::Steer);
     Time::max = 0;
     inputsResult.inputs = buffer.ToCommandsText();
 

@@ -45,7 +45,8 @@ namespace Settings
         string printable = script;
         if (showInfo)
         {
-            printable += " -> " + simManager.Dyna.RefStateCurrent.LinearSpeed.Length() + " m/s";
+            const string kmph = PreciseFormat(simManager.Dyna.RefStateCurrent.LinearSpeed.Length() * 3.6);
+            printable += " -> " + kmph + " km/h";
         }
         print(printable);
     }
