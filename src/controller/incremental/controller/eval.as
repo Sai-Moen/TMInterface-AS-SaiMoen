@@ -96,27 +96,9 @@ void AddInput(SimulationManager@ simManager, int time, InputType type, int value
 
 void AddInput(TM::InputEventBuffer@ const buffer, int time, InputType type, int value)
 {
-    if (time > Time::max)
+    if (Time::max < time)
         Time::max = time;
-
-    const auto indices = buffer.EventIndices;
-    TM::InputEventValue eventValue;
-    switch (type)
-    {
-    case InputType::Steer:
-        eventValue.EventIndex = indices.SteerId;
-        eventValue.Analog = value;
-        break;
-    default:
-        log("Unknown type being added...", Severity::Error);
-        return;
-    }
-
-    TM::InputEvent event;
-    event.Time = time + 100010;
-    event.Value = eventValue;
-
-    buffer.Add(event);
+    buffer.Add(time, type, value);
 }
 
 void Advance(SimulationManager@ simManager, const int state)
@@ -126,7 +108,7 @@ void Advance(SimulationManager@ simManager, const int state)
 
     auto@ const buffer = simManager.InputEvents;
     BufferRemoveIndices(buffer, buffer.Find(timestamp, type));
-    AddInput(buffer, timestamp, type, state); // workaround for TM::InputEventBuffer::Add
+    AddInput(buffer, timestamp, type, state);
 
     InputCommand cmd = MakeInputCommand(timestamp, type, state);
     Settings::PrintInfo(simManager, cmd.ToScript());

@@ -92,7 +92,6 @@ void OnBegin(const TM::InputEventBuffer@ const buffer)
 
 void ApplyStartingEvents(TM::InputEventBuffer@ const buffer)
 {
-    // How this is faster than only undoing the things I changed is beyond me
     buffer.Clear();
     const uint len = startingEvents.Length;
     for (uint i = 0; i < len; i++)

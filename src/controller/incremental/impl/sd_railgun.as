@@ -135,7 +135,7 @@ namespace SD::Normal
             while (!range.Done)
             {
                 steer = range.Iter();
-                if (triedSteers.IsEmpty() || triedSteers.Find(steer) == -1)
+                if (triedSteers.Find(steer) == -1)
                 {
                     triedSteers.Add(steer);
                     break;
@@ -150,7 +150,7 @@ namespace SD::Normal
         }
         else
         {
-            Eval::AddInput(simManager, time, InputType::Steer, steer); // workaround for SetInputState
+            Eval::AddInput(simManager, time, InputType::Steer, steer);
         }
     }
 

@@ -9,8 +9,13 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = NAME;
-    info.Version = "v2.1.0b";
+    info.Version = "v2.1.1a";
     return info;
+}
+
+bool IsOtherController()
+{
+    return ID != GetVariableString("controller");
 }
 
 void Main()
@@ -30,6 +35,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
     }
 
     simManager.RemoveStateValidation();
+    simManager.SetSimulationTimeLimit(Math::INT_MAX);
 
     auto@ const buffer = simManager.InputEvents;
     const uint duration = simManager.EventsDuration;
@@ -54,7 +60,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
         Eval::Time::Input = Settings::timeFrom;
     }
     @end = OnSimEndMain;
-    @finished = OnGameFinishMain;
+    @cpCountChanged = OnCpCountChangedMain;
     @Eval::inputsResult = Eval::inputsResults[0];
 
     ModeDispatch(modeStr, modeMap, mode);
@@ -75,7 +81,7 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 {
     if (userCancelled)
     {
-        simManager.ForceFinish();
+        Finish(simManager);
         return;
     }
     
@@ -87,9 +93,9 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult)
     end(simManager);
 }
 
-void OnCheckpointCountChanged(SimulationManager@ simManager, int current, int target)
+void OnCheckpointCountChanged(SimulationManager@ simManager, int, int)
 {
-    if (current == target) finished(simManager);
+    cpCountChanged(simManager);
 }
 
 // -------- Callback Implementations --------
@@ -102,7 +108,13 @@ void PointCallbacksToEmpty()
     @step = function(simManager) {};
     @end  = function(simManager) {};
 
-    @finished = function(simManager) {};
+    @cpCountChanged = function(simManager) {};
+}
+
+void Finish(SimulationManager@ simManager)
+{
+    Eval::EndRangeTime(simManager);
+    simManager.ForceFinish();
 }
 
 
@@ -131,8 +143,7 @@ void OnSimStepSingle(SimulationManager@ simManager)
 {
     if (Eval::LimitExceeded())
     {
-        Eval::EndRangeTime(simManager);
-        simManager.ForceFinish();
+        Finish(simManager);
         return;
     }
     else if (Eval::BeforeInput(simManager)) return;
@@ -158,8 +169,7 @@ void OnSimStepRangeMain(SimulationManager@ simManager)
 
         if (Range::startingTimes.IsEmpty())
         {
-            Eval::EndRangeTime(simManager);
-            simManager.ForceFinish();
+            Finish(simManager);
             return;
         }
 
@@ -205,10 +215,10 @@ void OnSimEndMain(SimulationManager@ simManager)
 /*
     Called when the simulation finishes.
 */
-funcdef void OnGameFinish(SimulationManager@ simManager);
-const OnGameFinish@ finished;
+funcdef void OnCpCountChanged(SimulationManager@ simManager);
+const OnCpCountChanged@ cpCountChanged;
 
-void OnGameFinishMain(SimulationManager@ simManager)
+void OnCpCountChangedMain(SimulationManager@ simManager)
 {
     // if we get called it means we are the controller in simulation
     // simply don't finish here as we are supposed to just keep going until the end time

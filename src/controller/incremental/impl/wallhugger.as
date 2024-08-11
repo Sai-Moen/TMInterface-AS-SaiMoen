@@ -25,7 +25,7 @@ namespace WH
         RegisterVariable(MODE, Classic::NAME);
 
         ModeRegister(whMap, Classic::mode);
-        //ModeRegister(whMap, Normal::mode); not yet implemented
+        ModeRegister(whMap, Normal::mode);
 
         modeStr = GetVariableString(MODE);
         ModeDispatch(modeStr, whMap, whMode);
@@ -60,6 +60,8 @@ namespace WH
     {
         whMode.OnStep(simManager);
     }
+
+    int steer;
 }
 
 namespace WH::Classic
@@ -119,9 +121,8 @@ namespace WH::Classic
 
     int avoider;
     int collider;
-    int steer;
 
-    void OnBegin(SimulationManager@ simManager)
+    void OnBegin(SimulationManager@)
     {
         maxVelocityLoss = seek * MAX_VEL_LOSS;
         Reset();
@@ -138,25 +139,29 @@ namespace WH::Classic
         }
         else if (Eval::IsEvalTime(time))
         {
-            const auto@ const svcCurr = simManager.SceneVehicleCar;
-            const auto@ const svcPrev = Eval::MinState.SceneVehicleCar;
-
-            const bool crashed =
-                svcCurr.LastHasAnyLateralContactTime != svcPrev.LastHasAnyLateralContactTime ||
-                svcCurr.CurrentLocalSpeed.Length() < (svcPrev.CurrentLocalSpeed.Length() - maxVelocityLoss);
-            if (crashed) collider = steer;
-            else avoider = steer;
-
-            isDone = Math::Abs(avoider - collider) <= 1;
-            if (isDone) steer = avoider;
-            else steer = (avoider + collider) >>> 1;
-
+            OnEval(simManager);
             Eval::Rewind(simManager);
         }
         else
         {
-            Eval::AddInput(simManager, time, InputType::Steer, steer); // workaround for SetInputState
+            Eval::AddInput(simManager, time, InputType::Steer, steer);
         }
+    }
+
+    void OnEval(SimulationManager@ simManager)
+    {
+        const auto@ const svcNew = simManager.SceneVehicleCar;
+        const auto@ const svcOld = Eval::MinState.SceneVehicleCar;
+
+        const bool crashed =
+            svcNew.LastHasAnyLateralContactTime != svcOld.LastHasAnyLateralContactTime ||
+            svcNew.CurrentLocalSpeed.Length() < (svcOld.CurrentLocalSpeed.Length() - maxVelocityLoss);
+        if (crashed) collider = steer;
+        else avoider = steer;
+
+        isDone = Math::Abs(avoider - collider) <= 1;
+        if (isDone) steer = avoider;
+        else steer = (avoider + collider) >>> 1;
     }
 
     void Reset()
@@ -174,26 +179,152 @@ namespace WH::Classic
 namespace WH::Normal
 {
     const string NAME = "Normal";
-    const string DESCRIPTION = "";
+    const string DESCRIPTION = "Uses the wall to determine how far to look ahead.";
     const Mode@ const mode = Mode(
         NAME, DESCRIPTION,
         OnRegister, OnSettings,
         OnBegin, OnStep
     );
 
+    const string PREFIX = WH::PREFIX + "normal_";
+
+    const string INITIAL_STEER = PREFIX + "initial_steer";
+    int InitialSteer { set { initialSteer = value; SetVariable(INITIAL_STEER, initialSteer); } }
+    int initialSteer;
+
+    const string TIMEOUT = PREFIX + "timeout";
+    const ms NO_TIMEOUT = 0;
+    ms timeout;
+
     void OnRegister()
     {
+        RegisterVariable(INITIAL_STEER, STEER::FULL);
+        RegisterVariable(TIMEOUT, NO_TIMEOUT);
+
+        initialSteer = int(GetVariableDouble(INITIAL_STEER));
+        timeout = ms(GetVariableDouble(TIMEOUT));
     }
+
+    const string HELPFUL_TEXT = "Usually, you want to set this to " + STEER::MIN + " (left) or " + STEER::MAX + " (right).";
 
     void OnSettings()
     {
+        initialSteer = UI::SliderIntVar("Initial Steer", INITIAL_STEER, STEER::MIN, STEER::MAX);
+        initialSteer = ClampSteer(initialSteer);
+        if (initialSteer == 0) InitialSteer = 1;
+        UI::TextWrapped(HELPFUL_TEXT);
+
+        timeout = UI::InputTimeVar("Timeout", TIMEOUT);
+        UI::TextWrapped("Timeout when looking for a wall (0 to disable)");
     }
 
-    void OnBegin(SimulationManager@ simManager)
+    void OnBegin(SimulationManager@)
     {
+        switch (Sign(initialSteer))
+        {
+        case Signum::Negative:
+            bound = STEER::MAX;
+            break;
+        case Signum::Zero:
+            print("Initial Steer should not be 0...", Severity::Error);
+            @onStep = null; // bit of trolling
+            return;
+        case Signum::Positive:
+            bound = STEER::MIN;
+            break;
+        }
+
+        Reset();
     }
 
+    const OnSim@ onStep;
+    
     void OnStep(SimulationManager@ simManager)
     {
+        onStep(simManager);
+    }
+
+    int bound;
+    int prevSteer;
+
+    void OnStepScan(SimulationManager@ simManager)
+    {
+        const ms time = simManager.TickTime;
+        const ms diff = time - Eval::Time::Input;
+        const bool timedOut = timeout != NO_TIMEOUT && timeout <= diff;
+        if (simManager.SceneVehicleCar.HasAnyLateralContact || timedOut)
+        {
+            steer = -bound;
+            prevSteer = steer;
+
+            const ms seek = (diff + 100) * 2;
+            Eval::Time::OffsetEval(seek);
+
+            Eval::Rewind(simManager);
+            @onStep = OnStepMain;
+        }
+        else
+        {
+            Eval::AddInput(simManager, time, InputType::Steer, initialSteer);
+        }
+    }
+
+    bool isDone;
+
+    void OnStepMain(SimulationManager@ simManager)
+    {
+        const ms time = simManager.TickTime;
+        if (Eval::IsInputTime(time) && isDone)
+        {
+            Eval::Advance(simManager, steer);
+            Reset();
+            Eval::Rewind(simManager);
+        }
+        else if (Eval::IsEvalTime(time))
+        {
+            OnEval(simManager);
+            Eval::Rewind(simManager);
+        }
+        else
+        {
+            Eval::AddInput(simManager, time, InputType::Steer, steer);
+        }
+    }
+
+    int step;
+
+    void OnEval(SimulationManager@ simManager)
+    {
+        const int nextSteer = steer + step;
+        const bool rangeDone = Math::Abs(nextSteer) > bound;
+        if (rangeDone)
+        {
+            prevSteer = steer;
+            step >>>= 1;
+        }
+        else
+        {
+            const bool hasCrashed =
+                simManager.SceneVehicleCar.LastHasAnyLateralContactTime !=
+                Eval::MinState.SceneVehicleCar.LastHasAnyLateralContactTime;
+            if (hasCrashed)
+            {
+                prevSteer = steer;
+                steer = nextSteer;
+            }
+            else
+            {
+                step >>>= 1;
+                steer = step != 0 ? prevSteer : nextSteer;
+            }
+        }
+        isDone = step == 0;
+    }
+
+    void Reset()
+    {
+        isDone = false;
+        step = bound;
+        @onStep = OnStepScan;
     }
 }

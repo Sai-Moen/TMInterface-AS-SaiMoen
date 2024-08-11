@@ -58,15 +58,6 @@ int RoundAway(const float magnitude, const float direction)
     return RoundAway(magnitude, Sign(direction));
 }
 
-// API
-const string CONTROLLER = "controller";
-const string OPEN_EXTERNAL_CONSOLE = "open_external_console";
-
-bool IsOtherController()
-{
-    return ID != GetVariableString(CONTROLLER);
-}
-
 // UI utils
 funcdef void OnNewMode(const string &in newMode);
 
@@ -220,6 +211,7 @@ InputCommand MakeInputCommand(const ms timestamp, const InputType type, const in
     return cmd;
 }
 
+// buffer
 bool DiffPreviousInput(
     TM::InputEventBuffer@ const buffer,
     const ms time,
@@ -342,6 +334,7 @@ array<uint>@ ConcatIndices(const array<array<uint>@>@ const indexArrayArray, con
     return indices;
 }
 
+// range
 abstract class Range
 {
     Range() {}
@@ -365,9 +358,7 @@ abstract class Range
 
         const int temp = start;
         start += step;
-        if (temp > STEER::MAX) return STEER::MAX;
-        else if (temp < STEER::MIN) return STEER::MIN;
-        else return temp;
+        return ClampSteer(temp);
     }
 }
 
@@ -396,53 +387,17 @@ class RangeExcl : Range
 }
 
 // log
-void log()
-{
-    log("");
-}
-
-void log(const uint u, Severity severity = Severity::Info)
-{
-    log("" + u, severity);
-}
-
-void log(const int i, Severity severity = Severity::Info)
-{
-    log("" + i, severity);
-}
-
-void log(const float f, Severity severity = Severity::Info)
-{
-    log("" + f, severity);
-}
-
-void log(const double d, Severity severity = Severity::Info)
-{
-    log("" + d, severity);
-}
+void log() { log(""); }
+void log(const bool b, Severity severity = Severity::Info) { log("" + b, severity); }
+void log(const uint u, Severity severity = Severity::Info) { log("" + u, severity); }
+void log(const int i, Severity severity = Severity::Info) { log("" + i, severity); }
+void log(const float f, Severity severity = Severity::Info) { log("" + f, severity); }
+void log(const double d, Severity severity = Severity::Info) { log("" + d, severity); }
 
 // print
-void print()
-{
-    print("");
-}
-
-void print(const uint u, Severity severity = Severity::Info)
-{
-    print("" + u, severity);
-}
-
-void print(const int i, Severity severity = Severity::Info)
-{
-    print("" + i, severity);
-}
-
-void print(const float f, Severity severity = Severity::Info)
-{
-    print("" + f, severity);
-}
-
-void print(const double d, Severity severity = Severity::Info)
-{
-    print("" + d, severity);
-}
+void print() { print(""); }
+void print(const bool b, Severity severity = Severity::Info) { print("" + b, severity); }
+void print(const uint u, Severity severity = Severity::Info) { print("" + u, severity); }
+void print(const int i, Severity severity = Severity::Info) { print("" + i, severity); }
+void print(const float f, Severity severity = Severity::Info) { print("" + f, severity); }
+void print(const double d, Severity severity = Severity::Info) { print("" + d, severity); }
