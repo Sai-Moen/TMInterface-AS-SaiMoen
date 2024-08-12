@@ -49,7 +49,7 @@ int RoundAway(const float magnitude, const Signum direction)
     case Signum::Negative: return int(Math::Floor(magnitude));
     case Signum::Zero: return int(magnitude);
     case Signum::Positive: return int(Math::Ceil(magnitude));
-    default: return 0; // Unreachable
+    default: return 0; // unreachable
     }
 }
 

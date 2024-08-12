@@ -1,76 +1,75 @@
-// SpeedDrift Scripts
-
 namespace SD
 {
-    const string NAME = "SD Railgun";
-    const string DESCRIPTION = "SpeedDrift scripts.";
-    const Mode@ const mode = Mode(
-        NAME, DESCRIPTION,
-        OnRegister, OnSettings,
-        OnBegin, OnStep
-    );
 
-    const string PREFIX = ::PREFIX + "sd_";
 
-    const string MODE = PREFIX + "mode";
+const string NAME = "SD Railgun";
+const string DESCRIPTION = "SpeedDrift scripts.";
+const Mode@ const mode = Mode(
+    NAME, DESCRIPTION,
+    OnRegister, OnSettings,
+    OnBegin, OnStep
+);
 
-    string modeStr;
-    array<string> modes;
+const string PREFIX = ::PREFIX + "sd_";
 
-    const Mode@ sdMode;
-    dictionary sdMap;
+const string MODE = PREFIX + "mode";
 
-    void OnRegister()
-    {
-        RegisterVariable(MODE, Normal::NAME);
+string modeStr;
+array<string> modes;
 
-        ModeRegister(sdMap, Normal::mode);
-        //ModeRegister(sdMap, Wiggle::mode); // not yet implemented
+const Mode@ sdMode;
+dictionary sdMap;
 
-        modeStr = GetVariableString(MODE);
-        ModeDispatch(modeStr, sdMap, sdMode);
+void OnRegister()
+{
+    RegisterVariable(MODE, Normal::NAME);
 
-        modes = sdMap.GetKeys();
-        modes.SortAsc();
-    }
+    ModeRegister(sdMap, Normal::mode);
+    //ModeRegister(sdMap, Wiggle::mode); // not yet implemented
 
-    void OnSettings()
-    {
-        if (ComboHelper("SD Mode", modeStr, modes, ChangeMode))
-        {
-            DescribeModes("SD Modes:", modes, sdMap);
-        }
+    modeStr = GetVariableString(MODE);
+    ModeDispatch(modeStr, sdMap, sdMode);
 
-        sdMode.OnSettings();
-    }
-
-    void ChangeMode(const string &in newMode)
-    {
-        ModeDispatch(newMode, sdMap, sdMode);
-        SetVariable(MODE, newMode);
-        modeStr = newMode;
-    }
-
-    void OnBegin(SimulationManager@ simManager)
-    {
-        sdMode.OnBegin(simManager);
-    }
-
-    void OnStep(SimulationManager@ simManager)
-    {
-        sdMode.OnStep(simManager);
-    }
-
-    int steer;
-    RangeIncl range;
-
-    array<int> triedSteers;
-
-    int bestSteer;
-    double bestResult;
+    modes = sdMap.GetKeys();
+    modes.SortAsc();
 }
 
-namespace SD::Normal
+void OnSettings()
+{
+    if (ComboHelper("SD Mode", modeStr, modes, ChangeMode))
+    {
+        DescribeModes("SD Modes:", modes, sdMap);
+    }
+
+    sdMode.OnSettings();
+}
+
+void ChangeMode(const string &in newMode)
+{
+    ModeDispatch(newMode, sdMap, sdMode);
+    SetVariable(MODE, newMode);
+    modeStr = newMode;
+}
+
+void OnBegin(SimulationManager@ simManager)
+{
+    sdMode.OnBegin(simManager);
+}
+
+void OnStep(SimulationManager@ simManager)
+{
+    sdMode.OnStep(simManager);
+}
+
+int steer;
+RangeIncl range;
+
+array<int> triedSteers;
+
+int bestSteer;
+double bestResult;
+
+namespace Normal
 {
     const string NAME = "Normal";
     const string DESCRIPTION = "Tries to optimize a given SD automatically.";
@@ -102,7 +101,6 @@ namespace SD::Normal
     const int STEP_LAST_DEVIATION = RANGE_SIZE / 2;
 
     const OnSim@ onStep;
-    int step; // not confusing whatsoever
 
     void OnBegin(SimulationManager@)
     {
@@ -113,6 +111,8 @@ namespace SD::Normal
     {
         onStep(simManager);
     }
+
+    int step;
 
     void OnStepPre(SimulationManager@ simManager)
     {
@@ -201,7 +201,7 @@ namespace SD::Normal
     }
 }
 
-namespace SD::Wiggle
+namespace Wiggle
 {
     const string NAME = "Wiggle";
     const string DESCRIPTION = "Goes in the direction of the point, switching directions when facing too far away.";
@@ -263,3 +263,6 @@ namespace SD::Wiggle
     {
     }
 }
+
+
+} // namespace SD

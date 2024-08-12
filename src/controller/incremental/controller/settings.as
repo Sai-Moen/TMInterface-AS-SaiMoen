@@ -74,6 +74,7 @@ void OnRegister()
 
     ModeRegister(modeMap, SD::mode);
     ModeRegister(modeMap, WH::mode);
+    ModeRegister(modeMap, SI::mode);
 
     // Init
     modeStr = GetVariableString(MODE);

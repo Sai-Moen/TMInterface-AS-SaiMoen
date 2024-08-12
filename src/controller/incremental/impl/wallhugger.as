@@ -1,70 +1,69 @@
-// Wallhugger Script
-
 namespace WH
 {
-    const string NAME = "Wallhugger";
-    const string DESCRIPTION = "Hugs close to a given wall.";
-    const Mode@ const mode = Mode(
-        NAME, DESCRIPTION,
-        OnRegister, OnSettings,
-        OnBegin, OnStep
-    );
 
-    const string PREFIX = ::PREFIX + "wh_";
 
-    const string MODE = PREFIX + "mode";
+const string NAME = "Wallhugger";
+const string DESCRIPTION = "Hugs close to a given wall.";
+const Mode@ const mode = Mode(
+    NAME, DESCRIPTION,
+    OnRegister, OnSettings,
+    OnBegin, OnStep
+);
 
-    string modeStr;
-    array<string> modes;
+const string PREFIX = ::PREFIX + "wh_";
 
-    const Mode@ whMode;
-    dictionary whMap;
+const string MODE = PREFIX + "mode";
 
-    void OnRegister()
-    {
-        RegisterVariable(MODE, Classic::NAME);
+string modeStr;
+array<string> modes;
 
-        ModeRegister(whMap, Classic::mode);
-        ModeRegister(whMap, Normal::mode);
+const Mode@ whMode;
+dictionary whMap;
 
-        modeStr = GetVariableString(MODE);
-        ModeDispatch(modeStr, whMap, whMode);
+void OnRegister()
+{
+    RegisterVariable(MODE, Classic::NAME);
 
-        modes = whMap.GetKeys();
-        modes.SortAsc();
-    }
+    ModeRegister(whMap, Classic::mode);
+    ModeRegister(whMap, Normal::mode);
 
-    void OnSettings()
-    {
-        if (ComboHelper("Wallhug Mode", modeStr, modes, ChangeMode))
-        {
-            DescribeModes("Wallhug Modes:", modes, whMap);
-        }
+    modeStr = GetVariableString(MODE);
+    ModeDispatch(modeStr, whMap, whMode);
 
-        whMode.OnSettings();
-    }
-
-    void ChangeMode(const string &in newMode)
-    {
-        ModeDispatch(newMode, whMap, whMode);
-        SetVariable(MODE, newMode);
-        modeStr = newMode;
-    }
-
-    void OnBegin(SimulationManager@ simManager)
-    {
-        whMode.OnBegin(simManager);
-    }
-
-    void OnStep(SimulationManager@ simManager)
-    {
-        whMode.OnStep(simManager);
-    }
-
-    int steer;
+    modes = whMap.GetKeys();
+    modes.SortAsc();
 }
 
-namespace WH::Classic
+void OnSettings()
+{
+    if (ComboHelper("Wallhug Mode", modeStr, modes, ChangeMode))
+    {
+        DescribeModes("Wallhug Modes:", modes, whMap);
+    }
+
+    whMode.OnSettings();
+}
+
+void ChangeMode(const string &in newMode)
+{
+    ModeDispatch(newMode, whMap, whMode);
+    SetVariable(MODE, newMode);
+    modeStr = newMode;
+}
+
+void OnBegin(SimulationManager@ simManager)
+{
+    whMode.OnBegin(simManager);
+}
+
+void OnStep(SimulationManager@ simManager)
+{
+    whMode.OnStep(simManager);
+}
+
+int steer;
+
+namespace Classic
 {
     const string NAME = "Classic";
     const string DESCRIPTION = "The original wallhugger, ported to AngelScript.";
@@ -176,7 +175,7 @@ namespace WH::Classic
     }
 }
 
-namespace WH::Normal
+namespace Normal
 {
     const string NAME = "Normal";
     const string DESCRIPTION = "Uses the wall to determine how far to look ahead.";
@@ -231,14 +230,14 @@ namespace WH::Normal
         switch (Sign(initialSteer))
         {
         case Signum::Negative:
-            bound = STEER::MAX;
+            bound = 1;
             break;
         case Signum::Zero:
             print("Initial Steer should not be 0...", Severity::Error);
             @onStep = null; // bit of trolling
             return;
         case Signum::Positive:
-            bound = STEER::MIN;
+            bound = -1;
             break;
         }
 
@@ -262,7 +261,7 @@ namespace WH::Normal
         const bool timedOut = timeout != NO_TIMEOUT && timeout <= diff;
         if (simManager.SceneVehicleCar.HasAnyLateralContact || timedOut)
         {
-            steer = -bound;
+            steer = -step;
             prevSteer = steer;
 
             const ms seek = (diff + 100) * 2;
@@ -332,7 +331,10 @@ namespace WH::Normal
     void Reset()
     {
         isDone = false;
-        step = bound;
+        step = bound * STEER::FULL;
         @onStep = OnStepScan;
     }
 }
+
+
+} // namespace WH

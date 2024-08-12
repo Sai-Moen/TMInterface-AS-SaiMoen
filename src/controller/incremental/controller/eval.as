@@ -19,7 +19,8 @@ namespace Time
     ms input; // When to do inputs for this iteration
     ms eval;  // When to check the results of a sub-iteration,
                 // may change within an iteration, but that is up to the implementing mode(s)
-    ms max;   // The maximum time at which an input has been added (used for cleanup)
+    ms max;   // Gets set to timeTo if it is a sane value, otherwise duration.
+    ms post;  // The maximum time at which an input has been added (used for cleanup)
 
     ms Input
     {
@@ -71,7 +72,7 @@ bool IsEvalTime(const ms time)
 
 bool LimitExceeded()
 {
-    return Time::input > Settings::timeTo;
+    return Time::input > Time::max;
 }
 
 bool OutOfBounds(const ms time)
@@ -89,31 +90,46 @@ uint irIndex = 0;
 InputsResult@ inputsResult;
 array<InputsResult> inputsResults;
 
-void AddInput(SimulationManager@ simManager, int time, InputType type, int value)
+void AddInput(SimulationManager@ simManager, const ms time, const InputType type, const int value)
 {
     AddInput(simManager.InputEvents, time, type, value);
 }
 
-void AddInput(TM::InputEventBuffer@ const buffer, int time, InputType type, int value)
+void AddInput(TM::InputEventBuffer@ const buffer, const ms time, const InputType type, const int value)
 {
-    if (Time::max < time)
-        Time::max = time;
+    if (Time::post < time)
+        Time::post = time;
     buffer.Add(time, type, value);
 }
 
-void Advance(SimulationManager@ simManager, const int state)
+void RemoveInputs(SimulationManager@ simManager, const ms time, const InputType type)
 {
-    const ms timestamp = Time::input;
+    RemoveInputs(simManager.InputEvents, time, type);
+}
+
+void RemoveInputs(TM::InputEventBuffer@ const buffer, const ms time, const InputType type)
+{
+    BufferRemoveIndices(buffer, buffer.Find(time, type));
+}
+
+void Advance()
+{
+    Time::Input += TICK;
+}
+
+void Advance(SimulationManager@ simManager, const int value)
+{
+    const ms time = Time::input;
     const InputType type = InputType::Steer;
 
     auto@ const buffer = simManager.InputEvents;
-    BufferRemoveIndices(buffer, buffer.Find(timestamp, type));
-    AddInput(buffer, timestamp, type, state);
+    RemoveInputs(buffer, time, type);
+    AddInput(buffer, time, type, value);
 
-    InputCommand cmd = MakeInputCommand(timestamp, type, state);
+    InputCommand cmd = MakeInputCommand(time, type, value);
     Settings::PrintInfo(simManager, cmd.ToScript());
 
-    Time::Input += TICK;
+    Advance();
 }
 
 void NextRangeTime(SimulationManager@ simManager)
@@ -126,8 +142,8 @@ void NextRangeTime(SimulationManager@ simManager)
 void EndRangeTime(SimulationManager@ simManager)
 {
     auto@ const buffer = simManager.InputEvents;
-    BufferRemoveAll(buffer, Time::input, Time::max, InputType::Steer);
-    Time::max = 0;
+    BufferRemoveAll(buffer, Time::input, Time::post, InputType::Steer);
+    Time::post = 0;
     inputsResult.inputs = buffer.ToCommandsText();
 
     @inputsResult.finalState = simManager.SaveState();

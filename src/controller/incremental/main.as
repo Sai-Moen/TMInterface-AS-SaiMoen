@@ -1,5 +1,3 @@
-// Main Script, Strings everything together
-
 const string ID = "incremental";
 const string NAME = "Incremental Controller";
 
@@ -35,10 +33,15 @@ void OnSimulationBegin(SimulationManager@ simManager)
     }
 
     simManager.RemoveStateValidation();
+    const uint duration = simManager.EventsDuration;
     simManager.SetSimulationTimeLimit(Math::INT_MAX);
 
+    if (Settings::timeTo == 0)
+        Eval::Time::max = duration;
+    else
+        Eval::Time::max = Settings::timeTo;
+
     auto@ const buffer = simManager.InputEvents;
-    const uint duration = simManager.EventsDuration;
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Left);
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Right);
 
