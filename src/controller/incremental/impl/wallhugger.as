@@ -189,7 +189,6 @@ namespace WH::Normal
     const string PREFIX = WH::PREFIX + "normal_";
 
     const string INITIAL_STEER = PREFIX + "initial_steer";
-    int InitialSteer { set { initialSteer = value; SetVariable(INITIAL_STEER, initialSteer); } }
     int initialSteer;
 
     const string TIMEOUT = PREFIX + "timeout";
@@ -209,9 +208,18 @@ namespace WH::Normal
 
     void OnSettings()
     {
-        initialSteer = UI::SliderIntVar("Initial Steer", INITIAL_STEER, STEER::MIN, STEER::MAX);
+        if (UI::Button("Left"))
+            initialSteer = STEER::MIN;
+        UI::SameLine();
+        initialSteer = UI::SliderInt("Initial Steer", initialSteer, STEER::MIN, STEER::MAX);
+        UI::SameLine();
+        if (UI::Button("Right"))
+            initialSteer = STEER::MAX;
+
         initialSteer = ClampSteer(initialSteer);
-        if (initialSteer == 0) InitialSteer = 1;
+        if (initialSteer == 0)
+            initialSteer = 1;
+        SetVariable(INITIAL_STEER, initialSteer);
         UI::TextWrapped(HELPFUL_TEXT);
 
         timeout = UI::InputTimeVar("Timeout", TIMEOUT);
