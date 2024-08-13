@@ -40,12 +40,12 @@ namespace Settings
     }
 
     bool showInfo;
-    void PrintInfo(SimulationManager@ simManager, const string &in script)
+    void PrintInfo(SimulationState@ state, const string &in script)
     {
         string printable = script;
         if (showInfo)
         {
-            const string kmph = PreciseFormat(simManager.Dyna.RefStateCurrent.LinearSpeed.Length() * 3.6);
+            const string kmph = PreciseFormat(state.Dyna.CurrentState.LinearSpeed.Length() * 3.6);
             printable += " -> " + kmph + " km/h";
         }
         print(printable);
@@ -118,7 +118,6 @@ void OnSettings()
         {
             Settings::timeFrom = UI::InputTimeVar("Minimum evaluation time", TIME_FROM);
         }
-        CapMax(TIME_TO, Settings::timeFrom, Settings::timeTo);
         Settings::timeTo = UI::InputTimeVar("Maximum evaluation time", TIME_TO);
 
         if (Settings::useSaveState = UI::CheckboxVar("Use savestate?", USE_SAVE_STATE))

@@ -4,13 +4,15 @@ namespace Eval
 
 CommandList cmdlist;
 
-SimulationState@ minState; // The state saved when time equals min
+SimulationState@ minState; // the state saved when time equals min
 SimulationState@ const MinState { get { return minState; } }
 
 void Rewind(SimulationManager@ simManager)
 {
     simManager.RewindToState(minState);
 }
+
+SimulationState@ inputState; // the state saved when a certain input time is hit for the first time
 
 namespace Time
 {
@@ -32,14 +34,9 @@ namespace Time
         }
     }
 
-    ms Eval
-    {
-        set { eval = value; }
-    }
-
     void OffsetEval(const ms evalOffset)
     {
-        Eval = input + evalOffset;
+        eval = input + evalOffset;
     }
 }
 
@@ -51,11 +48,18 @@ bool BeforeRange(const ms time)
 bool BeforeInput(SimulationManager@ simManager)
 {
     const ms time = simManager.TickTime;
-    if (time < Time::min) return true;
+    if (time < Time::min)
+    {
+        return true;
+    }
     else if (time == Time::min)
     {
         @minState = simManager.SaveState();
         return true;
+    }
+    else if (time == Time::input && inputState is null)
+    {
+        @inputState = simManager.SaveState();
     }
     return false;
 }
@@ -114,6 +118,7 @@ void RemoveInputs(TM::InputEventBuffer@ const buffer, const ms time, const Input
 
 void Advance()
 {
+    @inputState = null;
     Time::Input += TICK;
 }
 
@@ -127,7 +132,7 @@ void Advance(SimulationManager@ simManager, const int value)
     AddInput(buffer, time, type, value);
 
     InputCommand cmd = MakeInputCommand(time, type, value);
-    Settings::PrintInfo(simManager, cmd.ToScript());
+    Settings::PrintInfo(inputState, cmd.ToScript());
 
     Advance();
 }

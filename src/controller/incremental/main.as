@@ -3,7 +3,7 @@ const string NAME = "Incremental Controller";
 
 PluginInfo@ GetPluginInfo()
 {
-    auto info = PluginInfo();
+    PluginInfo info;
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = NAME;
@@ -49,7 +49,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
     {
         @step = OnSimStepRangePre;
 
-        Eval::Time::pre = Settings::timeFrom - TWO_TICKS;
+        Eval::Time::pre = Settings::timeFrom - TickToMs(2);
 
         Range::OnBegin(buffer);
         Eval::inputsResults.Resize(Range::startingTimes.Length);
@@ -66,11 +66,12 @@ void OnSimulationBegin(SimulationManager@ simManager)
     @cpCountChanged = OnCpCountChangedMain;
     @Eval::inputsResult = Eval::inputsResults[0];
 
-    ModeDispatch(modeStr, modeMap, mode);
-    print();
-    print(NAME + " w/ " + modeStr);
-    print();
-    mode.OnBegin(simManager);
+    if (Eval::Time::min > Eval::Time::max)
+    {
+        print("Min eval time is greater than Max eval time.", Severity::Error);
+        Finish(simManager);
+        return;
+    }
 
     if (Settings::useSaveState)
     {
@@ -78,6 +79,12 @@ void OnSimulationBegin(SimulationManager@ simManager)
         @backingStep = step;
         @step = OnSimStepState;
     }
+
+    ModeDispatch(modeStr, modeMap, mode);
+    print();
+    print(NAME + " w/ " + modeStr);
+    print();
+    mode.OnBegin(simManager);
 }
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
@@ -149,7 +156,10 @@ void OnSimStepSingle(SimulationManager@ simManager)
         Finish(simManager);
         return;
     }
-    else if (Eval::BeforeInput(simManager)) return;
+    else if (Eval::BeforeInput(simManager))
+    {
+        return;
+    }
 
     mode.OnStep(simManager);
 }
@@ -157,7 +167,10 @@ void OnSimStepSingle(SimulationManager@ simManager)
 void OnSimStepRangePre(SimulationManager@ simManager)
 {
     const ms time = simManager.TickTime;
-    if (Eval::BeforeRange(time)) return;
+    if (Eval::BeforeRange(time))
+    {
+        return;
+    }
 
     @Range::startingState = simManager.SaveState();
     @step = OnSimStepRangeMain;
@@ -165,8 +178,7 @@ void OnSimStepRangePre(SimulationManager@ simManager)
 
 void OnSimStepRangeMain(SimulationManager@ simManager)
 {
-    if (Eval::BeforeInput(simManager)) return;
-    else if (Eval::LimitExceeded())
+    if (Eval::LimitExceeded())
     {
         print();
 
@@ -182,6 +194,10 @@ void OnSimStepRangeMain(SimulationManager@ simManager)
         mode.OnBegin(simManager);
 
         simManager.RewindToState(Range::startingState);
+        return;
+    }
+    else if (Eval::BeforeInput(simManager))
+    {
         return;
     }
 
@@ -211,6 +227,7 @@ void OnSimEndMain(SimulationManager@ simManager)
     }
     Eval::Reset();
     Range::Reset();
+
     PointCallbacksToEmpty();
 }
 

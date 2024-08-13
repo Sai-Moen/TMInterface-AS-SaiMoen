@@ -1,6 +1,9 @@
 typedef int ms;
-const ms TICK = 10;
-const ms TWO_TICKS = TICK << 1;
+const ms TICK = TickToMs(1);
+ms TickToMs(const int tick)
+{
+    return tick * 10;
+}
 
 uint GetTickDiff(const ms start, const ms end)
 {

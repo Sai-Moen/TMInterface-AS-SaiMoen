@@ -116,7 +116,6 @@ namespace Classic
     }
 
     float maxVelocityLoss;
-    bool isDone;
 
     int avoider;
     int collider;
@@ -130,13 +129,7 @@ namespace Classic
     void OnStep(SimulationManager@ simManager)
     {
         const ms time = simManager.TickTime;
-        if (Eval::IsInputTime(time) && isDone)
-        {
-            Eval::Advance(simManager, steer);
-            Reset();
-            Eval::Rewind(simManager);
-        }
-        else if (Eval::IsEvalTime(time))
+        if (Eval::IsEvalTime(time))
         {
             OnEval(simManager);
             Eval::Rewind(simManager);
@@ -155,19 +148,26 @@ namespace Classic
         const bool crashed =
             svcNew.LastHasAnyLateralContactTime != svcOld.LastHasAnyLateralContactTime ||
             svcNew.CurrentLocalSpeed.Length() < (svcOld.CurrentLocalSpeed.Length() - maxVelocityLoss);
-        if (crashed) collider = steer;
-        else avoider = steer;
+        if (crashed)
+            collider = steer;
+        else
+            avoider = steer;
 
-        isDone = Math::Abs(avoider - collider) <= 1;
-        if (isDone) steer = avoider;
-        else steer = (avoider + collider) >>> 1;
+        const bool isDone = Math::Abs(avoider - collider) <= 1;
+        if (isDone)
+        {
+            Eval::Advance(simManager, avoider);
+            Reset();
+        }
+        else
+        {
+            steer = (avoider + collider) >>> 1;
+        }
     }
 
     void Reset()
     {
         Eval::Time::OffsetEval(seek);
-
-        isDone = false;
 
         avoider = STEER::MIN * direction;
         collider = STEER::MAX * direction;
@@ -197,7 +197,7 @@ namespace Normal
     void OnRegister()
     {
         RegisterVariable(INITIAL_STEER, STEER::FULL);
-        RegisterVariable(TIMEOUT, NO_TIMEOUT);
+        RegisterVariable(TIMEOUT, 2000);
 
         initialSteer = int(GetVariableDouble(INITIAL_STEER));
         timeout = ms(GetVariableDouble(TIMEOUT));
@@ -225,19 +225,30 @@ namespace Normal
         UI::TextWrapped("Timeout when looking for a wall (0 to disable)");
     }
 
+    funcdef bool Oob(const int);
+
+    bool hasTimeout;
+
+    int bound;
+    const Oob@ oob;
+
     void OnBegin(SimulationManager@)
     {
+        hasTimeout = timeout != NO_TIMEOUT;
+
         switch (Sign(initialSteer))
         {
         case Signum::Negative:
-            bound = 1;
+            bound = STEER::MAX;
+            @oob = function(nextSteer) { return nextSteer > bound; };
             break;
         case Signum::Zero:
             print("Initial Steer should not be 0...", Severity::Error);
             @onStep = null; // bit of trolling
             return;
         case Signum::Positive:
-            bound = -1;
+            bound = STEER::MIN;
+            @oob = function(nextSteer) { return nextSteer < bound; };
             break;
         }
 
@@ -251,24 +262,22 @@ namespace Normal
         onStep(simManager);
     }
 
-    int bound;
-    int prevSteer;
-
     void OnStepScan(SimulationManager@ simManager)
     {
         const ms time = simManager.TickTime;
         const ms diff = time - Eval::Time::Input;
-        const bool timedOut = timeout != NO_TIMEOUT && timeout <= diff;
-        if (simManager.SceneVehicleCar.HasAnyLateralContact || timedOut)
+        if (simManager.SceneVehicleCar.HasAnyLateralContact)
         {
-            steer = -step;
-            prevSteer = steer;
-
-            const ms seek = (diff + 100) * 2;
+            const ms seek = diff + 100;
             Eval::Time::OffsetEval(seek);
 
             Eval::Rewind(simManager);
             @onStep = OnStepMain;
+        }
+        else if (hasTimeout && diff >= timeout)
+        {
+            Advance(simManager, initialSteer);
+            Eval::Rewind(simManager);
         }
         else
         {
@@ -276,18 +285,10 @@ namespace Normal
         }
     }
 
-    bool isDone;
-
     void OnStepMain(SimulationManager@ simManager)
     {
         const ms time = simManager.TickTime;
-        if (Eval::IsInputTime(time) && isDone)
-        {
-            Eval::Advance(simManager, steer);
-            Reset();
-            Eval::Rewind(simManager);
-        }
-        else if (Eval::IsEvalTime(time))
+        if (Eval::IsEvalTime(time))
         {
             OnEval(simManager);
             Eval::Rewind(simManager);
@@ -298,13 +299,13 @@ namespace Normal
         }
     }
 
+    int prevSteer;
     int step;
 
     void OnEval(SimulationManager@ simManager)
     {
         const int nextSteer = steer + step;
-        const bool rangeDone = Math::Abs(nextSteer) > bound;
-        if (rangeDone)
+        if (oob(nextSteer))
         {
             prevSteer = steer;
             step >>>= 1;
@@ -322,16 +323,29 @@ namespace Normal
             else
             {
                 step >>>= 1;
-                steer = step != 0 ? prevSteer : nextSteer;
+                if (step != 0)
+                    steer = prevSteer;
             }
         }
-        isDone = step == 0;
+
+        if (step == 0)
+        {
+            Advance(simManager, steer);
+        }
+    }
+
+    void Advance(SimulationManager@ simManager, const int steer)
+    {
+        Eval::Advance(simManager, steer);
+        Reset();
     }
 
     void Reset()
     {
-        isDone = false;
-        step = bound * STEER::FULL;
+        steer = initialSteer;
+        prevSteer = steer;
+        step = bound;
+
         @onStep = OnStepScan;
     }
 }
