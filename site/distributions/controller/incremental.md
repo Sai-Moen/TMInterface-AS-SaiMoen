@@ -7,6 +7,8 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v2.1.1a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1a/incremental.zip)
+
 - [v2.1.0b](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.0b/incremental.zip)
 - [v2.1.0a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.0a/incremental.zip)
 
@@ -22,6 +24,40 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 - [v1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
 ## Guide
+
+### Modes
+
+#### SD Railgun
+
+This is the SD mode.
+
+##### Classic
+
+There used to be a classic sub-mode for this mode, but it was removed (in case you were wondering).
+
+##### Normal
+
+The normal sub-mode will automatically determine direction, and you just need to set a certain lookahead time.
+The default lookahead time is 120ms, which should always work given a decent enough setup.
+
+#### Wallhugger
+
+This is the wall-hugging mode.
+
+##### Classic
+
+The classic sub-mode is what the python version more or less did.
+
+##### Normal
+
+The normal sub-mode is an experiment,
+that tries to automatically determine how far to look ahead based on how long it takes to reach the wall.
+
+#### Simplify Inputs
+
+This is an input simplifier/smoother.
+Note: you most likely want to set the evaluation timeframe to 0.0-0.0 (Eval Min = 0 and Eval Max = 0),
+to simplify all inputs.
 
 ### Understanding the timeranges
 
@@ -74,10 +110,15 @@ or if the simulation is cancelled by pressing Escape with the external console i
 
 ## Patch Notes
 
+### v2.1.1a
+
+- Added Input Simplifier mode.
+- Added Wallhug Normal sub-mode.
+
 ### v2.1.0b
 
-- Removed SD Classic.
-- Improved SD Normal.
+- Removed SD Classic sub-mode.
+- Improved SD Normal sub-mode.
 - Info now prints km/h instead of m/s.
 - Eval no longer tries to save old inputs when cleaning up.
 
@@ -102,7 +143,7 @@ or if the simulation is cancelled by pressing Escape with the external console i
 
 ### v2.0.0.4
 
-- Added Wallhugger Classic.
+- Added Wallhugger Classic sub-mode.
 
 ### v2.0.0.3
 
@@ -115,7 +156,7 @@ or if the simulation is cancelled by pressing Escape with the external console i
 
 ### v2.0.0.1
 
-- Added SD Railgun Classic mode.
+- Added SD Railgun Classic sub-mode.
 
 ### v1.5.0
 
