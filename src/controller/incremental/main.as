@@ -1,13 +1,13 @@
 const string ID = "incremental";
-const string NAME = "Incremental Controller";
+const string TITLE = "Incremental Controller";
 
 PluginInfo@ GetPluginInfo()
 {
     PluginInfo info;
     info.Author = "SaiMoen";
     info.Name = ID;
-    info.Description = NAME;
-    info.Version = "v2.1.1a";
+    info.Description = TITLE;
+    info.Version = "v2.1.1b";
     return info;
 }
 
@@ -21,7 +21,7 @@ void Main()
     OnRegister();
     PointCallbacksToEmpty();
 
-    RegisterValidationHandler(ID, NAME, OnSettings);
+    RegisterValidationHandler(ID, TITLE, OnSettings);
 }
 
 void OnSimulationBegin(SimulationManager@ simManager)
@@ -45,6 +45,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Left);
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Right);
 
+    @onCancel = OnUserCancelledMain;
     if (Settings::evalRange)
     {
         @step = OnSimStepRangePre;
@@ -82,19 +83,15 @@ void OnSimulationBegin(SimulationManager@ simManager)
 
     ModeDispatch(modeStr, modeMap, mode);
     print();
-    print(NAME + " w/ " + modeStr);
+    print(TITLE + " w/ " + modeStr);
     print();
     mode.OnBegin(simManager);
 }
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 {
-    if (userCancelled)
-    {
-        Finish(simManager);
+    if (onCancel(simManager, userCancelled))
         return;
-    }
-    
     step(simManager);
 }
 
@@ -115,9 +112,9 @@ const Mode@ mode;
 
 void PointCallbacksToEmpty()
 {
+    @onCancel = function(simManager, userCancelled) { return true; };
     @step = function(simManager) {};
-    @end  = function(simManager) {};
-
+    @end = function(simManager) {};
     @cpCountChanged = function(simManager) {};
 }
 
@@ -125,6 +122,20 @@ void Finish(SimulationManager@ simManager)
 {
     Eval::EndRangeTime(simManager);
     simManager.ForceFinish();
+}
+
+
+/*
+    User Cancel handling.
+*/
+funcdef bool OnUserCancelled(SimulationManager@ simManager, bool userCancelled);
+const OnUserCancelled@ onCancel;
+
+bool OnUserCancelledMain(SimulationManager@ simManager, bool userCancelled)
+{
+    if (userCancelled)
+        Finish(simManager);
+    return userCancelled;
 }
 
 

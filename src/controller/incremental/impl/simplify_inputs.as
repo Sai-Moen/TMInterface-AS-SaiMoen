@@ -13,18 +13,18 @@ const Mode@ const mode = Mode(
 const string PREFIX = ::PREFIX + "simplify_inputs_";
 
 const string CONTEXT_TIMESPAN = PREFIX + "context_timespan";
+const ms MIN_CTX_TIMESPAN = TickToMs(2);
 ms contextTimespan;
 
 void OnRegister()
 {
-    RegisterVariable(CONTEXT_TIMESPAN, TickToMs(3));
+    RegisterVariable(CONTEXT_TIMESPAN, MIN_CTX_TIMESPAN);
     contextTimespan = ms(GetVariableDouble(CONTEXT_TIMESPAN));
 }
 
 void OnSettings()
 {
     contextTimespan = UI::InputTimeVar("Context Timespan", CONTEXT_TIMESPAN, TICK);
-    contextTimespan = Math::Max(2, contextTimespan);
     UI::TextWrapped("Lower timespan is faster, but may desync in an unrecoverable way.");
 }
 
@@ -70,8 +70,11 @@ bool EqualsVec3(const vec3 &in v1, const vec3 &in v2)
         v1.z == v2.z;
 }
 
+array<Context@> contexts;
+
 void OnBegin(SimulationManager@ simManager)
 {
+    contextTimespan = Math::Max(MIN_CTX_TIMESPAN, contextTimespan);
     contexts.Resize(contextTimespan / TICK - 1);
     Reset();
 }
@@ -83,22 +86,32 @@ void OnStep(SimulationManager@ simManager)
     onStep(simManager);
 }
 
+int prevInputSteer;
+
 int oldInputSteer;
 float oldTurningRate1;
 float oldTurningRate2;
 
-array<Context@> contexts;
-
 void OnStepScan(SimulationManager@ simManager)
 {
     const ms time = simManager.TickTime;
-    if (Eval::IsInputTime(time))
-        return;
-
     const auto@ const svc = simManager.SceneVehicleCar;
+    if (Eval::IsInputTime(time))
+    {
+        prevInputSteer = ToSteer(svc.InputSteer);
+        return;
+    }
+
     if (Eval::IsInputTime(time - TICK))
     {
         oldInputSteer = ToSteer(svc.InputSteer);
+
+        // if the next tick does not have an input, we must add it to avoid overriding the intended inputSteer
+        auto@ const buffer = simManager.InputEvents;
+        const auto@ const indices = buffer.Find(time, InputType::Steer);
+        if (indices.IsEmpty())
+            Eval::AddInput(buffer, time, InputType::Steer, oldInputSteer);
+
         oldTurningRate1 = svc.TurningRate;
         return;
     }
@@ -140,7 +153,10 @@ void OnStepTurningRate(SimulationManager@ simManager)
     }
     else if (Eval::IsEvalTime(time))
     {
-        Eval::Advance(simManager, steer);
+        if (steer == prevInputSteer)
+            Eval::AdvanceNoAdd(simManager);
+        else
+            Eval::Advance(simManager, steer);
         Reset();
     }
     else
@@ -171,7 +187,8 @@ void OnStepRemoval(SimulationManager@ simManager)
     }
     else if (Eval::IsEvalTime(time))
     {
-        Eval::Advance();
+        // we already cleaned up the inputs by the nature of this strategy
+        Eval::AdvanceNoCleanup();
     }
     else
     {
@@ -185,6 +202,8 @@ void OnStepRemoval(SimulationManager@ simManager)
 
 void Reset()
 {
+    prevInputSteer = 0;
+
     oldInputSteer = 0;
     oldTurningRate1 = 0;
     oldTurningRate2 = 0;

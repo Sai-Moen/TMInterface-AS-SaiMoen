@@ -116,25 +116,34 @@ void RemoveInputs(TM::InputEventBuffer@ const buffer, const ms time, const Input
     BufferRemoveIndices(buffer, buffer.Find(time, type));
 }
 
-void Advance()
-{
-    @inputState = null;
-    Time::Input += TICK;
-}
-
 void Advance(SimulationManager@ simManager, const int value)
 {
     const ms time = Time::input;
-    const InputType type = InputType::Steer;
 
     auto@ const buffer = simManager.InputEvents;
-    RemoveInputs(buffer, time, type);
-    AddInput(buffer, time, type, value);
+    RemoveInputs(buffer, time, InputType::Steer);
+    AddInput(buffer, time, InputType::Steer, value);
 
-    InputCommand cmd = MakeInputCommand(time, type, value);
+    InputCommand cmd = MakeInputCommand(time, InputType::Steer, value);
     Settings::PrintInfo(inputState, cmd.ToScript());
 
-    Advance();
+    AdvanceNoCleanup();
+}
+
+void AdvanceNoAdd(SimulationManager@ simManager)
+{
+    const ms time = Time::input;
+
+    auto@ const buffer = simManager.InputEvents;
+    RemoveInputs(buffer, time, InputType::Steer);
+
+    AdvanceNoCleanup();
+}
+
+void AdvanceNoCleanup()
+{
+    @inputState = null;
+    Time::Input += TICK;
 }
 
 void NextRangeTime(SimulationManager@ simManager)
@@ -158,6 +167,7 @@ void Reset()
 {
     cmdlist = CommandList();
     @minState = null;
+    @inputState = null;
 
     irIndex = 0;
     @inputsResult = null;

@@ -270,19 +270,19 @@ namespace Normal
         {
             const ms seek = diff + 100;
             Eval::Time::OffsetEval(seek);
-
-            Eval::Rewind(simManager);
             @onStep = OnStepMain;
         }
         else if (hasTimeout && diff >= timeout)
         {
             Advance(simManager, initialSteer);
-            Eval::Rewind(simManager);
         }
         else
         {
             Eval::AddInput(simManager, time, InputType::Steer, initialSteer);
+            return;
         }
+
+        Eval::Rewind(simManager);
     }
 
     void OnStepMain(SimulationManager@ simManager)
@@ -329,9 +329,7 @@ namespace Normal
         }
 
         if (step == 0)
-        {
             Advance(simManager, steer);
-        }
     }
 
     void Advance(SimulationManager@ simManager, const int steer)

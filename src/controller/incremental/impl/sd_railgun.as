@@ -186,11 +186,10 @@ namespace Normal
 
     void Reset()
     {
-        Eval::Time::OffsetEval(seek);
-
         triedSteers.Clear();
         bestResult = -1;
 
+        Eval::Time::OffsetEval(seek);
         @onStep = OnStepPre;
     }
 
