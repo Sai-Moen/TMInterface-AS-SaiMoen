@@ -7,6 +7,7 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v2.1.1c](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1c/incremental.zip)
 - [v2.1.1b](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1b/incremental.zip)
 - [v2.1.1a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1a/incremental.zip)
 
@@ -110,6 +111,10 @@ or if the simulation is cancelled by pressing Escape with the external console i
   - Determines the end of the evaluation timerange.
 
 ## Patch Notes
+
+### v2.1.1c
+
+- Added a new strategy to the Input Simplifier mode that allows you to control the magnitude of air inputs.
 
 ### v2.1.1b
 
