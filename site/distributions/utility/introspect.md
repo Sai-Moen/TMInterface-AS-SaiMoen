@@ -2,7 +2,7 @@
 
 # Introspect
 
-Allows you to look at a save state's memory more closely.
+Allows you to look at a save state's memory more closely (in run mode).
 
 ## Installation
 
@@ -11,6 +11,8 @@ Allows you to look at a save state's memory more closely.
 ## Guide
 
 Use the `introspect` command to toggle the window.
+
+Note that you need to be in run mode (i.e. have a map open) to actually see the fields.
 
 The console spam option enables reading at the current offset and logging the value.
 The float view option switches between interpreting said value as either an integer or a float.
