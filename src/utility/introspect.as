@@ -173,20 +173,14 @@ void Window()
     uint relativeOffset = 0;
     for (uint i = 0; i < children.Length; i++)
     {
-        UI::PushID("child" + i);
-
         Struct@ const child = children[i];
         if (UI::Selectable(relativeOffset + ": " + child.Name(), false))
         {
             offsetStack.Add(0);
             structStack.Add(child);
-
-            UI::PopID();
             return;
         }
         relativeOffset += child.Size();
-
-        UI::PopID();
     }
 }
 

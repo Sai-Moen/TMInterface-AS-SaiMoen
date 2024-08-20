@@ -218,10 +218,12 @@ int prevInputSteer;
 
 float oldInputBrake;
 int oldInputSteer;
-float oldTurningRate1;
-float oldTurningRate2;
+float oldTurningRate;
 
 bool isBraking;
+
+float nextInputBrake;
+float nextTurningRate;
 
 void OnStepScan(SimulationManager@ simManager)
 {
@@ -238,7 +240,7 @@ void OnStepScan(SimulationManager@ simManager)
     {
         oldInputBrake = svc.InputBrake;
         oldInputSteer = ToSteer(svc.InputSteer);
-        oldTurningRate1 = svc.TurningRate;
+        oldTurningRate = svc.TurningRate;
 
         // if the next tick does not have an input, we must add it to avoid overriding the intended inputSteer
         auto@ const buffer = simManager.InputEvents;
@@ -247,14 +249,22 @@ void OnStepScan(SimulationManager@ simManager)
 
         // only do this stuff if we are able to remove it later
         isBraking = minimizeBrake && oldInputBrake != 0;
-        if (isBraking && prevInputBrake == oldInputBrake && buffer.Find(time, InputType::Down).IsEmpty())
+
+        const bool mustAddDownPress =
+            isBraking &&                                  // no point in releasing if we aren't pressing
+            prevInputBrake == oldInputBrake &&            // no point in pressing if we are already pressing @ input time
+            buffer.Find(time, InputType::Down).IsEmpty(); // catches edge cases like a 1-tick brake
+        if (mustAddDownPress)
             Eval::AddInput(buffer, time, InputType::Down, 1);
 
         return;
     }
     
     if (Eval::IsInputTime(time - TickToMs(2)))
-        oldTurningRate2 = svc.TurningRate;
+    {
+        nextInputBrake = svc.InputBrake;
+        nextTurningRate = svc.TurningRate;
+    }
 
     const uint index = TimeToContextIndex(time);
     @contexts[index] = Context(simManager.Dyna.RefStateCurrent);
@@ -292,11 +302,23 @@ void OnStepMinimizeBrake(SimulationManager@ simManager)
     }
 
     if (Desynced(simManager, time))
+    {
         SetDown(simManager, 1);
+    }
     else if (Eval::IsEvalTime(time))
+    {
         SetDown(simManager, 0);
+        if (nextInputBrake == 0)
+        {
+            auto@ const buffer = simManager.InputEvents;
+            const auto@ const indices = buffer.Find(Eval::Time::input + TICK, InputType::Down, 0);
+            BufferRemoveIndices(buffer, indices);
+        }
+    }
     else
+    {
         return;
+    }
 
     Eval::Rewind(simManager);
 }
@@ -308,7 +330,7 @@ void OnStepTurningRate(SimulationManager@ simManager)
     const ms time = simManager.TickTime;
     if (Eval::IsInputTime(time))
     {
-        steer = RoundAway(oldTurningRate2 * STEER::FULL, oldTurningRate2 - oldTurningRate1);
+        steer = RoundAway(nextTurningRate * STEER::FULL, nextTurningRate - oldTurningRate);
         Eval::AddInput(simManager, time, InputType::Steer, steer);
         return;
     }
@@ -424,7 +446,7 @@ void AdvanceUnfill(SimulationManager@ simManager)
 void SetDown(SimulationManager@ simManager, const int value)
 {
     Eval::RemoveInputs(simManager, Eval::Time::input, InputType::Down);
-    if (prevInputBrake != value)
+    if (value != prevInputBrake)
         Eval::AddInput(simManager, Eval::Time::input, InputType::Down, value);
     NextStrategy(simManager);
 }
