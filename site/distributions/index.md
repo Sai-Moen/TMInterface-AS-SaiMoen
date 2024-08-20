@@ -47,6 +47,7 @@ Anything that is not specific to run mode or simulation.
 
 - [Bruteforce Diagnosis](utility/bf_diagnosis.md)
 - [Calculator](utility/calculator.md)
+- [Introspect](utility/introspect.md)
 - [Point View](utility/point_view.md)
 
 ### Archived
