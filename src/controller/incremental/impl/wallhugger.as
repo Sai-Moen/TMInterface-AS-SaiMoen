@@ -190,6 +190,9 @@ namespace Normal
     const string INITIAL_STEER = PREFIX + "initial_steer";
     int initialSteer;
 
+    const string SEEK_OFFSET = PREFIX + "seek_offset";
+    ms seekOffset;
+
     const string TIMEOUT = PREFIX + "timeout";
     const ms NO_TIMEOUT = 0;
     ms timeout;
@@ -197,9 +200,11 @@ namespace Normal
     void OnRegister()
     {
         RegisterVariable(INITIAL_STEER, STEER::FULL);
+        RegisterVariable(SEEK_OFFSET, TickToMs(10));
         RegisterVariable(TIMEOUT, 2000);
 
         initialSteer = int(GetVariableDouble(INITIAL_STEER));
+        seekOffset = ms(GetVariableDouble(SEEK_OFFSET));
         timeout = ms(GetVariableDouble(TIMEOUT));
     }
 
@@ -207,6 +212,8 @@ namespace Normal
 
     void OnSettings()
     {
+        UI::Separator();
+
         if (UI::Button("Left"))
             initialSteer = STEER::MIN;
         UI::SameLine();
@@ -221,8 +228,15 @@ namespace Normal
         SetVariable(INITIAL_STEER, initialSteer);
         UI::TextWrapped(HELPFUL_TEXT);
 
+        UI::Separator();
+
+        seekOffset = UI::InputTimeVar("Seek Offset", SEEK_OFFSET);
+        UI::TextWrapped("This adds a certain amount of time to the wall detection time, the wall is avoided at the new time.");
+
+        UI::Separator();
+
         timeout = UI::InputTimeVar("Timeout", TIMEOUT);
-        UI::TextWrapped("Timeout when looking for a wall (0 to disable)");
+        UI::TextWrapped("Timeout when looking for a wall (0 to disable).");
     }
 
     funcdef bool Oob(const int);
@@ -268,7 +282,7 @@ namespace Normal
         const ms diff = time - Eval::Time::Input;
         if (simManager.SceneVehicleCar.HasAnyLateralContact)
         {
-            const ms seek = diff + 100;
+            const ms seek = diff + seekOffset;
             Eval::Time::OffsetEval(seek);
             @onStep = OnStepMain;
         }
