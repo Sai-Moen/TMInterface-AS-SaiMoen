@@ -22,7 +22,6 @@ namespace Time
     ms eval;  // When to check the results of a sub-iteration,
                 // may change within an iteration, but that is up to the implementing mode(s)
     ms max;   // Gets set to timeTo if it is a sane value, otherwise duration.
-    ms post;  // The maximum time at which an input has been added (used for cleanup)
 
     ms Input
     {
@@ -101,8 +100,6 @@ void AddInput(SimulationManager@ simManager, const ms time, const InputType type
 
 void AddInput(TM::InputEventBuffer@ const buffer, const ms time, const InputType type, const int value)
 {
-    if (Time::post < time)
-        Time::post = time;
     buffer.Add(time, type, value);
 }
 
@@ -156,8 +153,6 @@ void NextRangeTime(SimulationManager@ simManager)
 void EndRangeTime(SimulationManager@ simManager)
 {
     auto@ const buffer = simManager.InputEvents;
-    BufferRemoveAll(buffer, Time::input, Time::post, InputType::Steer);
-    Time::post = 0;
     inputsResult.inputs = buffer.ToCommandsText();
 
     @inputsResult.finalState = simManager.SaveState();

@@ -55,7 +55,7 @@ namespace Settings
 void OnRegister()
 {
     // Register
-    RegisterVariable(MODE, NONE::NAME);
+    RegisterVariable(MODE, "");
 
     RegisterVariable(EVAL_RANGE, false);
     RegisterVariable(EVAL_TO, 0);
@@ -70,8 +70,6 @@ void OnRegister()
     RegisterVariable(SHOW_INFO, true);
 
     // Register sub-modes
-    ModeRegister(modeMap, NONE::mode);
-
     ModeRegister(modeMap, SD::mode);
     ModeRegister(modeMap, WH::mode);
     ModeRegister(modeMap, SI::mode);

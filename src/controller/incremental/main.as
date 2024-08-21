@@ -19,7 +19,11 @@ bool IsOtherController()
 void Main()
 {
     OnRegister();
-    PointCallbacksToEmpty();
+
+    @cancel = OnUserCancelledEmpty;
+    @step = OnSimStepEmpty;
+    @cpCountChanged = OnCpCountChangedEmpty;
+    @end = OnSimEndEmpty;
 
     RegisterValidationHandler(ID, TITLE, OnSettings);
 }
@@ -27,15 +31,11 @@ void Main()
 void OnSimulationBegin(SimulationManager@ simManager)
 {
     if (IsOtherController())
-    {
-        ModeDispatch(NONE::NAME, modeMap, mode);
         return;
-    }
 
     simManager.RemoveStateValidation();
-    const uint duration = simManager.EventsDuration;
-    simManager.SetSimulationTimeLimit(Math::INT_MAX);
 
+    const uint duration = simManager.EventsDuration;
     if (Settings::timeTo == 0)
         Eval::Time::max = duration;
     else
@@ -45,7 +45,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Left);
     BufferRemoveAll(buffer, Settings::timeFrom, duration, InputType::Right);
 
-    @onCancel = OnUserCancelledMain;
+    @cancel = OnUserCancelledMain;
     if (Settings::evalRange)
     {
         @step = OnSimStepRangePre;
@@ -63,8 +63,8 @@ void OnSimulationBegin(SimulationManager@ simManager)
         Eval::inputsResults.Resize(1);
         Eval::Time::Input = Settings::timeFrom;
     }
-    @end = OnSimEndMain;
     @cpCountChanged = OnCpCountChangedMain;
+    @end = OnSimEndMain;
     @Eval::inputsResult = Eval::inputsResults[0];
 
     if (Eval::Time::min > Eval::Time::max)
@@ -90,9 +90,10 @@ void OnSimulationBegin(SimulationManager@ simManager)
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 {
-    if (onCancel(simManager, userCancelled))
-        return;
-    step(simManager);
+    if (userCancelled)
+        cancel(simManager);
+    else
+        step(simManager);
 }
 
 void OnSimulationEnd(SimulationManager@ simManager, SimulationResult)
@@ -110,17 +111,26 @@ void OnCheckpointCountChanged(SimulationManager@ simManager, int, int)
 dictionary modeMap;
 const Mode@ mode;
 
-void PointCallbacksToEmpty()
-{
-    @onCancel = function(simManager, userCancelled) { return true; };
-    @step = function(simManager) {};
-    @end = function(simManager) {};
-    @cpCountChanged = function(simManager) {};
-}
-
 void Finish(SimulationManager@ simManager)
 {
-    Eval::EndRangeTime(simManager);
+    auto@ const buffer = simManager.InputEvents;
+    const auto@ const indices = buffer.Find(-1, InputType::FakeFinish);
+    if (indices.Length == 1)
+    {
+        const uint index = indices[0];
+        auto event = buffer[index];
+        buffer.RemoveAt(index);
+        event.Time = Eval::Time::input + 100000; // 100010 - 10
+        buffer.Add(event);
+
+        Eval::EndRangeTime(simManager);
+    }
+    else
+    {
+        print("Unexpected amount of FakeFinish inputs...", Severity::Error);
+    }
+    @cancel = OnUserCancelledEmpty;
+    @step = OnSimStepEmpty;
     simManager.ForceFinish();
 }
 
@@ -128,14 +138,14 @@ void Finish(SimulationManager@ simManager)
 /*
     User Cancel handling.
 */
-funcdef bool OnUserCancelled(SimulationManager@ simManager, bool userCancelled);
-const OnUserCancelled@ onCancel;
+funcdef void OnUserCancelled(SimulationManager@ simManager);
+const OnUserCancelled@ cancel;
 
-bool OnUserCancelledMain(SimulationManager@ simManager, bool userCancelled)
+void OnUserCancelledEmpty(SimulationManager@) {}
+
+void OnUserCancelledMain(SimulationManager@ simManager)
 {
-    if (userCancelled)
-        Finish(simManager);
-    return userCancelled;
+    Finish(simManager);
 }
 
 
@@ -145,6 +155,8 @@ bool OnUserCancelledMain(SimulationManager@ simManager, bool userCancelled)
 funcdef void OnSimStep(SimulationManager@ simManager);
 const OnSimStep@ step;
 const OnSimStep@ backingStep;
+
+void OnSimStepEmpty(SimulationManager@) {}
 
 void OnSimStepState(SimulationManager@ simManager)
 {
@@ -179,9 +191,7 @@ void OnSimStepRangePre(SimulationManager@ simManager)
 {
     const ms time = simManager.TickTime;
     if (Eval::BeforeRange(time))
-    {
         return;
-    }
 
     @Range::startingState = simManager.SaveState();
     @step = OnSimStepRangeMain;
@@ -217,10 +227,29 @@ void OnSimStepRangeMain(SimulationManager@ simManager)
 
 
 /*
+    On Checkpoint Count Changed callback implementation(s).
+*/
+funcdef void OnCpCountChanged(SimulationManager@ simManager);
+const OnCpCountChanged@ cpCountChanged;
+
+void OnCpCountChangedEmpty(SimulationManager@) {}
+
+void OnCpCountChangedMain(SimulationManager@ simManager)
+{
+    // if we get called it means we are the controller in simulation
+    // simply don't finish here as we are supposed to just keep going until the end time
+    simManager.PreventSimulationFinish();
+}
+
+
+
+/*
     On Simulation End callback implementation(s).
 */
 funcdef void OnSimEnd(SimulationManager@ simManager);
 const OnSimEnd@ end;
+
+void OnSimEndEmpty(SimulationManager@) {}
 
 void OnSimEndMain(SimulationManager@ simManager)
 {
@@ -229,29 +258,12 @@ void OnSimEndMain(SimulationManager@ simManager)
     Eval::cmdlist.Content = Range::GetBestInputs();
     const string filename = GetVariableString("bf_result_filename");
     if (Eval::cmdlist.Save(filename))
-    {
-        log("Inputs saved! Filename: " + filename, Severity::Success);
-    }
+        print("Inputs saved! Filename: " + filename, Severity::Success);
     else
-    {
-        log("Inputs not saved! Filename: " + filename, Severity::Error);
-    }
+        print("Inputs not saved! Filename: " + filename, Severity::Error);
     Eval::Reset();
     Range::Reset();
 
-    PointCallbacksToEmpty();
-}
-
-
-/*
-    Called when the simulation finishes.
-*/
-funcdef void OnCpCountChanged(SimulationManager@ simManager);
-const OnCpCountChanged@ cpCountChanged;
-
-void OnCpCountChangedMain(SimulationManager@ simManager)
-{
-    // if we get called it means we are the controller in simulation
-    // simply don't finish here as we are supposed to just keep going until the end time
-    simManager.PreventSimulationFinish();
+    @cpCountChanged = OnCpCountChangedEmpty;
+    @end = OnSimEndEmpty;
 }

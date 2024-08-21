@@ -77,9 +77,7 @@ bool ComboHelper(
         {
             const string newMode = allModes[i];
             if (UI::Selectable(newMode, currentMode == newMode))
-            {
                 onNewMode(newMode);
-            }
         }
 
         UI::EndCombo();
@@ -89,14 +87,14 @@ bool ComboHelper(
 
 interface Describable
 {
-    const string Name { get const; }
-    const string Description { get const; }
+    string Name { get const; }
+    string Description { get const; }
 }
 
 void DescribeModes(
     const string &in label,
-    const array<string> &in modes,
-    const dictionary &in map)
+    const array<string>@ const modes,
+    const dictionary@ const map)
 {
     UI::BeginTooltip();
     UI::Text(label);
@@ -117,27 +115,30 @@ void CapMax(const string &in variableName, const ms tfrom, const ms tto)
 funcdef void OnEvent();
 funcdef void OnSim(SimulationManager@ simManager);
 
+void OnEventEmpty() {}
+void OnSimEmpty(SimulationManager@) {}
+
 class Mode : Describable
 {
-    string name;
-    const string Name { get const { return name; } }
+    private string name;
+    string Name { get const { return name; } }
 
-    string description;
-    const string Description { get const { return description; } }
+    private string description;
+    string Description { get const { return description; } }
 
-    OnEvent@ OnRegister;
-    OnEvent@ OnSettings;
+    const OnEvent@ OnRegister;
+    const OnEvent@ OnSettings;
 
-    OnSim@ OnBegin;
-    OnSim@ OnStep;
+    const OnSim@ OnBegin;
+    const OnSim@ OnStep;
 
     Mode(
         const string &in _name,
         const string &in _description,
-        OnEvent@ const _OnRegister,
-        OnEvent@ const _OnSettings,
-        OnSim@ const _OnBegin,
-        OnSim@ const _OnStep)
+        const OnEvent@ _OnRegister,
+        const OnEvent@ _OnSettings,
+        const OnSim@ _OnBegin,
+        const OnSim@ _OnStep)
     {
         name = _name;
         description = _description;
@@ -150,53 +151,29 @@ class Mode : Describable
     }
 }
 
-OnEvent@ const NullCheckHandle(OnEvent@ const other)
+const OnEvent@ NullCheckHandle(const OnEvent@ other)
 {
-    if (other is null)
-    {
-        return function() {};
-    }
-    return other;
+    return other is null ? OnEvent(OnEventEmpty) : other;
 }
 
-OnSim@ const NullCheckHandle(OnSim@ const other)
+const OnSim@ NullCheckHandle(const OnSim@ other)
 {
-    if (other is null)
-    {
-        return function(simManager) {};
-    }
-    return other;
+    return other is null ? OnSim(OnSimEmpty) : other;
 }
 
-void ModeRegister(
-    dictionary& map,
-    const Mode@ const handle)
+void ModeRegister(dictionary@ const map, const Mode@ const handle)
 {
     @map[handle.Name] = handle;
     handle.OnRegister();
 }
 
-void ModeDispatch(
-    const string &in key,
-    const dictionary &in map,
-    const Mode@& handle)
+void ModeDispatch(const string &in key, const dictionary@ const map, const Mode@& handle)
 {
-    if (map.Get(key, @handle)) return;
+    if (map.Get(key, @handle))
+        return;
 
     // If a new version of the script tries to use an old key
     @handle = cast<Mode>(map[map.GetKeys()[0]]);
-}
-
-// Special implementation to dispatch to by default
-namespace NONE
-{
-    const string NAME = "None";
-    const string DESCRIPTION = "Mainly used for debugging, ignore.";
-    const Mode@ const mode = Mode(
-        NAME, DESCRIPTION,
-        null, null,
-        null, null
-    );
 }
 
 // General Utils
@@ -234,7 +211,8 @@ bool BufferGetLast(
     const bool current)
 {
     const auto@ const indices = buffer.Find(time, type);
-    if (indices.IsEmpty()) return current;
+    if (indices.IsEmpty())
+        return current;
 
     return buffer[indices[indices.Length - 1]].Value.Binary;
 }
@@ -246,7 +224,8 @@ int BufferGetLast(
     const int current)
 {
     const auto@ const indices = buffer.Find(time, type);
-    if (indices.IsEmpty()) return current;
+    if (indices.IsEmpty())
+        return current;
 
     return buffer[indices[indices.Length - 1]].Value.Analog;
 }
@@ -278,30 +257,14 @@ void BufferRemoveAll(
 
     uint lenTotal;
     const auto@ const indexArrayArray = BufferGetAllIndices(buffer, start, end, type, lenTotal);
-
     const auto@ const indices = ConcatIndices(indexArrayArray, lenTotal, 0);
-    BufferRemoveIndices(buffer, indices);
-}
-
-void BufferRemoveAllExceptFirst(
-    TM::InputEventBuffer@ const buffer,
-    const ms start, const ms end,
-    const InputType type)
-{
-    if (start > end)
-        return;
-
-    uint lenTotal;
-    const auto@ const indexArrayArray = BufferGetAllIndices(buffer, start, end, type, lenTotal);
-    lenTotal -= (end - start) / TICK + 1;
-
-    const auto@ const indices = ConcatIndices(indexArrayArray, lenTotal, 1);
     BufferRemoveIndices(buffer, indices);
 }
 
 void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ const indices)
 {
-    if (indices.IsEmpty()) return;
+    if (indices.IsEmpty())
+        return;
 
     uint contiguous = 1;
     uint old = indices[indices.Length - 1];
@@ -330,9 +293,7 @@ array<uint>@ ConcatIndices(const array<array<uint>@>@ const indexArrayArray, con
     {
         const auto@ const indexArray = indexArrayArray[i];
         for (uint j = innerIndex; j < indexArray.Length; j++)
-        {
             indices[index++] = indexArray[j];
-        }
     }
     return indices;
 }
@@ -390,17 +351,21 @@ class RangeExcl : Range
 }
 
 // log
-void log() { log(""); }
-void log(const bool b, Severity severity = Severity::Info) { log("" + b, severity); }
-void log(const uint u, Severity severity = Severity::Info) { log("" + u, severity); }
-void log(const int i, Severity severity = Severity::Info) { log("" + i, severity); }
-void log(const float f, Severity severity = Severity::Info) { log("" + f, severity); }
-void log(const double d, Severity severity = Severity::Info) { log("" + d, severity); }
+void log()                                                    { log(""); }
+void log(const bool b, Severity severity = Severity::Info)    { log("" + b, severity); }
+void log(const uint u, Severity severity = Severity::Info)    { log("" + u, severity); }
+void log(const int i, Severity severity = Severity::Info)     { log("" + i, severity); }
+void log(const uint64 ub, Severity severity = Severity::Info) { log("" + ub, severity); }
+void log(const int64 ib, Severity severity = Severity::Info)  { log("" + ib, severity); }
+void log(const float f, Severity severity = Severity::Info)   { log("" + f, severity); }
+void log(const double d, Severity severity = Severity::Info)  { log("" + d, severity); }
 
 // print
-void print() { print(""); }
-void print(const bool b, Severity severity = Severity::Info) { print("" + b, severity); }
-void print(const uint u, Severity severity = Severity::Info) { print("" + u, severity); }
-void print(const int i, Severity severity = Severity::Info) { print("" + i, severity); }
-void print(const float f, Severity severity = Severity::Info) { print("" + f, severity); }
-void print(const double d, Severity severity = Severity::Info) { print("" + d, severity); }
+void print()                                                    { print(""); }
+void print(const bool b, Severity severity = Severity::Info)    { print("" + b, severity); }
+void print(const uint u, Severity severity = Severity::Info)    { print("" + u, severity); }
+void print(const int i, Severity severity = Severity::Info)     { print("" + i, severity); }
+void print(const uint64 ub, Severity severity = Severity::Info) { print("" + ub, severity); }
+void print(const int64 ib, Severity severity = Severity::Info)  { print("" + ib, severity); }
+void print(const float f, Severity severity = Severity::Info)   { print("" + f, severity); }
+void print(const double d, Severity severity = Severity::Info)  { print("" + d, severity); }
