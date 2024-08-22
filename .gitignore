@@ -6,3 +6,6 @@ lab/
 
 # ignores utils pycache
 **/__pycache__
+
+# ignores syntax highlighting stuff that I'm not even using but whatever
+src/as.predefined
