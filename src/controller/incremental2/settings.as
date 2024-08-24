@@ -48,11 +48,13 @@ void RegisterSettings()
 
 void RenderSettings()
 {
-    utils::ComboHelper("Modes:", modeIndex, modeNames, OnModeIndex);
+    utils::ComboHelper("Modes:", Eval::modeIndex, Eval::modeNames, Eval::OnModeIndex);
 
     if (UI::CollapsingHeader("General"))
     {
+        UI::BeginDisabled(!supportsUnlockedTimerange);
         varLockTimerange = UI::CheckboxVar("Lock Timerange?", VAR_LOCK_TIMERANGE);
+        UI::EndDisabled();
         UI::TextDimmed("Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.");
 
         varEvalBeginStart = UI::InputTimeVar("Evaluation Begin Starting Time", VAR_EVAL_BEGIN_START);
@@ -70,17 +72,13 @@ void RenderSettings()
 
         UI:Separator();
 
-        UI::BeginDisabled(!supportsSaveStates);
-
         varUseSaveState = UI::CheckboxVar("Start from Save State?", VAR_USE_SAVE_STATE);
         UI::BeginDisabled(!varUseSaveState);
         varSaveStateName = UI::InputTextVar("Save State name", VAR_SAVE_STATE_NAME);
         UI::EndDisabled();
-
-        UI::EndDisabled();
     }
 
-    if (UI::CollapsingHeader("Modes"))
+    if (UI::CollapsingHeader("Mode"))
     {
         modeRenderSettings();
     }
@@ -92,34 +90,8 @@ void RenderSettings()
     }
 }
 
-void OnModeIndex(const uint newIndex)
-{
-    modeIndex = newIndex;
-
-    const uint len = modes.Length;
-    if (modeIndex < len)
-        ModeDispatch();
-    else
-        log("Mode Index somehow went out of bounds... (" + modeIndex + " >= " + len + ")");
-}
-
-void ModeDispatch()
-{
-    IncMode@ imode = modes[modeIndex];
-
-    supportsSaveStates = imode.SupportsSaveStates;
-    supportsUnlockedTimerange = imode.SupportsUnlockedTimerange;
-
-    @modeRenderSettings = imode.RenderSettings;
-
-    @modeOnBegin = imode.OnBegin;
-    @modeOnStep = imode.OnStep;
-    @modeOnEnd = imode.OnEnd;
-}
-
 class Home : IncMode
 {
-    bool SupportsSaveStates { get { return true; } }
     bool SupportsUnlockedTimerange { get { return true; } }
 
     void RenderSettings()

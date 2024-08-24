@@ -22,11 +22,11 @@ void Main()
 {
     Settings::RegisterSettings();
 
-    IncRegisterMode("Guide", Guide());
+    IncRegisterMode("Home", Home());
 
-    //IncRegisterMode("SD Railgun", SD::Mode());
-    //IncRegisterMode("Wallhugger", WH::Mode());
-    //IncRegisterMode("Input Simplifier", SI::Mode());
+    SpeedDrift::Main();
+    Wallhugger::Main();
+    InputSimplifier::Main();
 
     RegisterValidationHandler(ID, TITLE, Settings::RenderSettings);
 }
@@ -38,31 +38,26 @@ void OnSimulationBegin(SimulationManager@ simManager)
 
     simManager.RemoveStateValidation();
 
+    Eval::Initialize(simManager);
     if (Settings::varEvalEnd == 0)
         Eval::tLimit = simManager.EventsDuration;
     else
         Eval::tLimit = Settings::varEvalEnd;
-    
-    handledCancel = false;
-    if (Settings::varLockTimerange)
+
+    needToHandleCancel = true;
+    if (Eval::IsUnlockedTimerange())
     {
-        onStep = OnStepState::Single;
-
-        Eval::tInput = Settings::varEvalBeginStart;
-
-        // TODO make sure there is space to store result
+        onStep = OnStepState::RangeInit;
+        Eval::InitializeInitTime();
     }
     else
     {
-        onStep = OnStepState::RangeInit;
-
-        // TODO make sure there is space to store results
+        onStep = OnStepState::Single;
     }
-    Eval::tState = Eval::tInput - TICK;
     preventSimulationFinish = true;
     ignoreEnd = false;
 
-    if (Settings::varUseSaveState)
+    if (Eval::ShouldTryLoadingSaveState())
     {
         stateFilename = Settings::varSaveStateName;
 
@@ -70,11 +65,11 @@ void OnSimulationBegin(SimulationManager@ simManager)
         onStep = OnStepState::SaveState;
     }
 
-    ModeDispatch();
+    Eval::ModeDispatch();
     print();
-    print(TITLE + " w/ " + modeNames[modeIndex]);
+    print(TITLE + " w/ " + Eval::GetCurrentModeName());
     print();
-    modeOnBegin(simManager);
+    Eval::modeOnBegin(simManager);
 }
 
 enum OnStepState
@@ -88,7 +83,7 @@ enum OnStepState
     Count
 }
 
-bool handledCancel = true;
+bool needToHandleCancel = false;
 
 string stateFilename;
 
@@ -99,10 +94,11 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 {
     if (userCancelled)
     {
-        if (handledCancel)
-            return;
-
-        Eval::Finish();
+        if (needToHandleCancel)
+        {
+            Eval::SaveResult(simManager);
+            Eval::Finish(simManager);
+        }
         return;
     }
 
@@ -130,15 +126,38 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
         onStep = onStepTemp;
         break;
     case OnStepState::Single:
-        // single timerange
+        if (Eval::tInput <= Eval::tLimit)
+        {
+            if (Eval::IsAtLeastInputTime(simManager))
+                Eval::modeOnStep(simManager);
+        }
+        else
+        {
+            Eval::SaveResult(simManager);
+            Eval::Finish(simManager);
+        }
+        break;
     case OnStepState::RangeInit:
-        if (Eval::IsBeforeInitTime(simManager))
-            return;
-        
-        onStep = OnStepState::Range;
+        if (Eval::IsInitTime(simManager))
+            onStep = OnStepState::Range;
         break;
     case OnStepState::Range:
-        // run through all times until they have been exhausted
+        if (Eval::tInput <= Eval::tLimit)
+        {
+            if (Eval::IsAtLeastInputTime(simManager))
+                Eval::modeOnStep(simManager);
+        }
+        else
+        {
+            print(); // bit of spacing
+
+            Eval::SaveResult(simManager);
+            if (Eval::NextResult())
+                Eval::PrepareResult(simManager);
+            else
+                Eval::Finish(simManager);
+        }
+        break;
     }
 }
 
@@ -157,5 +176,18 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult)
     if (ignoreEnd)
         return;
 
-    // handle End
+    modeOnEnd(simManager);
+
+    const string filename = GetVariableString("bf_result_filename");
+    CommandList script;
+    script.Content = Eval::GetBestInputs();
+    if (script.Save(filename))
+        print("Inputs saved! Filename: " + filename, Severity::Success);
+    else
+        print("Inputs not saved! Filename: " + filename, Severity::Error);
+
+    Eval::Reset();
+
+    preventSimulationFinish = false;
+    ignoreEnd = true;
 }

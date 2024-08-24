@@ -3,7 +3,6 @@
 interface IncMode
 {
     bool SupportsUnlockedTimerange { get; }
-    bool SupportsSaveStates { get; }
 
     void RenderSettings();
 
