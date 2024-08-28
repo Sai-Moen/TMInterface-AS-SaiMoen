@@ -2,7 +2,7 @@ namespace Eval
 {
 
 
-// general
+// - General -
 array<TM::InputEvent> initialEvents;
 
 void Initialize(SimulationManager@ simManager)
@@ -38,6 +38,12 @@ void InitializeInitTime()
     tInit = Settings::varEvalBeginStart - TickToMs(2);
 }
 
+void Advance()
+{
+    PopCaches();
+    Bump();
+}
+
 void Finish(SimulationManager@ simManager)
 {
     needToHandleCancel = false;
@@ -52,12 +58,14 @@ void Reset()
     @initState = null;
     @trailingState = null;
 
+    ClearInputCaches();
+
     resultTimes.Clear();
     resultInputs.Clear();
     resultStates.Clear();
 }
 
-// modes
+// - Modes -
 uint modeIndex;
 array<string> modeNames;
 array<IncMode@> modes;
@@ -113,7 +121,7 @@ void ModeDispatch()
     @modeOnEnd = imode.OnEnd;
 }
 
-// timestamps
+// - Timestamps -
 ms tInit;  // the timestamp required to ensure that we can run an entire timerange
 ms tTrail; // the timestamp that the trailing state is saved on
 ms tInput; // the timestamp currently being evaluated
@@ -155,7 +163,118 @@ bool IsAtLeastInputTime(SimulationManager@ simManager)
     return time >= tInput;
 }
 
-// results
+// - Inputs -
+const uint INVALID_CACHE = -1;
+
+array<uint> cacheDown;
+array<uint> cacheUp;
+array<uint> cacheSteer;
+
+void SetInput(SimulationManager@ simManager, const uint index, const InputType type, const int value)
+{
+    array<uint>@ cache;
+    switch (type)
+    {
+    case InputType::Down:
+        @cache = cacheDown;
+        break;
+    case InputType::Up:
+        @cache = cacheUp;
+        break;
+    case InputType::Steer:
+        @cache = cacheSteer;
+        break;
+    default:
+        print("Unsupported input was attempted to be set...", Severity::Warning);
+        return;
+    }
+
+    const uint len = cache.Length;
+    if (index >= len)
+    {
+        cache.Resize(index + 1);
+        for (uint i = len; i <= index; i++)
+            cache[i] = INVALID_CACHE;
+    }
+
+    auto@ const buffer = simManager.InputEvents;
+
+    uint eventIndex = cache[index];
+    if (eventIndex == INVALID_CACHE)
+    {
+        const ms time = tInput + utils::TickToMs(index);
+        auto@ indices = buffer.Find(time, type);
+        switch (indices.Length)
+        {
+        case 0:
+            buffer.Add(time, type, value);
+            @indices = buffer.Find(time, type);
+            ShiftInputCaches(indices, 1);
+        case 1:
+            eventIndex = indices[0];
+            break;
+        default:
+            eventIndex = indices[0];
+            indices.RemoveAt(0);
+            utils::BufferRemoveIndices(buffer, indices);
+            ShiftInputCaches(indices, -1);
+            break;
+        }
+
+        cache[index] = eventIndex;
+    }
+
+    buffer[eventIndex].Value.Analog = value;
+}
+
+void ShiftInputCaches(const array<uint>@ const indices, const int shift)
+{
+    ShiftInputCache(cacheDown, indices, shift);
+    ShiftInputCache(cacheUp, indices, shift);
+    ShiftInputCache(cacheSteer, indices, shift);
+}
+
+void ShiftInputCache(array<uint>@ const cache, const array<uint>@ const indices, const int shift)
+{
+    const uint cacheLen = cache.Length;
+    const uint indicesLen = indices.Length;
+    for (uint i = 0; i < cacheLen; i++)
+    {
+        uint cached = cache[i];
+        for (uint j = 0; j < indicesLen; j++)
+        {
+            if (indices[j] > cached)
+                break; // presumably indices are always in ascending order
+
+            cached += shift;
+        }
+        cache[i] = cached;
+    }
+}
+
+void PopCaches()
+{
+    PopCache(cacheDown);
+    PopCache(cacheUp);
+    PopCache(cacheSteer);
+}
+
+void PopCache(array<uint>@ const cache)
+{
+    const uint last = cache.Length - 1;
+    for (uint i = 0; i < last; i++)
+        cache[i] = cache[i + 1];
+    cache[last] = INVALID_CACHE;
+}
+
+void ClearInputCaches()
+{
+    cacheDown.Clear();
+    cacheUp.Clear();
+    cacheSteer.Clear();
+}
+
+// - Results -
 const ms INVALID_RESULT_TIME = -1;
 
 uint resultIndex;

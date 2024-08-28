@@ -90,6 +90,22 @@ void RenderSettings()
     }
 }
 
+void PrintInfo(const array<InputCommand>@ const commands)
+{
+    print(Eval::tInput + ":");
+
+    if (varShowInfo)
+    {
+        // TODO show info
+    }
+
+    const uint len = commands.Length;
+    for (uint i = 0; i < len; i++)
+    {
+        print(commands[i].ToString());
+    }
+}
+
 class Home : IncMode
 {
     bool SupportsUnlockedTimerange { get { return true; } }

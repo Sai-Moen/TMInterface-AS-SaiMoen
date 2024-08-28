@@ -1,4 +1,3 @@
-typedef int ms;
 const ms TICK = 10;
 
 namespace utils

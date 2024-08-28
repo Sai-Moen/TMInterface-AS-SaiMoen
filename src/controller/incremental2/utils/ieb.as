@@ -6,19 +6,23 @@ namespace utils
 
 void BufferRemoveInTimerange(
     TM::InputEventBuffer@ const buffer,
-    const ms start, const ms end,
-    const InputType type = InputType::None)
+    const ms timeFrom, const ms timeTo,
+    const array<InputType> &in types) // expecting it to be a small array
 {
-    if (start > end)
+    if (timeFrom > timeTo)
         return;
 
     array<array<uint>@> indexArrayArray;
     uint capacity = 0;
-    for (ms t = start; t <= end; t += TICK)
+    const uint typesLen = types.Length;
+    for (ms t = timeFrom; t <= timeTo; t += TICK)
     {
-        auto@ const indexArray = buffer.Find(t, type);
-        capacity += indexArray.Length;
-        indexArrayArray.Add(indexArray);
+        for (uint i = 0; i < typesLen; i++)
+        {
+            auto@ const indexArray = buffer.Find(t, types[i]);
+            capacity += indexArray.Length;
+            indexArrayArray.Add(indexArray);
+        }
     }
 
     array<uint> indices(capacity);
