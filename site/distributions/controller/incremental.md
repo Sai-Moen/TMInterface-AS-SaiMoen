@@ -7,6 +7,7 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v2.1.1e](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1e/incremental.zip)
 - [v2.1.1d](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1d/incremental.zip)
 - [v2.1.1c](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1c/incremental.zip)
 - [v2.1.1b](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1b/incremental.zip)
@@ -64,6 +65,8 @@ to simplify all inputs.
 
 ### Understanding the timeranges
 
+Note: this section may be a bit outdated...
+
 #### Starting Timerange
 
 For each time in this range, the plugin will run the script as if the simulation just started,
@@ -112,6 +115,11 @@ or if the simulation is cancelled by pressing Escape with the external console i
   - Determines the end of the evaluation timerange.
 
 ## Patch Notes
+
+### v2.1.1e
+
+- Rewrote core simulation logic, 20%-25% faster.
+- Created biggest violation of Semantic Versioning in the history of mankind.
 
 ### v2.1.1d
 
