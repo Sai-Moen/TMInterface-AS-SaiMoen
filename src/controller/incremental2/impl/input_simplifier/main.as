@@ -10,13 +10,25 @@ void Main()
 
 class Mode : IncMode
 {
-    SupportsUnlockedTimerange { get { return false; } }
+    bool SupportsUnlockedTimerange { get { return false; } }
 
-    void RenderSettings() { IS::RenderSettings(); }
+    void RenderSettings()
+    {
+        InputSimplifier::RenderSettings();
+    }
 
-    void OnBegin(SimulationManager@ simManager) { IS::OnBegin(simManager); }
-    void OnStep(SimulationManager@ simManager) { IS::OnStep(simManager); }
-    void OnEnd(SimulationManager@) {}
+    void OnBegin(SimulationManager@)
+    {
+        OnSimBegin();
+    }
+
+    void OnStep(SimulationManager@ simManager)
+    {
+        onStep(simManager);
+    }
+
+    void OnEnd(SimulationManager@)
+    {}
 }
 
 const string VAR = Settings::VAR + "simplify_inputs_";
@@ -63,21 +75,21 @@ void DeserializeStrategyIndicesFromVar()
     for (uint i = 0; i < len; i++)
     {
         uint byteCount;
-        uint64 parsed = Text::ParseUInt(strategies[i], 10, byteCount);
+        const uint64 parsed = Text::ParseUInt(strategies[i], 10, byteCount);
         if (byteCount == 0 || parsed >= len)
         {
             SetDefaultStrategyIndices();
             return;
         }
 
-        varStrategyIndices[i] = parsed;
+        varStrategyIndices[i] = Strategy(parsed);
     }
 }
 
 void SetDefaultStrategyIndices()
 {
     for (uint i = 0; i < STRATEGY_LEN; i++)
-        varStrategyIndices[i] = i;
+        varStrategyIndices[i] = Strategy(i);
 }
 
 void RenderSettings()
@@ -130,7 +142,7 @@ void RenderSettings()
     UI::Separator();
 
     varMagnitude = UI::InputIntVar("Magnitude", VAR_MAGNITUDE);
-    varMagnitude = ClampSteer(varMagnitude);
+    varMagnitude = utils::ClampSteer(varMagnitude);
     UI::TextDimmed("This is the magnitude used by steering inputs in the air, where only input direction matters.");
     UI::TextDimmed("Setting this to 0 will skip the air input strategy altogether.");
 
@@ -205,6 +217,8 @@ const array<string> strategyNames =
     "Removal"
 };
 
+funcdef void OnSim(SimulationManager@);
+
 const array<OnSim@> strategyCallbacks =
 {
     OnStepTurningRate,
@@ -218,7 +232,7 @@ uint stratIndex;
 const uint stratLen = Strategy::Count + 1;
 array<OnSim@> strats(stratLen);
 
-void OnBegin(SimulationManager@ simManager)
+void OnSimBegin()
 {
     contextTimespan = Math::Max(MIN_CTX_TIMESPAN, varContextTimespan);
     contexts.Resize(utils::MsToTick(contextTimespan) - 1);
@@ -251,11 +265,6 @@ void OnBegin(SimulationManager@ simManager)
 
 const OnSim@ onStep;
 
-void OnStep(SimulationManager@ simManager)
-{
-    onStep(simManager);
-}
-
 float prevInputBrake;
 int prevInputSteer;
 
@@ -276,28 +285,27 @@ void OnStepScan(SimulationManager@ simManager)
     {
     case 0:
         prevInputBrake = svc.InputBrake;
-        prevInputSteer = ToSteer(svc.InputSteer);
+        prevInputSteer = utils::ToSteer(svc.InputSteer);
         return;
     case 1:
         oldInputBrake = svc.InputBrake;
-        oldInputSteer = ToSteer(svc.InputSteer);
+        oldInputSteer = utils::ToSteer(svc.InputSteer);
         oldTurningRate = svc.TurningRate;
 
         // if the next tick does not have an input, we must add it to avoid overriding the intended inputSteer
-        auto@ const buffer = simManager.InputEvents;
-        if (buffer.Find(time, InputType::Steer).IsEmpty())
-            Eval::AddInput(buffer, time, InputType::Steer, oldInputSteer);
+        if (!IncHasInputs(simManager, time, InputType::Steer))
+            IncSetInput(simManager, time, InputType::Steer, oldInputSteer);
 
         // only do this stuff if we are able to remove it later
         isBraking = varMinimizeBrake && oldInputBrake != 0;
-
-        const bool mustAddDownPress =
-            isBraking &&                                  // no point in releasing if we aren't pressing
-            prevInputBrake == oldInputBrake &&            // no point in pressing if we are already pressing @ input time
-            buffer.Find(time, InputType::Down).IsEmpty(); // catches edge cases like a 1-tick brake
-        if (mustAddDownPress)
-            Eval::AddInput(buffer, time, InputType::Down, 1);
-
+        {
+            const bool mustAddDownPress =
+                isBraking &&                                      // no point in releasing if we aren't pressing
+                prevInputBrake == oldInputBrake &&                // no point in pressing if we are already pressing
+                !IncHasInputs(simManager, time, InputType::Down); // catches edge cases like a 1-tick brake
+            if (mustAddDownPress)
+                IncSetInput(simManager, time, InputType::Down, 1);
+        }
         return;
     case 2:
         nextInputBrake = svc.InputBrake;
@@ -310,7 +318,7 @@ void OnStepScan(SimulationManager@ simManager)
     if (time == contextTimespan)
     {
         NextStrategy(simManager);
-        Eval::Rewind(simManager);
+        IncRewind(simManager);
     }
 }
 
@@ -319,7 +327,7 @@ void OnStepMinimizeBrake(SimulationManager@ simManager)
     if (!isBraking)
     {
         NextStrategy(simManager);
-        Eval::Rewind(simManager);
+        IncRewind(simManager);
         return;
     }
 
@@ -327,7 +335,7 @@ void OnStepMinimizeBrake(SimulationManager@ simManager)
     switch (utils::MsToTick(time))
     {
     case 0:
-        Eval::AddInput(simManager, time, InputType::Down, 0);
+        IncSetInput(simManager, InputType::Down, 0);
     case 1:
         return;
     }
@@ -340,18 +348,14 @@ void OnStepMinimizeBrake(SimulationManager@ simManager)
     {
         SetDown(simManager, 0);
         if (nextInputBrake == 0)
-        {
-            auto@ const buffer = simManager.InputEvents;
-            const auto@ const indices = buffer.Find(Eval::Time::input + TICK, InputType::Down, 0);
-            BufferRemoveIndices(buffer, indices);
-        }
+            IncRemoveInputs(simManager, TICK, InputType::Down, 0);
     }
     else
     {
         return;
     }
 
-    Eval::Rewind(simManager);
+    IncRewind(simManager);
 }
 
 int steer;
@@ -362,8 +366,8 @@ void OnStepTurningRate(SimulationManager@ simManager)
     switch (utils::MsToTick(time))
     {
     case 0:
-        steer = RoundAway(nextTurningRate * STEER::FULL, nextTurningRate - oldTurningRate);
-        Eval::AddInput(simManager, time, InputType::Steer, steer);
+        steer = utils::RoundAway(nextTurningRate * STEER::FULL, nextTurningRate - oldTurningRate);
+        IncSetInput(simManager, InputType::Steer, steer);
     case 1:
         return;
     }
@@ -375,7 +379,7 @@ void OnStepTurningRate(SimulationManager@ simManager)
     else
         return;
 
-    Eval::Rewind(simManager);
+    IncRewind(simManager);
 }
 
 void OnStepAir(SimulationManager@ simManager)
@@ -384,8 +388,8 @@ void OnStepAir(SimulationManager@ simManager)
     switch (utils::MsToTick(time))
     {
     case 0:
-        steer = Sign(oldInputSteer) * varMagnitude;
-        Eval::AddInput(simManager, time, InputType::Steer, steer);
+        steer = utils::Sign(oldInputSteer) * varMagnitude;
+        IncSetInput(simManager, InputType::Steer, steer);
     case 1:
         return;
     }
@@ -397,7 +401,7 @@ void OnStepAir(SimulationManager@ simManager)
     else
         return;
 
-    Eval::Rewind(simManager);
+    IncRewind(simManager);
 }
 
 void OnStepRemoval(SimulationManager@ simManager)
@@ -406,7 +410,7 @@ void OnStepRemoval(SimulationManager@ simManager)
     switch (utils::MsToTick(time))
     {
     case 0:
-        Eval::RemoveInputs(simManager, time, InputType::Steer);
+        IncRemoveInputs(simManager, InputType::Steer);
     case 1:
         return;
     }
@@ -417,8 +421,7 @@ void OnStepRemoval(SimulationManager@ simManager)
     }
     else if (time == contextTimespan)
     {
-        // we already cleaned up the inputs by the nature of this strategy
-        Eval::AdvanceNoCleanup();
+        IncCommit(simManager);
         Reset();
     }
     else
@@ -426,7 +429,7 @@ void OnStepRemoval(SimulationManager@ simManager)
         return;
     }
 
-    Eval::Rewind(simManager);
+    IncRewind(simManager);
 }
 
 void Reset()
@@ -452,25 +455,29 @@ void NextStrategy(SimulationManager@ simManager)
     if (onStep is null)
     {
         print("Desynchronized, restoring old steering value...", Severity::Warning);
-        Eval::Advance(simManager, oldInputSteer);
+        IncCommitContext ctx;
+        ctx.steer = oldInputSteer;
+        IncCommit(simManager, ctx);
         Reset();
     }
 }
 
 void AdvanceUnfill(SimulationManager@ simManager)
 {
+    IncCommitContext ctx;
     if (steer == prevInputSteer)
-        Eval::AdvanceNoAdd(simManager);
+        IncRemoveInputs(simManager, InputType::Steer);
     else
-        Eval::Advance(simManager, steer);
+        ctx.steer = steer;
+    IncCommit(simManager, ctx);
     Reset();
 }
 
 void SetDown(SimulationManager@ simManager, const int value)
 {
-    Eval::RemoveInputs(simManager, Eval::Time::input, InputType::Down);
+    IncRemoveInputs(simManager, InputType::Down);
     if (value != prevInputBrake)
-        Eval::AddInput(simManager, Eval::Time::input, InputType::Down, value);
+        IncSetInput(simManager, InputType::Down, value);
     NextStrategy(simManager);
 }
 

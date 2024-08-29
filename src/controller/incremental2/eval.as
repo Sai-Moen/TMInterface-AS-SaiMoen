@@ -31,16 +31,23 @@ void Initialize(SimulationManager@ simManager)
 
     tInput = resultTimes[resultIndex];
     tTrail = tInput - TICK;
+    
+    const uint duration = simManager.EventsDuration;
+    if (Settings::varEvalEnd == 0)
+        tLimit = duration;
+    else
+        tLimit = Settings::varEvalEnd;
+    tCleanup = duration;
 }
 
 void InitializeInitTime()
 {
-    tInit = Settings::varEvalBeginStart - TickToMs(2);
+    tInit = Settings::varEvalBeginStart - utils::TickToMs(2);
 }
 
 void Advance()
 {
-    PopCaches();
+    PopInputCaches();
     Bump();
 }
 
@@ -48,6 +55,7 @@ void Finish(SimulationManager@ simManager)
 {
     needToHandleCancel = false;
     onStep = OnStepState::None;
+
     simManager.ForceFinish();
 }
 
@@ -57,6 +65,7 @@ void Reset()
 
     @initState = null;
     @trailingState = null;
+    speed = NO_SPEED;
 
     ClearInputCaches();
 
@@ -66,11 +75,12 @@ void Reset()
 }
 
 // - Modes -
-uint modeIndex;
+const uint INVALID_MODE_INDEX = uint(-1);
+
+uint modeIndex = INVALID_MODE_INDEX;
 array<string> modeNames;
 array<IncMode@> modes;
 
-bool supportsSaveStates;
 bool supportsUnlockedTimerange;
 
 funcdef void OnEvent();
@@ -88,12 +98,22 @@ bool IsUnlockedTimerange()
 
 bool ShouldTryLoadingSaveState()
 {
-    return supportsSaveStates && Settings::varUseSaveState;
+    return Settings::varUseSaveState;
 }
 
 string GetCurrentModeName()
 {
     return modeNames[modeIndex];
+}
+
+void CheckMode()
+{
+    if (modeIndex != INVALID_MODE_INDEX)
+        return;
+
+    const uint index = modeNames.Find(GetVariableString(Settings::VAR_MODE));
+    modeIndex = index < modeNames.Length ? index : 0;
+    ModeDispatch();
 }
 
 void OnModeIndex(const uint newIndex)
@@ -109,31 +129,37 @@ void OnModeIndex(const uint newIndex)
 
 void ModeDispatch()
 {
-    IncMode@ imode = modes[modeIndex];
+    IncMode@ const imode = modes[modeIndex];
+    SetVariable(Settings::VAR_MODE, GetCurrentModeName());
 
-    supportsSaveStates = imode.SupportsSaveStates;
     supportsUnlockedTimerange = imode.SupportsUnlockedTimerange;
 
-    @modeRenderSettings = imode.RenderSettings;
+    @modeRenderSettings = OnEvent(imode.RenderSettings);
 
-    @modeOnBegin = imode.OnBegin;
-    @modeOnStep = imode.OnStep;
-    @modeOnEnd = imode.OnEnd;
+    @modeOnBegin = OnSim(imode.OnBegin);
+    @modeOnStep = OnSim(imode.OnStep);
+    @modeOnEnd = OnSim(imode.OnEnd);
 }
 
 // - Timestamps -
-ms tInit;  // the timestamp required to ensure that we can run an entire timerange
-ms tTrail; // the timestamp that the trailing state is saved on
-ms tInput; // the timestamp currently being evaluated
-ms tLimit; // the timestamp that triggers the end of the simulation when the input time exceeds it
+ms tInit;    // the timestamp required to ensure that we can run an entire timerange
+ms tTrail;   // the timestamp that the trailing state is saved on
+ms tInput;   // the timestamp currently being evaluated
+ms tLimit;   // the timestamp that triggers the end of the simulation when the input time exceeds it
+ms tCleanup; // the timestamp of the inputs with the highest indices
 
 SimulationState@ initState;
 SimulationState@ trailingState;
+
+const vec3 NO_SPEED = vec3();
+vec3 speed;
 
 void Bump()
 {
     tTrail += TICK;
     tInput += TICK;
+
+    speed = NO_SPEED;
 }
 
 bool IsInitTime(SimulationManager@ simManager)
@@ -160,11 +186,13 @@ bool IsAtLeastInputTime(SimulationManager@ simManager)
     const ms time = simManager.TickTime;
     if (time == tTrail)
         @trailingState = simManager.SaveState();
+    else if (speed == NO_SPEED && time == tInput)
+        speed = simManager.Dyna.RefStateCurrent.LinearSpeed;
     return time >= tInput;
 }
 
 // - Inputs -
-const uint INVALID_CACHE = -1;
+const uint INVALID_CACHE = uint(-1);
 
 array<uint> cacheDown;
 array<uint> cacheUp;
@@ -185,7 +213,7 @@ void SetInput(SimulationManager@ simManager, const uint index, const InputType t
         @cache = cacheSteer;
         break;
     default:
-        print("Unsupported input was attempted to be set...", Severity::Warning);
+        print("Unsupported InputType to cache mapping...", Severity::Warning);
         return;
     }
 
@@ -207,6 +235,8 @@ void SetInput(SimulationManager@ simManager, const uint index, const InputType t
         switch (indices.Length)
         {
         case 0:
+            if (tCleanup < time)
+                tCleanup = time;
             buffer.Add(time, type, value);
             @indices = buffer.Find(time, type);
             ShiftInputCaches(indices, 1);
@@ -240,27 +270,36 @@ void ShiftInputCache(array<uint>@ const cache, const array<uint>@ const indices,
     const uint indicesLen = indices.Length;
     for (uint i = 0; i < cacheLen; i++)
     {
-        uint cached = cache[i];
+        const uint cached = cache[i];
+        if (cached == INVALID_CACHE)
+            continue;
+
+        int shiftAccumulator = 0;
         for (uint j = 0; j < indicesLen; j++)
         {
+            // presumably indices are always in ascending order
+            // everything after the cache doesn't matter
             if (indices[j] > cached)
-                break; // presumably indices are always in ascending order
+                break;
 
-            cached += shift;
+            shiftAccumulator += shift;
         }
-        cache[i] = cached;
+        cache[i] += shiftAccumulator;
     }
 }
 
-void PopCaches()
+void PopInputCaches()
 {
-    PopCache(cacheDown);
-    PopCache(cacheUp);
-    PopCache(cacheSteer);
+    PopInputCache(cacheDown);
+    PopInputCache(cacheUp);
+    PopInputCache(cacheSteer);
 }
 
-void PopCache(array<uint>@ const cache)
+void PopInputCache(array<uint>@ const cache)
 {
+    if (cache.IsEmpty())
+        return;
+
     const uint last = cache.Length - 1;
     for (uint i = 0; i < last; i++)
         cache[i] = cache[i + 1];
@@ -284,11 +323,26 @@ array<SimulationState@> resultStates;
 
 void SaveResult(SimulationManager@ simManager)
 {
-    resultInputs[resultIndex] = simManager.InputEvents.ToCommandsText();
+    auto@ const buffer = simManager.InputEvents;
+    const auto@ const indices = buffer.Find(-1, InputType::FakeFinish);
+    if (indices.Length == 1)
+    {
+        const uint index = indices[0];
+        auto event = buffer[index];
+        buffer.RemoveAt(index);
+        event.Time = Eval::tInput + 100000; // 100010 - 10
+        buffer.Add(event);
+    }
+    else
+    {
+        print("Unexpected amount of FakeFinish inputs...", Severity::Error);
+    }
+
+    resultInputs[resultIndex] = buffer.ToCommandsText();
     @resultStates[resultIndex] = simManager.SaveState();
 }
 
-void NextResult()
+bool NextResult()
 {
     tInput = resultTimes[++resultIndex];
     tTrail = tInput - TICK;
@@ -310,11 +364,15 @@ void PrepareResult(SimulationManager@ simManager)
 string GetBestInputs()
 {
     uint bestIndex = 0;
-    float bestSpeed = resultStates[bestIndex].Dyna.RefStateCurrent.LinearSpeed.LengthSquared();
+    float bestSpeed = resultStates[bestIndex].Dyna.CurrentState.LinearSpeed.LengthSquared();
     const uint len = resultStates.Length;
     for (uint i = 1; i < len; i++)
     {
-        const float otherSpeed = resultStates[i].Dyna.RefStateCurrent.LinearSpeed.LengthSquared();
+        SimulationState@ const other = resultStates[i];
+        if (other is null)
+            break;
+
+        const float otherSpeed = other.Dyna.CurrentState.LinearSpeed.LengthSquared();
         if (bestSpeed < otherSpeed)
         {
             bestSpeed = otherSpeed;

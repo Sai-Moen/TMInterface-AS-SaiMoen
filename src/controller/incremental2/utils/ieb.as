@@ -34,7 +34,7 @@ void BufferRemoveInTimerange(
             indices[index++] = indexArray[j];
     }
 
-    RemoveIndices(buffer, indices);
+    BufferRemoveIndices(buffer, indices);
 }
 
 void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ const indices)

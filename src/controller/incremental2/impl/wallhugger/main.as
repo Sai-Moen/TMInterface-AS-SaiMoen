@@ -4,72 +4,96 @@ namespace Wallhugger
 
 void Main()
 {
+    modeNames = { Classic::NAME, Normal::NAME };
+    modes = { Classic::Mode(), Normal::Mode() };
+
     RegisterSettings();
     IncRegisterMode("Wallhugger", Mode());
 }
 
 class Mode : IncMode
 {
-    SupportsUnlockedTimerange { get { return true; } }
+    bool SupportsUnlockedTimerange { get { return supportsUnlockedTimerange; } }
 
-    void RenderSettings() { Wallhugger::RenderSettings(); }
+    void RenderSettings()
+    {
+        utils::ComboHelper("Wallhug Mode", modeIndex, modeNames, OnModeIndex);
+        UI::Separator();
 
-    void OnBegin(SimulationManager@ simManager) { Wallhugger::OnBegin(simManager); }
-    void OnStep(SimulationManager@ simManager) { Wallhugger::OnStep(simManager); }
-    void OnEnd(SimulationManager@) {}
+        modeRenderSettings();
+    }
+
+    void OnBegin(SimulationManager@ simManager)
+    {
+        IncRemoveSteeringAhead(simManager);
+        modeOnBegin(simManager);
+    }
+
+    void OnStep(SimulationManager@ simManager)
+    {
+        modeOnStep(simManager);
+    }
+
+    void OnEnd(SimulationManager@)
+    {}
 }
 
-const string VAR = ::VAR + "wh_";
+const string VAR = Settings::VAR + "wh_";
 
 const string MODE = VAR + "mode";
 
-string modeStr;
-array<string> modes;
+uint modeIndex;
+array<string> modeNames;
+array<IncMode@> modes;
 
-const Mode@ whMode;
-dictionary whMap;
+bool supportsUnlockedTimerange;
 
-void OnRegister()
+funcdef void OnEvent();
+OnEvent@ modeRenderSettings;
+
+funcdef void OnSim(SimulationManager@);
+OnSim@ modeOnBegin;
+OnSim@ modeOnStep;
+OnSim@ modeOnEnd;
+
+void RegisterSettings()
 {
     RegisterVariable(MODE, Classic::NAME);
+    const string mode = GetVariableString(MODE);
+    const int index = modeNames.Find(mode);
+    modeIndex = index == -1 ? 0 : index;
 
-    ModeRegister(whMap, Classic::mode);
-    ModeRegister(whMap, Normal::mode);
-
-    modeStr = GetVariableString(MODE);
-    ModeDispatch(modeStr, whMap, whMode);
-
-    modes = whMap.GetKeys();
-    modes.SortAsc();
+    Classic::RegisterSettings();
+    Normal::RegisterSettings();
+    ModeDispatch();
 }
 
-void OnSettings()
+void OnModeIndex(const uint newIndex)
 {
-    if (ComboHelper("Wallhug Mode", modeStr, modes, ChangeMode))
-    {
-        DescribeModes("Wallhug Modes:", modes, whMap);
-    }
+    modeIndex = newIndex;
 
-    whMode.OnSettings();
+    const uint len = modes.Length;
+    if (modeIndex < len)
+        ModeDispatch();
+    else
+        log("Mode Index somehow went out of bounds... (" + modeIndex + " >= " + len + ")", Severity::Warning);
 }
 
-void ChangeMode(const string &in newMode)
+void ModeDispatch()
 {
-    ModeDispatch(newMode, whMap, whMode);
-    SetVariable(MODE, newMode);
-    modeStr = newMode;
+    SetVariable(MODE, modeNames[modeIndex]);
+    IncMode@ const imode = modes[modeIndex];
+
+    supportsUnlockedTimerange = imode.SupportsUnlockedTimerange;
+
+    @modeRenderSettings = OnEvent(imode.RenderSettings);
+
+    @modeOnBegin = OnSim(imode.OnBegin);
+    @modeOnStep = OnSim(imode.OnStep);
+    @modeOnEnd = OnSim(imode.OnEnd);
 }
 
-void OnBegin(SimulationManager@ simManager)
-{
-    whMode.OnBegin(simManager);
-}
-
-void OnStep(SimulationManager@ simManager)
-{
-    whMode.OnStep(simManager);
-}
-
+// reusable
 int steer;
 
 

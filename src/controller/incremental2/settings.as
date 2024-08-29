@@ -4,6 +4,8 @@ namespace Settings
 
 const string VAR = ID + "_";
 
+const string VAR_MODE = VAR + "mode";
+
 const string VAR_LOCK_TIMERANGE   = VAR + "lock_timerange";
 const string VAR_EVAL_BEGIN_START = VAR + "eval_begin_start";
 const string VAR_EVAL_BEGIN_STOP  = VAR + "eval_begin_stop";
@@ -25,6 +27,8 @@ bool varShowInfo;
 
 void RegisterSettings()
 {
+    RegisterVariable(VAR_MODE, "");
+
     RegisterVariable(VAR_LOCK_TIMERANGE, true);
     RegisterVariable(VAR_EVAL_BEGIN_START, 0);
     RegisterVariable(VAR_EVAL_BEGIN_STOP, 0);
@@ -48,17 +52,18 @@ void RegisterSettings()
 
 void RenderSettings()
 {
-    utils::ComboHelper("Modes:", Eval::modeIndex, Eval::modeNames, Eval::OnModeIndex);
+    Eval::CheckMode();
 
     if (UI::CollapsingHeader("General"))
     {
-        UI::BeginDisabled(!supportsUnlockedTimerange);
+        const bool lockedTimerange = !Eval::supportsUnlockedTimerange;
+        UI::BeginDisabled(lockedTimerange);
         varLockTimerange = UI::CheckboxVar("Lock Timerange?", VAR_LOCK_TIMERANGE);
         UI::EndDisabled();
         UI::TextDimmed("Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.");
 
         varEvalBeginStart = UI::InputTimeVar("Evaluation Begin Starting Time", VAR_EVAL_BEGIN_START);
-        if (varLockTimerange || !supportsUnlockedTimerange)
+        if (varLockTimerange || lockedTimerange)
         {
             UI::BeginDisabled();
             varEvalBeginStop = UI::InputTime("Evaluation Begin Stopping Time", varEvalBeginStart);
@@ -70,7 +75,7 @@ void RenderSettings()
         }
         varEvalEnd = UI::InputTimeVar("Evaluation End Time", VAR_EVAL_END);
 
-        UI:Separator();
+        UI::Separator();
 
         varUseSaveState = UI::CheckboxVar("Start from Save State?", VAR_USE_SAVE_STATE);
         UI::BeginDisabled(!varUseSaveState);
@@ -78,9 +83,14 @@ void RenderSettings()
         UI::EndDisabled();
     }
 
-    if (UI::CollapsingHeader("Mode"))
+    if (UI::CollapsingHeader("Modes"))
     {
-        modeRenderSettings();
+        utils::ComboHelper("Mode", Eval::modeIndex, Eval::modeNames, Eval::OnModeIndex);
+
+        UI::Separator();
+        UI::Separator();
+
+        Eval::modeRenderSettings();
     }
 
     if (UI::CollapsingHeader("Misc"))
@@ -92,18 +102,22 @@ void RenderSettings()
 
 void PrintInfo(const array<InputCommand>@ const commands)
 {
-    print(Eval::tInput + ":");
+    string builder;
+    builder.Resize(128);
+
+    builder += Eval::tInput + ":\n";
 
     if (varShowInfo)
     {
-        // TODO show info
+        const double kmph = Eval::speed.Length() * 3.6;
+        builder += "Speed (km/h):" + utils::PreciseFormat(kmph) + "\n";
     }
 
     const uint len = commands.Length;
     for (uint i = 0; i < len; i++)
-    {
-        print(commands[i].ToString());
-    }
+        builder += commands[i].ToString() + "\n";
+
+    print(builder);
 }
 
 class Home : IncMode

@@ -4,74 +4,98 @@ namespace SpeedDrift
 
 void Main()
 {
+    modeNames = { Normal::NAME, Wiggle::NAME };
+    modes = { Normal::Mode(), Wiggle::Mode() };
+
     RegisterSettings();
     IncRegisterMode("SD Railgun", Mode());
 }
 
 class Mode : IncMode
 {
-    SupportsUnlockedTimerange { get { return true; } }
+    bool SupportsUnlockedTimerange { get { return supportsUnlockedTimerange; } }
 
-    void RenderSettings () { SpeedDrift::RenderSettings(); }
+    void RenderSettings()
+    {
+        utils::ComboHelper("SD Mode", modeIndex, modeNames, OnModeIndex);
+        UI::Separator();
 
-    void OnBegin(SimulationManager@ simManager) { SpeedDrift::OnBegin(simManager); }
-    void OnStep(SimulationManager@ simManager) { SpeedDrift::OnStep(simManager); }
-    void OnEnd(SimulationManager@) {}
+        modeRenderSettings();
+    }
+
+    void OnBegin(SimulationManager@ simManager)
+    {
+        IncRemoveSteeringAhead(simManager);
+        modeOnBegin(simManager);
+    }
+
+    void OnStep(SimulationManager@ simManager)
+    {
+        modeOnStep(simManager);
+    }
+
+    void OnEnd(SimulationManager@)
+    {}
 }
 
-const string VAR = ::VAR + "sd_";
+const string VAR = Settings::VAR + "sd_";
 
 const string MODE = VAR + "mode";
 
-string modeStr;
-array<string> modes;
+uint modeIndex;
+array<string> modeNames;
+array<IncMode@> modes;
 
-const Mode@ sdMode;
-dictionary sdMap;
+bool supportsUnlockedTimerange;
+
+funcdef void OnEvent();
+OnEvent@ modeRenderSettings;
+
+funcdef void OnSim(SimulationManager@);
+OnSim@ modeOnBegin;
+OnSim@ modeOnStep;
+OnSim@ modeOnEnd;
 
 void RegisterSettings()
 {
     RegisterVariable(MODE, Normal::NAME);
+    const string mode = GetVariableString(MODE);
+    const int index = modeNames.Find(mode);
+    modeIndex = index == -1 ? 0 : index;
 
-    ModeRegister(sdMap, Normal::mode);
-    //ModeRegister(sdMap, Wiggle::mode); // not yet implemented
-
-    modeStr = GetVariableString(MODE);
-    ModeDispatch(modeStr, sdMap, sdMode);
-
-    modes = sdMap.GetKeys();
-    modes.SortAsc();
+    Normal::RegisterSettings();
+    Wiggle::RegisterSettings();
+    ModeDispatch();
 }
 
-void RenderSettings()
+void OnModeIndex(const uint newIndex)
 {
-    if (ComboHelper("SD Mode", modeStr, modes, ChangeMode))
-    {
-        DescribeModes("SD Modes:", modes, sdMap);
-    }
+    modeIndex = newIndex;
 
-    sdMode.OnSettings();
+    const uint len = modes.Length;
+    if (modeIndex < len)
+        ModeDispatch();
+    else
+        log("Mode Index somehow went out of bounds... (" + modeIndex + " >= " + len + ")", Severity::Warning);
 }
 
-void ChangeMode(const string &in newMode)
+void ModeDispatch()
 {
-    ModeDispatch(newMode, sdMap, sdMode);
-    SetVariable(MODE, newMode);
-    modeStr = newMode;
+    SetVariable(MODE, modeNames[modeIndex]);
+    IncMode@ const imode = modes[modeIndex];
+
+    supportsUnlockedTimerange = imode.SupportsUnlockedTimerange;
+
+    @modeRenderSettings = OnEvent(imode.RenderSettings);
+
+    @modeOnBegin = OnSim(imode.OnBegin);
+    @modeOnStep = OnSim(imode.OnStep);
+    @modeOnEnd = OnSim(imode.OnEnd);
 }
 
-void OnBegin(SimulationManager@ simManager)
-{
-    sdMode.OnBegin(simManager);
-}
-
-void OnStep(SimulationManager@ simManager)
-{
-    sdMode.OnStep(simManager);
-}
-
+// reusable
 int steer;
-RangeIncl range;
+utils::RangeIncl range;
 
 array<int> triedSteers;
 

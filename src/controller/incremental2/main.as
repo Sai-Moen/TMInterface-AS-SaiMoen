@@ -22,7 +22,7 @@ void Main()
 {
     Settings::RegisterSettings();
 
-    IncRegisterMode("Home", Home());
+    IncRegisterMode("Home", Settings::Home());
 
     SpeedDrift::Main();
     Wallhugger::Main();
@@ -37,12 +37,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
         return;
 
     simManager.RemoveStateValidation();
-
     Eval::Initialize(simManager);
-    if (Settings::varEvalEnd == 0)
-        Eval::tLimit = simManager.EventsDuration;
-    else
-        Eval::tLimit = Settings::varEvalEnd;
 
     needToHandleCancel = true;
     if (Eval::IsUnlockedTimerange())
@@ -85,10 +80,10 @@ enum OnStepState
 
 bool needToHandleCancel = false;
 
-string stateFilename;
-
 OnStepState onStep = OnStepState::None;
 OnStepState onStepTemp = OnStepState::None;
+
+string stateFilename;
 
 void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 {
@@ -105,23 +100,27 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
     const ms time = simManager.TickTime;
     switch (onStep)
     {
+    case OnStepState::None:
+        return;
     case OnStepState::SaveState:
-        const auto@ const start = simManager.SaveState();
-        auto@ const scratchStateFile = SimulationStateFile();
-        string error;
-        if (scratchStateFile.Load(stateFilename, error))
         {
-            simManager.RewindToState(scratchStateFile.ToState());
-            if (simManager.TickTime >= Eval::tInit)
+            const auto@ const start = simManager.SaveState();
+            auto@ const scratchStateFile = SimulationStateFile();
+            string error;
+            if (scratchStateFile.Load(stateFilename, error))
             {
-                print("Attempted to load state that occurs too late! Reverting to start...", Severity::Warning);
-                simManager.RewindToState(start);
+                simManager.RewindToState(scratchStateFile.ToState());
+                if (simManager.TickTime >= Eval::tInit)
+                {
+                    print("Attempted to load state that occurs too late! Reverting to start...", Severity::Warning);
+                    simManager.RewindToState(start);
+                }
             }
-        }
-        else
-        {
-            print("There was an error with the savestate:", Severity::Error);
-            print(error, Severity::Error);
+            else
+            {
+                print("There was an error with the savestate:", Severity::Error);
+                print(error, Severity::Error);
+            }
         }
         onStep = onStepTemp;
         break;
@@ -176,7 +175,10 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult)
     if (ignoreEnd)
         return;
 
-    modeOnEnd(simManager);
+    preventSimulationFinish = false;
+    ignoreEnd = true;
+
+    Eval::modeOnEnd(simManager);
 
     const string filename = GetVariableString("bf_result_filename");
     CommandList script;
@@ -187,7 +189,4 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult)
         print("Inputs not saved! Filename: " + filename, Severity::Error);
 
     Eval::Reset();
-
-    preventSimulationFinish = false;
-    ignoreEnd = true;
 }
