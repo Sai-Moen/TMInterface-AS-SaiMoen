@@ -26,9 +26,7 @@ class Mode : IncMode
 
     void OnBegin(SimulationManager@)
     {
-        if (seek < TICK)
-            seek = TICK;
-        Reset();
+        OnSimBegin();
     }
 
     void OnStep(SimulationManager@ simManager)
@@ -40,6 +38,13 @@ class Mode : IncMode
     {}
 }
 
+void OnSimBegin()
+{
+    if (seek < TICK)
+        seek = TICK;
+    Reset();
+}
+
 const OnSim@ onStep;
 
 const int RANGE_SIZE = 4;
@@ -49,7 +54,7 @@ const int STEP_LAST_DEVIATION = RANGE_SIZE / 2;
 
 int step;
 
-void OnStepPre(SimulationManager@ simManager)
+void OnStepInit(SimulationManager@ simManager)
 {
     const float prevTurningRate = IncGetTrailingState().SceneVehicleCar.TurningRate;
     const float turningRate = simManager.SceneVehicleCar.TurningRate;
@@ -65,9 +70,8 @@ void OnStepPre(SimulationManager@ simManager)
 void OnStepMain(SimulationManager@ simManager)
 {
     const ms time = IncGetRelativeTime(simManager);
-    switch (time)
+    if (time == 0)
     {
-    case 0:
         while (!range.Done)
         {
             steer = range.Iter();
@@ -78,14 +82,11 @@ void OnStepMain(SimulationManager@ simManager)
                 break;
             }
         }
-        break;
-    default:
-        if (time == seek)
-        {
-            OnEval(simManager);
-            IncRewind(simManager);
-        }
-        break;
+    }
+    else if (time == seek)
+    {
+        OnEval(simManager);
+        IncRewind(simManager);
     }
 }
 
@@ -128,7 +129,7 @@ void Reset()
     triedSteers.Clear();
     bestResult = -1;
 
-    @onStep = OnStepPre;
+    @onStep = OnStepInit;
 }
 
 void SetRangeAroundMidpoint(const int midpoint)

@@ -104,19 +104,29 @@ void PrintInfo(const array<InputCommand>@ const commands)
 {
     string builder;
     builder.Resize(128);
+    uint pos = 0;
 
-    builder += Eval::tInput + ":\n";
+    const string t = Eval::tInput + ":\n";
+    builder.Insert(pos, t);
+    pos += t.Length;
 
     if (varShowInfo)
     {
         const double kmph = Eval::speed.Length() * 3.6;
-        builder += "Speed (km/h):" + utils::PreciseFormat(kmph) + "\n";
+        const string speed = "Speed (km/h):" + utils::PreciseFormat(kmph) + "\n";
+        builder.Insert(pos, speed);
+        pos += speed.Length;
     }
 
     const uint len = commands.Length;
     for (uint i = 0; i < len; i++)
-        builder += commands[i].ToString() + "\n";
+    {
+        const string command = commands[i].ToString() + "\n";
+        builder.Insert(pos, command);
+        pos += command.Length;
+    }
 
+    builder.Erase(pos);
     print(builder);
 }
 

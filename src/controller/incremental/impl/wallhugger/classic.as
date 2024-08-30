@@ -79,18 +79,14 @@ void OnSimBegin()
 void OnSimStep(SimulationManager@ simManager)
 {
     const ms time = IncGetRelativeTime(simManager);
-    switch (time)
+    if (time == 0)
     {
-    case 0:
         IncSetInput(simManager, InputType::Steer, steer);
-        break;
-    default:
-        if (time == seek)
-        {
-            OnEval(simManager);
-            IncRewind(simManager);
-        }
-        break;
+    }
+    else if (time == seek)
+    {
+        OnEval(simManager);
+        IncRewind(simManager);
     }
 }
 

@@ -93,7 +93,10 @@ OnSim@ modeOnEnd;
 
 bool IsUnlockedTimerange()
 {
-    return supportsUnlockedTimerange && Settings::varEvalBeginStart < Settings::varEvalBeginStop;
+    return
+        supportsUnlockedTimerange &&
+        !Settings::varLockTimerange &&
+        Settings::varEvalBeginStart < Settings::varEvalBeginStop;
 }
 
 bool ShouldTryLoadingSaveState()

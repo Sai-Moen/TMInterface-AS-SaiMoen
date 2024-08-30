@@ -119,10 +119,7 @@ void OnStepScan(SimulationManager@ simManager)
     }
     else if (hasTimeout && time >= timeout)
     {
-        IncCommitContext ctx;
-        ctx.steer = initialSteer;
-        IncCommit(simManager, ctx);
-        Reset();
+        CommitSteer(simManager, initialSteer);
     }
     else
     {
@@ -135,18 +132,14 @@ void OnStepScan(SimulationManager@ simManager)
 void OnStepMain(SimulationManager@ simManager)
 {
     const ms time = IncGetRelativeTime(simManager);
-    switch (time)
+    if (time == 0)
     {
-    case 0:
         IncSetInput(simManager, InputType::Steer, steer);
-        break;
-    default:
-        if (time == seek)
-        {
-            OnEval(simManager);
-            IncRewind(simManager);
-        }
-        break;
+    }
+    else if (time == seek)
+    {
+        OnEval(simManager);
+        IncRewind(simManager);
     }
 }
 
@@ -177,12 +170,15 @@ void OnEval(SimulationManager@ simManager)
     }
 
     if (step == 0)
-    {
-        IncCommitContext ctx;
-        ctx.steer = steer;
-        IncCommit(simManager, ctx);
-        Reset();
-    }
+        CommitSteer(simManager, steer);
+}
+
+void CommitSteer(SimulationManager@ simManager, const int steer)
+{
+    IncCommitContext ctx;
+    ctx.steer = steer;
+    IncCommit(simManager, ctx);
+    Reset();
 }
 
 void Reset()
