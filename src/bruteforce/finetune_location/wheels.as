@@ -15,9 +15,7 @@ void Main()
     bounds.Add(Group(boundsBL, BL, PREFIX + "bl_"));
 
     for (uint i = 0; i < modes.Length; i++)
-    {
         ::modes.Add(modes[i]);
-    }
     @modes = ::modes;
 }
 

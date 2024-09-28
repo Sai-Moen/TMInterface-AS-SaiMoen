@@ -9,23 +9,21 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = TITLE;
-    info.Version = "v2.1.0a";
+    info.Version = "v2.1.1a";
     return info;
 }
 
 void Main()
 {
     Wheels::Main();
-    OnRegister();
-    RegisterBruteforceEvaluation(ID, TITLE, OnEvaluate, OnSettings);
+    RegisterSettings();
+    RegisterBruteforceEvaluation(ID, TITLE, OnEvaluate, RenderSettings);
 }
 
 void OnDisabled()
 {
     for (uint i = 0; i < bounds.Length; i++)
-    {
         bounds[i].Save();
-    }
 }
 
 const string PREFIX = ID + "_";
@@ -42,7 +40,7 @@ int evalTo;
 Kind mode;
 double target;
 
-void OnRegister()
+void RegisterSettings()
 {
     RegisterVariable(EVAL_FROM, 0);
     RegisterVariable(EVAL_TO, 0);
@@ -51,9 +49,7 @@ void OnRegister()
     RegisterVariable(TARGET, 0);
 
     for (uint i = 0; i < bounds.Length; i++)
-    {
         bounds[i].Register();
-    }
 
     evalFrom = int(GetVariableDouble(EVAL_FROM));
     evalTo = int(GetVariableDouble(EVAL_TO));
@@ -129,14 +125,10 @@ BFEvaluationDecision OnSearch(SimulationManager@ simManager)
     BFEvaluationDecision decision = BFEvaluationDecision::DoNothing;
 
     const int time = simManager.RaceTime;
-    if (IsEvalTime(time) && IsBetter(simManager)) 
-    {
+    if (IsEvalTime(time) && IsBetter(simManager))
         decision = BFEvaluationDecision::Accept;
-    }
     else if (IsPastEvalTime(time))
-    {
         decision = BFEvaluationDecision::Reject;
-    }
 
     return decision;
 }
@@ -160,16 +152,18 @@ bool IsBetter(SimulationManager@ simManager)
 {
     for (uint i = 0; i < bounds.Length; i++)
     {
-        if (!bounds[i].Validate(simManager)) return false;
+        if (!bounds[i].Validate(simManager))
+            return false;
     }
 
-    if (!GetValue(simManager, mode, current)) return false;
+    if (!GetValue(simManager, mode, current))
+        return false;
 
     diff = Math::Abs(current - target);
     return diff < lowest || !valid;
 }
 
-void OnSettings()
+void RenderSettings()
 {
     evalFrom = UI::InputTimeVar("Evaluate From?", EVAL_FROM);
     evalTo = UI::InputTimeVar("Evaluate To?", EVAL_TO);
@@ -182,9 +176,7 @@ void OnSettings()
     {
         Group@ const group = bounds[i];
         if (UI::CollapsingHeader(group.name))
-        {
             DrawGroup(group);
-        }
     }
 }
 
@@ -207,7 +199,7 @@ void DrawGroup(Group@ const group)
 void DrawBound(Bound@ const bound)
 {
     const string label = modes[bound.kind];
-
+    UI::PushID(label);
     UI::Separator();
 
     bound.enableLower = UI::Checkbox("Enable Lower " + label + " bound", bound.enableLower);
@@ -217,9 +209,7 @@ void DrawBound(Bound@ const bound)
     UI::PushItemWidth(192);
 
     UI::BeginDisabled(!bound.enableLower);
-    UI::PushID(label + " Lower");
-    bound.lower = UI::InputFloat("", bound.lower);
-    UI::PopID();
+    bound.lower = UI::InputFloat("##Lower", bound.lower);
     UI::EndDisabled();
 
     UI::SameLine();
@@ -227,12 +217,11 @@ void DrawBound(Bound@ const bound)
     UI::SameLine();
 
     UI::BeginDisabled(!bound.enableUpper);
-    UI::PushID(label + " Upper");
-    bound.upper = UI::InputFloat("", bound.upper);
-    UI::PopID();
+    bound.upper = UI::InputFloat("##Upper", bound.upper);
     UI::EndDisabled();
 
     UI::PopItemWidth();
 
     UI::Separator();
+    UI::PopID();
 }

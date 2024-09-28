@@ -172,7 +172,8 @@ class Group
         for (uint i = 0; i < keys.Length; i++)
         {
             const string key = keys[i];
-            if (!GetBound(key).InRange(simManager)) return false;
+            if (!GetBound(key).InRange(simManager))
+                return false;
         }
         return true;
     }

@@ -20,9 +20,7 @@ bool ComboHelper(
         {
             const string newMode = allModes[i];
             if (UI::Selectable(newMode, currentMode == newMode))
-            {
                 onNewMode(newMode);
-            }
         }
 
         UI::EndCombo();
