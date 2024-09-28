@@ -7,6 +7,8 @@ This could be position, rotation or speed (to get a specific value).
 
 ## Installation
 
+- [v2.1.1a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetune_location_v2.1.1a/finetune_location.zip)
+
 - [v2.1.0a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v2.1.0a_middle/finetune_location.zip)
 
 - [dev_v2.0.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/pre_docs/finetune_location.as)
@@ -18,6 +20,10 @@ This plugin will register itself as a bruteforce mode.
 Therefore, it can be found as a mode in the built-in bruteforce controller, under Optimization.
 
 ## Patch Notes
+
+### v2.1.1a
+
+- Fixed a bug where the UI would leak into the main window.
 
 ### v2.1.0a
 
