@@ -13,6 +13,7 @@ PluginInfo@ GetPluginInfo()
 void Main()
 {
     RegisterSettings();
+    RegisterCustomCommand("include", "Include script in another script", OnInclude);
     RegisterSettingsPage("PreSettings", Window);
 }
 
@@ -50,6 +51,25 @@ void RegisterSettings()
         else
             LoadPreset();
     }
+}
+
+void OnInclude(int, int, const string &in, const array<string> &in args)
+{
+    if (args.IsEmpty())
+    {
+        log("[include] no args given", Severity::Warning);
+        return;
+    }
+
+    const string path = args[0];
+    CommandList cmdlist(path);
+    if (cmdlist is null)
+    {
+        log("[include] file '" + path + "' does not exist!", Severity::Error);
+        return;
+    }
+
+    cmdlist.Process(CommandListProcessOption::ExecuteImmediately);
 }
 
 const vec2 MULTILINE_AUTOFILL = vec2(-1, -1);
