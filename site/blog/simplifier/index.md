@@ -1,6 +1,6 @@
 {{ site.header }}
 
-# Trackmania TAS input simplification
+# Explaining Input Simplification
 
 By SaiMoen.
 
@@ -22,7 +22,8 @@ The only thing that matters during airtime is the direction in which you're stee
 which is either left, neutral (0), or right.
 
 To a person new to the series, this might seem strange, because really it shouldn't matter at all.
-However, countersteering is what causes these directions to result in different simulation 'states'.
+However, countersteering (steering opposite to angular speed to slow it down),
+is what causes these directions to result in different simulation 'states'.
 In theory, this means only the sign (-1, 0, or 1) matters, and not the magnitude ('distance' from 0).
 In practice, it gets a bit more complicated, because there is surprisingly not only air in a car game.
 

@@ -6,6 +6,13 @@ A place where I may write something interesting once in a while.
 
 ---
 
+[Explaining Input Simplification](simplifier)
+
+2024-10-20:
+Published.
+
+---
+
 [Understanding Bruteforce Intuitively](bf_intuition)
 
 2024-07-10:
