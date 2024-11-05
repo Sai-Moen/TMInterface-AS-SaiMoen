@@ -21,6 +21,7 @@ Similarly, an older plugin has a decent chance of still working on newer version
 Run mode plugins.
 
 - [Dynamic Keyboard](run/dynamic_kb.md)
+- [HyperSpeed](run/hyperspeed.md)
 - [Sim Bug](run/sim_bug.md)
 
 #### Bruteforce
