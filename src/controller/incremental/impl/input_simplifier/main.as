@@ -39,27 +39,27 @@ const ms DEF_CTX_TIMESPAN = utils::TickToMs(25);
 const string DEF_TIMESPAN_TEXT = "(default " + DEF_CTX_TIMESPAN + "ms)";
 ms varContextTimespan;
 
-const string VAR_STRATEGY_INDICES = VAR + "strategy_indices";
-const string STRATEGY_SEP = ",";
-array<Strategy> varStrategyIndices(STRATEGY_LEN);
-
 const string VAR_MAGNITUDE = VAR + "air_magnitude";
 int varMagnitude;
 
 const string VAR_MINIMIZE_BRAKE = VAR + "minimize_brake";
 bool varMinimizeBrake;
 
+const string VAR_STRATEGY_INDICES = VAR + "strategy_indices";
+const string STRATEGY_SEP = ",";
+array<Strategy> varStrategyIndices(STRATEGY_LEN);
+
 void RegisterSettings()
 {
     RegisterVariable(VAR_CONTEXT_TIMESPAN, DEF_CTX_TIMESPAN);
-    RegisterVariable(VAR_STRATEGY_INDICES, "");
     RegisterVariable(VAR_MAGNITUDE, 0);
     RegisterVariable(VAR_MINIMIZE_BRAKE, false);
+    RegisterVariable(VAR_STRATEGY_INDICES, "");
 
     varContextTimespan = ms(GetVariableDouble(VAR_CONTEXT_TIMESPAN));
-    DeserializeStrategyIndicesFromVar();
     varMagnitude = int(GetVariableDouble(VAR_MAGNITUDE));
     varMinimizeBrake = GetVariableBool(VAR_MINIMIZE_BRAKE);
+    DeserializeStrategyIndicesFromVar();
 }
 
 void DeserializeStrategyIndicesFromVar()
@@ -92,10 +92,26 @@ void SetDefaultStrategyIndices()
         varStrategyIndices[i] = Strategy(i);
 }
 
+const string INFO_CONTEXT_TIMESPAN =
+    "Lower timespan is faster, but may desync in an unrecoverable way " + DEF_TIMESPAN_TEXT + ".";
+const string INFO_MAGNITUDE =
+    "This is the magnitude used by steering inputs in the air, where only input direction matters.\n" +
+    "Setting this to 0 will skip the air input strategy altogether.";
+const string INFO_MINIMIZE_BRAKE =
+    "If this is enabled, the amount of time spent braking will be made as small as possible.\n" +
+    "The trade-off is that this may introduce more brake inputs.";
+
 void RenderSettings()
 {
     varContextTimespan = UI::InputTimeVar("Context Timespan", VAR_CONTEXT_TIMESPAN, TICK);
-    UI::TextDimmed("Lower timespan is faster, but may desync in an unrecoverable way " + DEF_TIMESPAN_TEXT + ".");
+    utils::TooltipOnHover("ContextTimespan", INFO_CONTEXT_TIMESPAN);
+
+    varMagnitude = UI::InputIntVar("Magnitude", VAR_MAGNITUDE);
+    varMagnitude = utils::ClampSteer(varMagnitude);
+    utils::TooltipOnHover("Magnitude", INFO_MAGNITUDE);
+
+    varMinimizeBrake = UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
+    utils::TooltipOnHover("MinimizeBrake", INFO_MINIMIZE_BRAKE);
 
     UI::Separator();
 
@@ -138,19 +154,6 @@ void RenderSettings()
             strategies[i] = Text::FormatUInt(varStrategyIndices[i]);
         SetVariable(VAR_STRATEGY_INDICES, Text::Join(strategies, STRATEGY_SEP));
     }
-
-    UI::Separator();
-
-    varMagnitude = UI::InputIntVar("Magnitude", VAR_MAGNITUDE);
-    varMagnitude = utils::ClampSteer(varMagnitude);
-    UI::TextDimmed("This is the magnitude used by steering inputs in the air, where only input direction matters.");
-    UI::TextDimmed("Setting this to 0 will skip the air input strategy altogether.");
-
-    UI::Separator();
-
-    varMinimizeBrake = UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
-    UI::TextDimmed("If this is enabled, the amount of time spent braking will be made as small as possible.");
-    UI::TextDimmed("The trade-off is that this may introduce more brake inputs.");
 }
 
 class Context
@@ -237,6 +240,9 @@ void OnSimBegin()
     contextTimespan = Math::Max(MIN_CTX_TIMESPAN, varContextTimespan);
     contexts.Resize(utils::MsToTick(contextTimespan) - 1);
 
+    // maybe the value got clamped but not updated in the UI
+    SetVariable(VAR_MAGNITUDE, varMagnitude);
+
     uint stratsAdded = 0;
     if (varMinimizeBrake)
         @strats[stratsAdded++] = OnStepMinimizeBrake;
@@ -257,8 +263,6 @@ void OnSimBegin()
 
     while (stratsAdded < stratLen)
         @strats[stratsAdded++] = null;
-
-    SetVariable(VAR_MAGNITUDE, varMagnitude);
 
     Reset();
 }
@@ -455,9 +459,11 @@ void NextStrategy(SimulationManager@ simManager)
     if (onStep is null)
     {
         print("Desynchronized, restoring old steering value...", Severity::Warning);
+
         IncCommitContext ctx;
         ctx.steer = oldInputSteer;
         IncCommit(simManager, ctx);
+
         Reset();
     }
 }
@@ -470,6 +476,7 @@ void AdvanceUnfill(SimulationManager@ simManager)
     else
         ctx.steer = steer;
     IncCommit(simManager, ctx);
+
     Reset();
 }
 

@@ -4,6 +4,20 @@ namespace utils
 {
 
 
+// puts a (i) on the same line and returns whether it is being hovered
+void TooltipOnHover(const string &in label, const string &in text)
+{
+    UI::SameLine();
+    UI::PushID(label);
+    UI::TextDimmed("(i)");
+    UI::PopID();
+    if (UI::IsItemHovered() && UI::BeginTooltip())
+    {
+        UI::Text(text);
+        UI::EndTooltip();
+    }
+}
+
 // combo w/ index
 funcdef void OnNewModeIndex(const uint newIndex);
 

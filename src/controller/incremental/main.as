@@ -36,18 +36,25 @@ void OnSimulationBegin(SimulationManager@ simManager)
     if (IsOtherController())
         return;
 
-    simManager.RemoveStateValidation();
-    Eval::Initialize(simManager);
+    if (soState == SimOnlyState::NONE)
+    {
+        simManager.RemoveStateValidation();
+        Eval::Initialize(simManager);
+    }
+    else
+    {
+        Eval::Initialize(simManager, runModeEvents);
+    }
 
     needToHandleCancel = true;
     if (Eval::IsUnlockedTimerange())
     {
-        onStep = OnStepState::RangeInit;
+        onStep = OnStepState::RANGE_INIT;
         Eval::InitializeInitTime();
     }
     else
     {
-        onStep = OnStepState::Single;
+        onStep = OnStepState::SINGLE;
     }
     preventSimulationFinish = true;
     ignoreEnd = false;
@@ -57,7 +64,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
         stateFilename = Settings::varSaveStateName;
 
         onStepTemp = onStep;
-        onStep = OnStepState::SaveState;
+        onStep = OnStepState::SAVE_STATE;
     }
 
     Eval::ModeDispatch();
@@ -69,19 +76,19 @@ void OnSimulationBegin(SimulationManager@ simManager)
 
 enum OnStepState
 {
-    None,
+    NONE,
 
-    SaveState,
-    Single,
-    RangeInit, Range,
+    SAVE_STATE,
+    SINGLE,
+    RANGE_INIT, RANGE,
 
-    Count
+    COUNT
 }
 
 bool needToHandleCancel = false;
 
-OnStepState onStep = OnStepState::None;
-OnStepState onStepTemp = OnStepState::None;
+OnStepState onStep = OnStepState::NONE;
+OnStepState onStepTemp = OnStepState::NONE;
 
 string stateFilename;
 
@@ -100,9 +107,9 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
     const ms time = simManager.TickTime;
     switch (onStep)
     {
-    case OnStepState::None:
+    case OnStepState::NONE:
         return;
-    case OnStepState::SaveState:
+    case OnStepState::SAVE_STATE:
         {
             const auto@ const start = simManager.SaveState();
             auto@ const scratchStateFile = SimulationStateFile();
@@ -124,7 +131,7 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
         }
         onStep = onStepTemp;
         break;
-    case OnStepState::Single:
+    case OnStepState::SINGLE:
         if (Eval::tInput <= Eval::tLimit)
         {
             if (Eval::IsAtLeastInputTime(simManager))
@@ -136,11 +143,11 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
             Eval::Finish(simManager);
         }
         break;
-    case OnStepState::RangeInit:
+    case OnStepState::RANGE_INIT:
         if (Eval::IsInitTime(simManager))
-            onStep = OnStepState::Range;
+            onStep = OnStepState::RANGE;
         break;
-    case OnStepState::Range:
+    case OnStepState::RANGE:
         if (Eval::tInput <= Eval::tLimit)
         {
             if (Eval::IsAtLeastInputTime(simManager))
@@ -189,4 +196,55 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult)
         print("Inputs not saved! Filename: " + filename, Severity::Error);
 
     Eval::Reset();
+}
+
+enum SimOnlyState
+{
+    NONE,
+    INIT, GATHER,
+    BEGIN, STEP, END,
+
+    COUNT
+}
+
+SimOnlyState soState = SimOnlyState::NONE;
+array<TM::InputEvent>@ runModeEvents;
+
+void OnRunStep(SimulationManager@ simManager)
+{
+    switch (soState)
+    {
+    case SimOnlyState::INIT:
+        utils::DrawGame(false);
+        simManager.GiveUp();
+        soState = SimOnlyState::GATHER;
+        break;
+    case SimOnlyState::GATHER:
+        if (!simManager.SimulationOnly)
+        {
+            simManager.SimulationOnly = true;
+        }
+        else if (simManager.TickTime == Settings::varInputsReach)
+        {
+            @runModeEvents = utils::CopyInputEvents(simManager.InputEvents);
+            SetCurrentCommandList(null);
+            simManager.GiveUp();
+            soState = SimOnlyState::BEGIN;
+        }
+        break;
+    case SimOnlyState::BEGIN:
+        OnSimulationBegin(simManager);
+        @runModeEvents = null;
+        soState = SimOnlyState::STEP;
+        break;
+    case SimOnlyState::STEP:
+        OnSimulationStep(simManager, false);
+        break;
+    case SimOnlyState::END:
+        OnSimulationEnd(simManager, SimulationResult::Valid);
+        simManager.SimulationOnly = false;
+        utils::DrawGame(true);
+        soState = SimOnlyState::NONE;
+        break;
+    }
 }

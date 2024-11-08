@@ -25,6 +25,9 @@ string varSaveStateName;
 const string VAR_SHOW_INFO = VAR + "show_info";
 bool varShowInfo;
 
+const string VAR_INPUTS_REACH = VAR + "inputs_reach";
+ms varInputsReach;
+
 void RegisterSettings()
 {
     RegisterVariable(VAR_MODE, "");
@@ -39,16 +42,24 @@ void RegisterSettings()
 
     RegisterVariable(VAR_SHOW_INFO, true);
 
-    varLockTimerange = GetVariableBool(VAR_LOCK_TIMERANGE);
-    varEvalBeginStart = ms(GetVariableDouble(VAR_EVAL_BEGIN_START));
-    varEvalBeginStop = ms(GetVariableDouble(VAR_EVAL_BEGIN_STOP));
-    varEvalEnd = ms(GetVariableDouble(VAR_EVAL_END));
+    RegisterVariable(VAR_INPUTS_REACH, 0);
 
-    varUseSaveState = GetVariableBool(VAR_USE_SAVE_STATE);
+    varLockTimerange  = GetVariableBool(VAR_LOCK_TIMERANGE);
+    varEvalBeginStart = ms(GetVariableDouble(VAR_EVAL_BEGIN_START));
+    varEvalBeginStop  = ms(GetVariableDouble(VAR_EVAL_BEGIN_STOP));
+    varEvalEnd        = ms(GetVariableDouble(VAR_EVAL_END));
+
+    varUseSaveState  = GetVariableBool(VAR_USE_SAVE_STATE);
     varSaveStateName = GetVariableString(VAR_SAVE_STATE_NAME);
 
     varShowInfo = GetVariableBool(VAR_SHOW_INFO);
+
+    varInputsReach = ms(GetVariableDouble(VAR_INPUTS_REACH));
 }
+
+const string INFO_LOCK_TIMERANGE = "Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.";
+const string INFO_SHOW_INFO = "Show additional information about the simulation.";
+const string INFO_INPUTS_REACH = "When using run-mode bruteforce, what time the last input that needs to be included has.";
 
 void RenderSettings()
 {
@@ -58,9 +69,16 @@ void RenderSettings()
     {
         const bool lockedTimerange = !Eval::supportsUnlockedTimerange;
         UI::BeginDisabled(lockedTimerange);
-        varLockTimerange = UI::CheckboxVar("Lock Timerange?", VAR_LOCK_TIMERANGE);
+        varLockTimerange = UI::CheckboxVar("Lock Timerange", VAR_LOCK_TIMERANGE);
         UI::EndDisabled();
-        UI::TextDimmed("Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.");
+        utils::TooltipOnHover("LockTimeRange", INFO_LOCK_TIMERANGE);
+
+        if (UI::Button("Reset timestamps to 0"))
+        {
+            SetVariable(VAR_EVAL_BEGIN_START, 0);
+            SetVariable(VAR_EVAL_BEGIN_STOP, 0);
+            SetVariable(VAR_EVAL_END, 0);
+        }
 
         varEvalBeginStart = UI::InputTimeVar("Evaluation Begin Starting Time", VAR_EVAL_BEGIN_START);
         if (varLockTimerange || lockedTimerange)
@@ -77,17 +95,22 @@ void RenderSettings()
 
         UI::Separator();
 
-        varUseSaveState = UI::CheckboxVar("Start from Save State?", VAR_USE_SAVE_STATE);
+        varUseSaveState = UI::CheckboxVar("Start from Save State", VAR_USE_SAVE_STATE);
         UI::BeginDisabled(!varUseSaveState);
         varSaveStateName = UI::InputTextVar("Save State name", VAR_SAVE_STATE_NAME);
         UI::EndDisabled();
+
+        // UI::Separator();
+
+        // varInputsReach = UI::InputTimeVar("Inputs Reach", VAR_INPUTS_REACH);
+        // utils::TooltipOnHover("InputsReach", INFO_INPUTS_REACH);
+        // if (UI::Button("Start Run-mode Bruteforce"))
+        //     soState = SimOnlyState::INIT;
     }
 
     if (UI::CollapsingHeader("Modes"))
     {
         utils::ComboHelper("Mode", Eval::modeIndex, Eval::modeNames, Eval::OnModeIndex);
-
-        UI::Separator();
         UI::Separator();
 
         Eval::modeRenderSettings();
@@ -95,8 +118,8 @@ void RenderSettings()
 
     if (UI::CollapsingHeader("Misc"))
     {
-        varShowInfo = UI::CheckboxVar("Show Info?", VAR_SHOW_INFO);
-        UI::TextDimmed("Shows additional information about the simulation.");
+        varShowInfo = UI::CheckboxVar("Show Info", VAR_SHOW_INFO);
+        utils::TooltipOnHover("ShowInfo", INFO_SHOW_INFO);
     }
 }
 

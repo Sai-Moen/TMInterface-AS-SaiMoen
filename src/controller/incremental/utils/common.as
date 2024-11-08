@@ -2,9 +2,9 @@ namespace utils
 {
 
 
-string PreciseFormat(const double value)
+void DrawGame(const bool draw)
 {
-    return Text::FormatFloat(value, " ", 0, 6);
+    SetVariable("draw_game", draw);
 }
 
 InputCommand MakeInputCommand(const ms timestamp, const InputType type, const int state)

@@ -27,7 +27,10 @@ void RegisterSettings()
     timeout = ms(GetVariableDouble(TIMEOUT));
 }
 
-const string HELPFUL_TEXT = "Usually, you want to set this to " + STEER::MIN + " (left) or " + STEER::MAX + " (right).";
+const string INFO_INITIAL_STEER = "Usually, you want to set this to " + STEER::MIN + " (left) or " + STEER::MAX + " (right).";
+const string INFO_SEEK_OFFSET =
+    "This adds a certain amount of time to the wall detection time, the wall is avoided at the new time.";
+const string INFO_TIMEOUT = "Timeout when looking for a wall (0 to disable).";
 
 class Mode : IncMode
 {
@@ -36,6 +39,8 @@ class Mode : IncMode
     void RenderSettings()
     {
         initialSteer = UI::SliderInt("Initial Steer", initialSteer, STEER::MIN, STEER::MAX);
+        utils::TooltipOnHover("InitialSteer", INFO_INITIAL_STEER);
+
         if (UI::Button("Left"))
             initialSteer = STEER::MIN;
         UI::SameLine();
@@ -46,13 +51,12 @@ class Mode : IncMode
         if (initialSteer == 0)
             initialSteer = 1;
         SetVariable(INITIAL_STEER, initialSteer);
-        UI::TextWrapped(HELPFUL_TEXT);
 
         seekOffset = UI::InputTimeVar("Seek Offset", SEEK_OFFSET);
-        UI::TextWrapped("This adds a certain amount of time to the wall detection time, the wall is avoided at the new time.");
+        utils::TooltipOnHover("SeekOffset", INFO_SEEK_OFFSET);
 
         timeout = UI::InputTimeVar("Timeout", TIMEOUT);
-        UI::TextWrapped("Timeout when looking for a wall (0 to disable).");
+        utils::TooltipOnHover("Timeout", INFO_TIMEOUT);
     }
 
     void OnBegin(SimulationManager@)

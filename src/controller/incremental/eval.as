@@ -3,15 +3,20 @@ namespace Eval
 
 
 // - General -
-array<TM::InputEvent> initialEvents;
+array<TM::InputEvent>@ initialEvents = null;
 
-void Initialize(SimulationManager@ simManager)
+void Initialize(SimulationManager@ simManager, array<TM::InputEvent>@ events = null)
 {
-    const auto@ const buffer = simManager.InputEvents;
-    const uint len = buffer.Length;
-    initialEvents.Resize(len);
-    for (uint i = 0; i < len; i++)
-        initialEvents[i] = buffer[i];
+    auto@ const buffer = simManager.InputEvents;
+    if (events is null)
+    {
+        @initialEvents = utils::CopyInputEvents(buffer);
+    }
+    else
+    {
+        @initialEvents = events;
+        RefillBuffer(buffer);
+    }
 
     const int temp = (Settings::varEvalBeginStop - Settings::varEvalBeginStart) / TICK + 1;
     const uint size = Math::Max(temp, 1);
@@ -31,8 +36,13 @@ void Initialize(SimulationManager@ simManager)
 
     tInput = resultTimes[resultIndex];
     tTrail = tInput - TICK;
-    
-    const uint duration = simManager.EventsDuration;
+
+    uint duration;
+    if (soState == SimOnlyState::NONE)
+        duration = simManager.EventsDuration;
+    else
+        duration = Settings::varInputsReach;
+
     if (Settings::varEvalEnd == 0)
         tLimit = duration;
     else
@@ -54,14 +64,17 @@ void Advance()
 void Finish(SimulationManager@ simManager)
 {
     needToHandleCancel = false;
-    onStep = OnStepState::None;
+    onStep = OnStepState::NONE;
 
-    simManager.ForceFinish();
+    if (soState == SimOnlyState::NONE)
+        simManager.ForceFinish();
+    else
+        soState = SimOnlyState::END;
 }
 
 void Reset()
 {
-    initialEvents.Clear();
+    @initialEvents = null;
 
     @initState = null;
     @trailingState = null;
@@ -328,16 +341,19 @@ void SaveResult(SimulationManager@ simManager)
 {
     auto@ const buffer = simManager.InputEvents;
     const auto@ const indices = buffer.Find(-1, InputType::FakeFinish);
-    if (indices.Length == 1)
+    switch (indices.Length)
     {
-        const uint index = indices[0];
-        auto event = buffer[index];
-        buffer.RemoveAt(index);
-        event.Time = Eval::tInput + 100000; // 100010 - 10
-        buffer.Add(event);
-    }
-    else
-    {
+    case 1:
+        {
+            const uint index = indices[0];
+            auto event = buffer[index];
+            buffer.RemoveAt(index);
+            event.Time = Eval::tInput + 100000; // 100010 - 10
+            buffer.Add(event);
+        }
+    case 0:
+        break;
+    default:
         print("Unexpected amount of FakeFinish inputs...", Severity::Error);
     }
 
@@ -354,14 +370,17 @@ bool NextResult()
 
 void PrepareResult(SimulationManager@ simManager)
 {
-    auto@ const buffer = simManager.InputEvents;
+    RefillBuffer(simManager.InputEvents);
+    simManager.RewindToState(initState);
+    modeOnBegin(simManager);
+}
+
+void RefillBuffer(TM::InputEventBuffer@ const buffer)
+{
     buffer.Clear();
     const uint len = initialEvents.Length;
     for (uint i = 0; i < len; i++)
         buffer.Add(initialEvents[i]);
-
-    simManager.RewindToState(initState);
-    modeOnBegin(simManager);
 }
 
 string GetBestInputs()

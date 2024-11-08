@@ -4,6 +4,15 @@ namespace utils
 {
 
 
+array<TM::InputEvent>@ CopyInputEvents(const TM::InputEventBuffer@ const buffer)
+{
+    const uint len = buffer.Length;
+    array<TM::InputEvent> events(len);
+    for (uint i = 0; i < len; i++)
+        events[i] = buffer[i];
+    return events;
+}
+
 void BufferRemoveInTimerange(
     TM::InputEventBuffer@ const buffer,
     const ms timeFrom, const ms timeTo,
