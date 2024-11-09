@@ -13,10 +13,7 @@ PluginInfo@ GetPluginInfo()
     return info;
 }
 
-bool IsOtherController()
-{
-    return ID != GetVariableString("controller");
-}
+bool IsOtherController { get { return ID != GetVariableString("controller"); } }
 
 void Main()
 {
@@ -33,17 +30,17 @@ void Main()
 
 void OnSimulationBegin(SimulationManager@ simManager)
 {
-    if (IsOtherController())
-        return;
-
-    if (soState == SimOnlyState::NONE)
+    if (IsRunSimOnly)
     {
-        simManager.RemoveStateValidation();
-        Eval::Initialize(simManager);
+        Eval::Initialize(simManager, runModeEvents);
     }
     else
     {
-        Eval::Initialize(simManager, runModeEvents);
+        if (IsOtherController)
+            return;
+
+        simManager.RemoveStateValidation();
+        Eval::Initialize(simManager);
     }
 
     needToHandleCancel = true;
@@ -197,6 +194,8 @@ void OnSimulationEnd(SimulationManager@ simManager, SimulationResult)
 
     Eval::Reset();
 }
+
+bool IsRunSimOnly { get { return soState != SimOnlyState::NONE; } }
 
 enum SimOnlyState
 {

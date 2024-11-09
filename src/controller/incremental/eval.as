@@ -2,7 +2,7 @@ namespace Eval
 {
 
 
-// - General -
+// - General
 array<TM::InputEvent>@ initialEvents = null;
 
 void Initialize(SimulationManager@ simManager, array<TM::InputEvent>@ events = null)
@@ -38,10 +38,10 @@ void Initialize(SimulationManager@ simManager, array<TM::InputEvent>@ events = n
     tTrail = tInput - TICK;
 
     uint duration;
-    if (soState == SimOnlyState::NONE)
-        duration = simManager.EventsDuration;
-    else
+    if (IsRunSimOnly)
         duration = Settings::varInputsReach;
+    else
+        duration = simManager.EventsDuration;
 
     if (Settings::varEvalEnd == 0)
         tLimit = duration;
@@ -66,10 +66,10 @@ void Finish(SimulationManager@ simManager)
     needToHandleCancel = false;
     onStep = OnStepState::NONE;
 
-    if (soState == SimOnlyState::NONE)
-        simManager.ForceFinish();
-    else
+    if (IsRunSimOnly)
         soState = SimOnlyState::END;
+    else
+        simManager.ForceFinish();
 }
 
 void Reset()
@@ -87,7 +87,7 @@ void Reset()
     resultStates.Clear();
 }
 
-// - Modes -
+// - Modes
 const uint INVALID_MODE_INDEX = uint(-1);
 
 uint modeIndex = INVALID_MODE_INDEX;
@@ -157,7 +157,7 @@ void ModeDispatch()
     @modeOnEnd = OnSim(imode.OnEnd);
 }
 
-// - Timestamps -
+// - Timestamps
 ms tInit;    // the timestamp required to ensure that we can run an entire timerange
 ms tTrail;   // the timestamp that the trailing state is saved on
 ms tInput;   // the timestamp currently being evaluated
@@ -207,7 +207,7 @@ bool IsAtLeastInputTime(SimulationManager@ simManager)
     return time >= tInput;
 }
 
-// - Inputs -
+// - Inputs
 const uint INVALID_CACHE = uint(-1);
 
 array<uint> cacheDown;
@@ -329,7 +329,7 @@ void ClearInputCaches()
     cacheSteer.Clear();
 }
 
-// - Results -
+// - Results
 const ms INVALID_RESULT_TIME = -1;
 
 uint resultIndex;
