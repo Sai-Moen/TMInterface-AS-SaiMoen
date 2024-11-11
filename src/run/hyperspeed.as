@@ -26,11 +26,13 @@ const string VAR_ENABLED       = VAR + "enabled";
 const string VAR_REWIND_TIME   = VAR + "rewind_time";
 const string VAR_USE_STATEFILE = VAR + "use_statefile";
 const string VAR_FILENAME      = VAR + "filename";
+const string VAR_FINISH_TIME   = VAR + "finish_time";
 
 bool enabled;
 ms rewindTime;
 bool useStateFile;
 string filename;
+ms finishTime;
 
 SimulationStateFile statefile;
 SimulationState@ dummyState;
@@ -41,11 +43,13 @@ void Setup()
     RegisterVariable(VAR_REWIND_TIME, 0);
     RegisterVariable(VAR_USE_STATEFILE, false);
     RegisterVariable(VAR_FILENAME, "");
+    RegisterVariable(VAR_FINISH_TIME, 0);
 
     enabled      = GetVariableBool(VAR_ENABLED);
     rewindTime   = ms(GetVariableDouble(VAR_REWIND_TIME));
     useStateFile = GetVariableBool(VAR_USE_STATEFILE);
     filename     = GetVariableString(VAR_FILENAME);
+    finishTime   = ms(GetVariableDouble(VAR_FINISH_TIME));
 
     if (useStateFile && statefile.Load(filename, void))
         @dummyState = statefile.ToState();
@@ -53,22 +57,24 @@ void Setup()
 
 enum HyperSpeedState
 {
-    INIT,
+    INACTIVE,
+
+    ACTIVE,
     SPEEDUP,
     GIVEUP,
+    FINISH,
+
+    COUNT
 }
 
-HyperSpeedState hsState;
+HyperSpeedState hsState = HyperSpeedState::ACTIVE;
 
 void OnRunStep(SimulationManager@ simManager)
 {
-    if (!enabled)
-        return;
-
     const ms time = simManager.RaceTime;
     switch (hsState)
     {
-    case HyperSpeedState::INIT:
+    case HyperSpeedState::ACTIVE:
         if (time < 0)
         {
             if (dummyState is null)
@@ -84,7 +90,7 @@ void OnRunStep(SimulationManager@ simManager)
         }
         else if (time == rewindTime)
         {
-            hsState = HyperSpeedState::INIT;
+            hsState = HyperSpeedState::ACTIVE;
             simManager.SimulationOnly = false;
 
             if (useStateFile)
@@ -105,8 +111,20 @@ void OnRunStep(SimulationManager@ simManager)
         }
         break;
     case HyperSpeedState::GIVEUP:
-        hsState = HyperSpeedState::INIT;
+        hsState = HyperSpeedState::ACTIVE;
         simManager.GiveUp();
+        break;
+    case HyperSpeedState::FINISH:
+        if (time < 0)
+        {
+            simManager.SimulationOnly = true;
+        }
+        else if (time == finishTime)
+        {
+            hsState = HyperSpeedState::ACTIVE;
+            simManager.SimulationOnly = false;
+            simManager.ForceFinish();
+        }
         break;
     }
 }
@@ -114,7 +132,14 @@ void OnRunStep(SimulationManager@ simManager)
 void Window()
 {
     enabled = UI::CheckboxVar("Enable HyperSpeed", VAR_ENABLED);
-    UI::BeginDisabled(!enabled);
+
+    const bool disabled = !enabled;
+    if (disabled)
+        hsState = HyperSpeedState::INACTIVE;
+    else if (hsState == HyperSpeedState::INACTIVE)
+        hsState = HyperSpeedState::ACTIVE;
+
+    UI::BeginDisabled(disabled);
 
     rewindTime = UI::InputTimeVar("Rewind Time", VAR_REWIND_TIME);
 
@@ -129,13 +154,13 @@ void Window()
 
     UI::BeginDisabled(noStateFile);
 
-    if (UI::Button("Save statefile to Filename (at Rewind Time)?"))
+    if (UI::Button("Save statefile to Filename (at Rewind Time)"))
     {
         hsState = HyperSpeedState::GIVEUP;
         @dummyState = null;
     }
 
-    if (UI::Button("Load statefile from Filename?"))
+    if (UI::Button("Load statefile from Filename"))
     {
         string error;
         if (statefile.Load(filename, error))
@@ -155,6 +180,13 @@ void Window()
         const string t = Time::Format(dummyState.PlayerInfo.RaceTime);
         UI::TextWrapped("A state is loaded that starts at " + t);
     }
+
+    UI::Separator();
+
+    finishTime = UI::InputTimeVar("Finish Time", VAR_FINISH_TIME);
+
+    if (UI::Button("Finish at Finish Time"))
+        hsState = HyperSpeedState::FINISH;
 
     UI::EndDisabled();
 }
