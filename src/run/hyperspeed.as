@@ -53,6 +53,8 @@ void Setup()
 
     if (useStateFile && statefile.Load(filename, void))
         @dummyState = statefile.ToState();
+
+    hsState = enabled ? HyperSpeedState::ACTIVE : HyperSpeedState::INACTIVE;
 }
 
 enum HyperSpeedState
@@ -67,7 +69,7 @@ enum HyperSpeedState
     COUNT
 }
 
-HyperSpeedState hsState = HyperSpeedState::ACTIVE;
+HyperSpeedState hsState;
 
 void OnRunStep(SimulationManager@ simManager)
 {
