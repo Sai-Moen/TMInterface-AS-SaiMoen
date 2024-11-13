@@ -44,15 +44,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
     }
 
     needToHandleCancel = true;
-    if (Eval::IsUnlockedTimerange())
-    {
-        onStep = OnStepState::RANGE_INIT;
-        Eval::InitializeInitTime();
-    }
-    else
-    {
-        onStep = OnStepState::SINGLE;
-    }
+    onStep = Eval::IsUnlockedTimerange() ? OnStepState::RANGE_INIT : OnStepState::SINGLE;
     preventSimulationFinish = true;
     ignoreEnd = false;
 
@@ -107,26 +99,32 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
     case OnStepState::NONE:
         return;
     case OnStepState::SAVE_STATE:
+        onStep = onStepTemp;
         {
-            const auto@ const start = simManager.SaveState();
-            auto@ const scratchStateFile = SimulationStateFile();
-            string error;
-            if (scratchStateFile.Load(stateFilename, error))
+            SimulationStateFile startStateFile;
+            if (!startStateFile.CaptureCurrentState(simManager, true))
             {
-                simManager.RewindToState(scratchStateFile.ToState());
-                if (simManager.TickTime >= Eval::tInit)
-                {
-                    print("Attempted to load state that occurs too late! Reverting to start...", Severity::Warning);
-                    simManager.RewindToState(start);
-                }
+                print("Could not capture current state while preparing recovery save state!", Severity::Error);
+                break;
             }
-            else
+
+            SimulationStateFile userStateFile;
+            string error;
+            if (!userStateFile.Load(stateFilename, error))
             {
                 print("There was an error with the savestate:", Severity::Error);
                 print(error, Severity::Error);
+                break;
+            }
+
+            simManager.RewindToState(userStateFile);
+            if (simManager.TickTime >= Eval::tInit)
+            {
+                print("Attempted to load state that occurs too late! Reverting to start...", Severity::Warning);
+                simManager.RewindToState(startStateFile);
+                break;
             }
         }
-        onStep = onStepTemp;
         break;
     case OnStepState::SINGLE:
         if (Eval::tInput <= Eval::tLimit)

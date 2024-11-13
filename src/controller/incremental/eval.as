@@ -37,6 +37,9 @@ void Initialize(SimulationManager@ simManager, array<TM::InputEvent>@ events = n
     tInput = resultTimes[resultIndex];
     tTrail = tInput - TICK;
 
+    // need this even w/ locked timerange to verify save state
+    tInit = Settings::varEvalBeginStart - utils::TickToMs(2);
+
     uint duration;
     if (IsRunSimOnly)
         duration = Settings::varInputsReach;
@@ -48,11 +51,6 @@ void Initialize(SimulationManager@ simManager, array<TM::InputEvent>@ events = n
     else
         tLimit = Settings::varEvalEnd;
     tCleanup = duration;
-}
-
-void InitializeInitTime()
-{
-    tInit = Settings::varEvalBeginStart - utils::TickToMs(2);
 }
 
 void Advance()
