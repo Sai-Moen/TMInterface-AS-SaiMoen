@@ -3,20 +3,12 @@ namespace Eval
 
 
 // - General
-array<TM::InputEvent>@ initialEvents = null;
+array<TM::InputEvent>@ initialEvents;
 
-void Initialize(SimulationManager@ simManager, array<TM::InputEvent>@ events = null)
+void Initialize(SimulationManager@ simManager)
 {
-    auto@ const buffer = simManager.InputEvents;
-    if (events is null)
-    {
-        @initialEvents = utils::CopyInputEvents(buffer);
-    }
-    else
-    {
-        @initialEvents = events;
-        RefillBuffer(buffer);
-    }
+    // a different system is used for run-mode
+    @initialEvents = IsRunSimOnly ? null : utils::CopyInputEvents(simManager.InputEvents);
 
     const int temp = (Settings::varEvalBeginStop - Settings::varEvalBeginStart) / TICK + 1;
     const uint size = Math::Max(temp, 1);
@@ -40,7 +32,7 @@ void Initialize(SimulationManager@ simManager, array<TM::InputEvent>@ events = n
     // need this even w/ locked timerange to verify save state
     tInit = Settings::varEvalBeginStart - utils::TickToMs(2);
 
-    uint duration;
+    ms duration;
     if (IsRunSimOnly)
         duration = Settings::varInputsReach;
     else
@@ -55,6 +47,7 @@ void Initialize(SimulationManager@ simManager, array<TM::InputEvent>@ events = n
 
 void Advance()
 {
+    PopInputStates();
     PopInputCaches();
     Bump();
 }
@@ -74,12 +67,15 @@ void Reset()
 {
     @initialEvents = null;
 
+    inputStatesList.Clear();
+
     @initState = null;
     @trailingState = null;
     speed = NO_SPEED;
 
     ClearInputCaches();
 
+    resultIndex = 0;
     resultTimes.Clear();
     resultInputs.Clear();
     resultStates.Clear();
@@ -202,7 +198,70 @@ bool IsAtLeastInputTime(SimulationManager@ simManager)
         @trailingState = simManager.SaveState();
     else if (speed == NO_SPEED && time == tInput)
         speed = simManager.Dyna.RefStateCurrent.LinearSpeed;
-    return time >= tInput;
+
+    if (time >= tInput)
+    {
+        ApplyInputStates(simManager, time);
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+// - Run Mode
+
+// mirrors the SceneVehicleCar.Input* properties
+class InputStates
+{
+    int brake = -1;
+    int gas   = -1;
+    int steer = Math::INT_MIN;
+}
+
+const InputStates inputNeutral;
+
+array<InputStates> inputStatesList;
+
+void ApplyInputStates(SimulationManager@ simManager)
+{
+    ApplyInputStates(simManager, simManager.TickTime);
+}
+
+void ApplyInputStates(SimulationManager@ simManager, const ms time)
+{
+    if (!IsRunSimOnly)
+        return;
+
+    const uint index = utils::MsToTick(IncGetRelativeTime(time));
+    if (index >= inputStatesList.Length)
+        return;
+
+    const auto@ const inputStates = inputStatesList[index];
+
+    const int brake = inputStates.brake;
+    if (brake != inputNeutral.brake)
+        simManager.SetInputState(InputType::Down, brake);
+
+    const int gas = inputStates.gas;
+    if (gas != inputNeutral.gas)
+        simManager.SetInputState(InputType::Up, gas);
+
+    const int steer = inputStates.steer;
+    if (steer != inputNeutral.steer)
+        simManager.SetInputState(InputType::Steer, steer);
+}
+
+void PopInputStates()
+{
+    if (inputStatesList.IsEmpty())
+        return;
+
+    const uint last = inputStatesList.Length - 1;
+    for (uint i = 0; i < last; i++)
+        inputStatesList[i] = inputStatesList[i + 1];
+    inputStatesList[last] = inputNeutral;
 }
 
 // - Inputs
@@ -214,20 +273,32 @@ array<uint> cacheSteer;
 
 void SetInput(SimulationManager@ simManager, const uint index, const InputType type, const int value)
 {
+    if (IsRunSimOnly)
+    {
+        if (index >= inputStatesList.Length)
+            inputStatesList.Resize(index + 1);
+
+        InputStates@ const inputStates = inputStatesList[index];
+        switch (type)
+        {
+        case InputType::Down:  inputStates.brake = value; break;
+        case InputType::Up:    inputStates.gas   = value; break;
+        case InputType::Steer: inputStates.steer = value; break;
+        default:
+            print("Unsupported InputType mapping...", Severity::Error);
+        }
+        
+        return;
+    }
+
     array<uint>@ cache;
     switch (type)
     {
-    case InputType::Down:
-        @cache = cacheDown;
-        break;
-    case InputType::Up:
-        @cache = cacheUp;
-        break;
-    case InputType::Steer:
-        @cache = cacheSteer;
-        break;
+    case InputType::Down:  @cache = cacheDown;  break;
+    case InputType::Up:    @cache = cacheUp;    break;
+    case InputType::Steer: @cache = cacheSteer; break;
     default:
-        print("Unsupported InputType to cache mapping...", Severity::Warning);
+        print("Unsupported InputType to cache mapping...", Severity::Error);
         return;
     }
 
@@ -328,6 +399,7 @@ void ClearInputCaches()
 }
 
 // - Results
+const int MAGIC_NANDO_TIME_OFFSET = 100010;
 const ms INVALID_RESULT_TIME = -1;
 
 uint resultIndex;
@@ -346,7 +418,7 @@ void SaveResult(SimulationManager@ simManager)
             const uint index = indices[0];
             auto event = buffer[index];
             buffer.RemoveAt(index);
-            event.Time = Eval::tInput + 100000; // 100010 - 10
+            event.Time = Eval::tInput + MAGIC_NANDO_TIME_OFFSET - 10;
             buffer.Add(event);
         }
     case 0:
@@ -368,17 +440,10 @@ bool NextResult()
 
 void PrepareResult(SimulationManager@ simManager)
 {
-    RefillBuffer(simManager.InputEvents);
+    if (!IsRunSimOnly)
+        utils::ReplaceInputEvents(simManager.InputEvents, initialEvents);
     simManager.RewindToState(initState);
     modeOnBegin(simManager);
-}
-
-void RefillBuffer(TM::InputEventBuffer@ const buffer)
-{
-    buffer.Clear();
-    const uint len = initialEvents.Length;
-    for (uint i = 0; i < len; i++)
-        buffer.Add(initialEvents[i]);
 }
 
 string GetBestInputs()

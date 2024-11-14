@@ -13,6 +13,29 @@ array<TM::InputEvent>@ CopyInputEvents(const TM::InputEventBuffer@ const buffer)
     return events;
 }
 
+void ReplaceInputEvents(TM::InputEventBuffer@ const buffer, const array<TM::InputEvent>@ const events)
+{
+    const uint bufferLen = buffer.Length;
+    const uint eventsLen = events.Length;
+    if (bufferLen >= eventsLen)
+    {
+        uint i;
+        for (i = 0; i < eventsLen; i++)
+            buffer[i] = events[i];
+
+        buffer.RemoveAt(i, bufferLen - eventsLen);
+    }
+    else
+    {
+        uint i;
+        for (i = 0; i < bufferLen; i++)
+            buffer[i] = events[i];
+
+        while (i < eventsLen)
+            buffer.Add(events[i++]);
+    }
+}
+
 void BufferRemoveInTimerange(
     TM::InputEventBuffer@ const buffer,
     const ms timeFrom, const ms timeTo,

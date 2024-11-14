@@ -30,16 +30,14 @@ void Main()
 
 void OnSimulationBegin(SimulationManager@ simManager)
 {
-    if (IsRunSimOnly)
-    {
-        Eval::Initialize(simManager, runModeEvents);
-    }
-    else
+    if (!IsRunSimOnly)
     {
         if (IsOtherController)
             return;
 
         simManager.RemoveStateValidation();
+
+        // run mode handles this itself
         Eval::Initialize(simManager);
     }
 
@@ -198,14 +196,14 @@ bool IsRunSimOnly { get { return soState != SimOnlyState::NONE; } }
 enum SimOnlyState
 {
     NONE,
-    INIT, GATHER,
+
+    INIT,
     BEGIN, STEP, END,
 
     COUNT
 }
 
 SimOnlyState soState = SimOnlyState::NONE;
-array<TM::InputEvent>@ runModeEvents;
 
 void OnRunStep(SimulationManager@ simManager)
 {
@@ -214,28 +212,17 @@ void OnRunStep(SimulationManager@ simManager)
     case SimOnlyState::INIT:
         utils::DrawGame(false);
         simManager.GiveUp();
-        soState = SimOnlyState::GATHER;
-        break;
-    case SimOnlyState::GATHER:
-        if (!simManager.SimulationOnly)
-        {
-            simManager.SimulationOnly = true;
-        }
-        else if (simManager.TickTime == Settings::varInputsReach)
-        {
-            @runModeEvents = utils::CopyInputEvents(simManager.InputEvents);
-            SetCurrentCommandList(null);
-            simManager.GiveUp();
-            soState = SimOnlyState::BEGIN;
-        }
+        soState = SimOnlyState::BEGIN;
         break;
     case SimOnlyState::BEGIN:
+        simManager.SimulationOnly = true;
+        Eval::Initialize(null);
         OnSimulationBegin(simManager);
-        @runModeEvents = null;
         soState = SimOnlyState::STEP;
         break;
     case SimOnlyState::STEP:
         OnSimulationStep(simManager, false);
+        // state changes when Eval::Finish is called
         break;
     case SimOnlyState::END:
         OnSimulationEnd(simManager, SimulationResult::Valid);

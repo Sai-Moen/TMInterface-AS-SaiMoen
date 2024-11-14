@@ -74,6 +74,9 @@ void IncRemoveInputs(
     SimulationManager@ simManager, const ms relativeTime,
     const InputType type = InputType::None, const int value = Math::INT_MAX)
 {
+    if (IsRunSimOnly)
+        return; // TODO add neutral input states here
+
     auto@ const buffer = simManager.InputEvents;
     const uint len = buffer.Length;
     utils::BufferRemoveIndices(buffer, buffer.Find(IncGetAbsoluteTime(relativeTime), type, value));
@@ -84,6 +87,9 @@ void IncRemoveInputs(
 
 void IncRemoveSteeringAhead(SimulationManager@ simManager)
 {
+    if (IsRunSimOnly)
+        return; // TODO add neutral input states here
+
     auto@ const buffer = simManager.InputEvents;
     const uint len = buffer.Length;
     utils::BufferRemoveInTimerange(
@@ -104,16 +110,14 @@ void IncRewind(SimulationManager@ simManager)
     simManager.RewindToState(Eval::trailingState);
 }
 
-const int NO_DOWN_CHANGE = -1;
-const int NO_UP_CHANGE = -1;
-const int NO_STEER_CHANGE = Math::INT_MIN;
-
 class IncCommitContext
 {
-    int down = NO_DOWN_CHANGE;
-    int up = NO_UP_CHANGE;
-    int steer = NO_STEER_CHANGE;
+    int down  = -1;
+    int up    = -1;
+    int steer = Math::INT_MIN;
 }
+
+const IncCommitContext ctxNeutral;
 
 void IncCommit(SimulationManager@ simManager, const IncCommitContext ctx = IncCommitContext())
 {
@@ -121,7 +125,7 @@ void IncCommit(SimulationManager@ simManager, const IncCommitContext ctx = IncCo
     array<InputCommand> commands;
 
     const int down = ctx.down;
-    if (down != NO_DOWN_CHANGE)
+    if (down != ctxNeutral.down)
     {
         const InputType type = InputType::Down;
         IncSetInput(simManager, type, down);
@@ -129,7 +133,7 @@ void IncCommit(SimulationManager@ simManager, const IncCommitContext ctx = IncCo
     }
 
     const int up = ctx.up;
-    if (up != NO_UP_CHANGE)
+    if (up != ctxNeutral.up)
     {
         const InputType type = InputType::Up;
         IncSetInput(simManager, type, up);
@@ -137,7 +141,7 @@ void IncCommit(SimulationManager@ simManager, const IncCommitContext ctx = IncCo
     }
 
     const int steer = ctx.steer;
-    if (steer != NO_STEER_CHANGE)
+    if (steer != ctxNeutral.steer)
     {
         const InputType type = InputType::Steer;
         IncSetInput(simManager, type, steer);
