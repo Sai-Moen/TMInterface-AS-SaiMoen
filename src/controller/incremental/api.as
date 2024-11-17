@@ -74,9 +74,6 @@ void IncRemoveInputs(
     SimulationManager@ simManager, const ms relativeTime,
     const InputType type = InputType::None, const int value = Math::INT_MAX)
 {
-    if (IsRunSimOnly)
-        return; // TODO add neutral input states here
-
     auto@ const buffer = simManager.InputEvents;
     const uint len = buffer.Length;
     utils::BufferRemoveIndices(buffer, buffer.Find(IncGetAbsoluteTime(relativeTime), type, value));
@@ -87,9 +84,6 @@ void IncRemoveInputs(
 
 void IncRemoveSteeringAhead(SimulationManager@ simManager)
 {
-    if (IsRunSimOnly)
-        return; // TODO add neutral input states here
-
     auto@ const buffer = simManager.InputEvents;
     const uint len = buffer.Length;
     utils::BufferRemoveInTimerange(

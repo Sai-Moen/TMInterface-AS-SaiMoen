@@ -199,15 +199,7 @@ bool IsAtLeastInputTime(SimulationManager@ simManager)
     else if (speed == NO_SPEED && time == tInput)
         speed = simManager.Dyna.RefStateCurrent.LinearSpeed;
 
-    if (time >= tInput)
-    {
-        ApplyInputStates(simManager, time);
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    return time >= tInput;
 }
 
 // - Run Mode
@@ -218,9 +210,23 @@ class InputStates
     int brake = -1;
     int gas   = -1;
     int steer = Math::INT_MIN;
+
+    InputStates()
+    {}
+
+    InputStates(const bool removeInputs = false)
+    {
+        if (removeInputs)
+        {
+            brake = -2;
+            gas   = -2;
+            steer = Math::INT_MAX;
+        }
+    }
 }
 
-const InputStates inputNeutral;
+const InputStates inputNeutral(false);
+const InputStates inputRemove(true);
 
 array<InputStates> inputStatesList;
 
@@ -238,6 +244,7 @@ void ApplyInputStates(SimulationManager@ simManager, const ms time)
     if (index >= inputStatesList.Length)
         return;
 
+    // TODO check for removals here
     const auto@ const inputStates = inputStatesList[index];
 
     const int brake = inputStates.brake;
@@ -248,9 +255,15 @@ void ApplyInputStates(SimulationManager@ simManager, const ms time)
     if (gas != inputNeutral.gas)
         simManager.SetInputState(InputType::Up, gas);
 
+    const auto state = simManager.GetInputState();
+
     const int steer = inputStates.steer;
     if (steer != inputNeutral.steer)
         simManager.SetInputState(InputType::Steer, steer);
+    else if (state.Left)
+        simManager.SetInputState(InputType::Steer, STEER::MIN);
+    else if (state.Right)
+        simManager.SetInputState(InputType::Steer, STEER::MAX);
 }
 
 void PopInputStates()
@@ -273,24 +286,6 @@ array<uint> cacheSteer;
 
 void SetInput(SimulationManager@ simManager, const uint index, const InputType type, const int value)
 {
-    if (IsRunSimOnly)
-    {
-        if (index >= inputStatesList.Length)
-            inputStatesList.Resize(index + 1);
-
-        InputStates@ const inputStates = inputStatesList[index];
-        switch (type)
-        {
-        case InputType::Down:  inputStates.brake = value; break;
-        case InputType::Up:    inputStates.gas   = value; break;
-        case InputType::Steer: inputStates.steer = value; break;
-        default:
-            print("Unsupported InputType mapping...", Severity::Error);
-        }
-        
-        return;
-    }
-
     array<uint>@ cache;
     switch (type)
     {
