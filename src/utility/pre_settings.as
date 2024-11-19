@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "PreSettings";
     info.Description = "Preset Settings";
-    info.Version = "v2.1.1a";
+    info.Version = "v2.1.1b";
     return info;
 }
 
@@ -20,10 +20,12 @@ void Main()
 const string MAPPING_SEP = "/";
 const string DIRECTORY = "presets/";
 
-const string PREFIX = "presettings_";
+const string VAR = "presettings_";
 
-const string VAR_PRESET_NAME     = PREFIX + "preset_name";
-const string VAR_PRESET_MAPPINGS = PREFIX + "preset_mappings";
+const string VAR_PRESET_NAME     = VAR + "preset_name";
+const string VAR_PRESET_MAPPINGS = VAR + "preset_mappings";
+
+const string VAR_FILTER = VAR + "filter";
 
 string currPreset;
 string CurrPreset { set { SetVariable(VAR_PRESET_NAME, currPreset = value); } }
@@ -31,12 +33,16 @@ string CurrPreset { set { SetVariable(VAR_PRESET_NAME, currPreset = value); } }
 CommandList@ currCmdList;
 array<string>@ presets;
 
+string filter;
+
 void RegisterSettings()
 {
     RegisterVariable(VAR_PRESET_NAME, "");
     RegisterVariable(VAR_PRESET_MAPPINGS, "");
+    RegisterVariable(VAR_FILTER, "");
 
     currPreset = GetVariableString(VAR_PRESET_NAME);
+
     const string presetMappings = GetVariableString(VAR_PRESET_MAPPINGS);
     if (presetMappings == "")
     {
@@ -51,6 +57,8 @@ void RegisterSettings()
         else
             LoadPreset();
     }
+    
+    filter = GetVariableString(VAR_FILTER);
 }
 
 void OnInclude(int, int, const string &in, const array<string> &in args)
@@ -135,6 +143,9 @@ void TabItemEditActivePreset()
         return;
     }
 
+    filter = UI::InputTextVar("ConVar filter", VAR_FILTER);
+    TooltipOnHover("Filter", "Only adds vars that start with this (empty to not filter).");
+
     if (UI::Button("Add All Missing ConVars"))
     {
         const auto@ const convars = ListVariables();
@@ -144,7 +155,7 @@ void TabItemEditActivePreset()
 
             // holy O(n^2)
             const string name = convar.Name;
-            if (currCmdList.Content.FindFirst(name) != -1)
+            if (name.FindFirst(filter) != 0 || currCmdList.Content.FindFirst(name) != -1)
                 continue;
 
             string value;
@@ -247,4 +258,18 @@ void ClearCurrentPreset()
 void SavePresets()
 {
     SetVariable(VAR_PRESET_MAPPINGS, Text::Join(presets, MAPPING_SEP));
+}
+
+// puts a (i) on the same line and returns whether it is being hovered
+void TooltipOnHover(const string &in label, const string &in text)
+{
+    UI::SameLine();
+    UI::PushID(label);
+    UI::TextDimmed("(i)");
+    UI::PopID();
+    if (UI::IsItemHovered() && UI::BeginTooltip())
+    {
+        UI::Text(text);
+        UI::EndTooltip();
+    }
 }
