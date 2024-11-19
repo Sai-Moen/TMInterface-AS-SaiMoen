@@ -50,10 +50,11 @@ Anything that is not specific to run mode or simulation.
 - [Calculator](utility/calculator.md)
 - [Introspect](utility/introspect.md)
 - [Point View](utility/point_view.md)
+- [PreSettings](utility/pre_settings.md)
 
 ### Archived
 
 #### Active up to 2.1
 
-- [RammFinder](old/rammfinder.md)
-- [RunEditor](old/run_editor.md)
+- [RammFinder](archived/rammfinder.md)
+- [RunEditor](archived/run_editor.md)
