@@ -34,7 +34,7 @@ void Initialize(SimulationManager@ simManager)
 
     ms duration;
     if (IsRunSimOnly)
-        duration = Settings::varInputsReach;
+        duration = Settings::varReplayTime;
     else
         duration = simManager.EventsDuration;
 
@@ -217,7 +217,7 @@ array<InputStates> inputStatesList;
 
 void InitInputStates()
 {
-    const uint len = utils::MsToTick(Settings::varInputsReach);
+    const uint len = utils::MsToTick(Settings::varReplayTime);
     inputStatesList.Resize(len);
 }
 
@@ -268,6 +268,11 @@ void ApplyInputStates(SimulationManager@ simManager, const ms time)
     const int steer = inputStates.steer;
     if (steer != inputNeutral.steer)
         simManager.SetInputState(InputType::Steer, steer);
+}
+
+void ResetInputStates()
+{
+    inputStatesList.Clear();
 }
 
 // - Inputs
@@ -333,6 +338,7 @@ void SetInput(SimulationManager@ simManager, const ms time, const InputType type
             buffer.Add(time, type, value);
             @indices = buffer.Find(time, type);
             ShiftInputCaches(indices, 1);
+            // fallthrough
         case 1:
             eventIndex = indices[0];
             break;
@@ -359,7 +365,7 @@ bool HasInputs(
         const uint index = utils::MsToTick(time);
         if (index >= inputStatesList.Length)
             return false;
-        
+
         const auto@ const inputStates = inputStatesList[index];
         switch (type)
         {

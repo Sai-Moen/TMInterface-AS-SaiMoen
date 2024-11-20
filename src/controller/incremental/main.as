@@ -9,7 +9,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = TITLE;
-    info.Version = "v2.1.1g";
+    info.Version = "v2.1.1h";
     return info;
 }
 
@@ -40,8 +40,6 @@ void OnSimulationBegin(SimulationManager@ simManager)
             return;
 
         simManager.RemoveStateValidation();
-
-        // run mode handles this itself
         Eval::Initialize(simManager);
     }
 
@@ -209,23 +207,11 @@ enum SimOnlyState
 
 SimOnlyState soState = SimOnlyState::NONE;
 
-uint64 clock;
-
 void OnRunStep(SimulationManager@ simManager)
 {
-    // if (clock != 0 && clock < Time::Now)
-    // {
-    //     clock = 0;
-    //     simManager.SimulationOnly = false;
-    //     utils::DrawGame(true);
-    //     utils::ExecuteCommands(true);
-    //     soState = SimOnlyState::NONE;
-    // }
-
     switch (soState)
     {
     case SimOnlyState::PRE_INIT:
-        //clock = Time::Now + uint64(2000);
         utils::DrawGame(false);
         simManager.GiveUp();
         soState = SimOnlyState::INIT;
@@ -238,7 +224,7 @@ void OnRunStep(SimulationManager@ simManager)
         break;
     case SimOnlyState::COLLECT:
         Eval::CollectInputStates(simManager);
-        if (simManager.TickTime > Settings::varInputsReach)
+        if (simManager.TickTime > Settings::varReplayTime)
         {
             utils::ExecuteCommands(false);
             simManager.SimulationOnly = false;
@@ -258,8 +244,9 @@ void OnRunStep(SimulationManager@ simManager)
         break;
     case SimOnlyState::END:
         OnSimulationEnd(simManager, SimulationResult::Valid);
-        simManager.SimulationOnly = false;
         utils::ExecuteCommands(true);
+        Eval::ResetInputStates();
+        simManager.SimulationOnly = false;
         utils::DrawGame(true);
         soState = SimOnlyState::NONE;
         break;

@@ -269,16 +269,17 @@ void OnSimBegin()
 
 const OnSim@ onStep;
 
-float prevInputBrake;
+int prevInputBrake;
 int prevInputSteer;
 
-float oldInputBrake;
+int oldInputBrake;
+int oldInputGas;
 int oldInputSteer;
 float oldTurningRate;
 
 bool isBraking;
 
-float nextInputBrake;
+int nextInputBrake;
 float nextTurningRate;
 
 void OnStepScan(SimulationManager@ simManager)
@@ -288,11 +289,12 @@ void OnStepScan(SimulationManager@ simManager)
     switch (utils::MsToTick(time))
     {
     case 0:
-        prevInputBrake = svc.InputBrake;
+        prevInputBrake = int(svc.InputBrake);
         prevInputSteer = utils::ToSteer(svc.InputSteer);
         return;
     case 1:
-        oldInputBrake = svc.InputBrake;
+        oldInputBrake = int(svc.InputBrake);
+        oldInputGas   = int(svc.InputGas);
         oldInputSteer = utils::ToSteer(svc.InputSteer);
         oldTurningRate = svc.TurningRate;
 
@@ -302,9 +304,9 @@ void OnStepScan(SimulationManager@ simManager)
 
         // only do this stuff if we are able to remove it later
         isBraking = varMinimizeBrake && oldInputBrake != 0;
+        if (isBraking)
         {
             const bool mustAddDownPress =
-                isBraking &&                                      // no point in releasing if we aren't pressing
                 prevInputBrake == oldInputBrake &&                // no point in pressing if we are already pressing
                 !IncHasInputs(simManager, time, InputType::Down); // catches edge cases like a 1-tick brake
             if (mustAddDownPress)
@@ -312,8 +314,9 @@ void OnStepScan(SimulationManager@ simManager)
         }
         return;
     case 2:
-        nextInputBrake = svc.InputBrake;
+        nextInputBrake = int(svc.InputBrake);
         nextTurningRate = svc.TurningRate;
+        // fallthrough
     }
 
     const uint index = TimeToContextIndex(time);
@@ -461,6 +464,8 @@ void NextStrategy(SimulationManager@ simManager)
         print("Desynchronized, restoring old steering value...", Severity::Warning);
 
         IncCommitContext ctx;
+        ctx.down  = oldInputBrake;
+        ctx.up    = oldInputGas;
         ctx.steer = oldInputSteer;
         IncCommit(simManager, ctx);
 

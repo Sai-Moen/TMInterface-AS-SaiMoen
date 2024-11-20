@@ -25,8 +25,8 @@ string varSaveStateName;
 const string VAR_SHOW_INFO = VAR + "show_info";
 bool varShowInfo;
 
-const string VAR_INPUTS_REACH = VAR + "inputs_reach";
-ms varInputsReach;
+const string VAR_REPLAY_TIME = VAR + "replay_time";
+ms varReplayTime;
 
 void RegisterSettings()
 {
@@ -42,7 +42,7 @@ void RegisterSettings()
 
     RegisterVariable(VAR_SHOW_INFO, true);
 
-    RegisterVariable(VAR_INPUTS_REACH, 0);
+    RegisterVariable(VAR_REPLAY_TIME, 0);
 
     varLockTimerange  = GetVariableBool(VAR_LOCK_TIMERANGE);
     varEvalBeginStart = ms(GetVariableDouble(VAR_EVAL_BEGIN_START));
@@ -54,12 +54,12 @@ void RegisterSettings()
 
     varShowInfo = GetVariableBool(VAR_SHOW_INFO);
 
-    varInputsReach = ms(GetVariableDouble(VAR_INPUTS_REACH));
+    varReplayTime = ms(GetVariableDouble(VAR_REPLAY_TIME));
 }
 
 const string INFO_LOCK_TIMERANGE = "Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.";
 const string INFO_SHOW_INFO = "Show additional information about the simulation.";
-const string INFO_INPUTS_REACH = "When using run-mode bruteforce, what time the last input that needs to be included has.";
+const string INFO_REPLAY_TIME = "When using run-mode bruteforce, what time the last input that needs to be included has.";
 
 void RenderSettings()
 {
@@ -102,8 +102,8 @@ void RenderSettings()
 
         UI::Separator();
 
-        varInputsReach = UI::InputTimeVar("Inputs Reach", VAR_INPUTS_REACH);
-        utils::TooltipOnHover("InputsReach", INFO_INPUTS_REACH);
+        varReplayTime = UI::InputTimeVar("Replay Time", VAR_REPLAY_TIME);
+        utils::TooltipOnHover("ReplayTime", INFO_REPLAY_TIME);
         if (UI::Button("Start Run-mode Bruteforce"))
             soState = SimOnlyState::PRE_INIT;
     }
