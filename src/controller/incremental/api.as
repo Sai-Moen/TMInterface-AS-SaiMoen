@@ -41,57 +41,45 @@ ms IncGetAbsoluteTime(const ms relativeTickTime)
 
 void IncSetInput(SimulationManager@ simManager, const InputType type, const int value)
 {
-    Eval::SetInput(simManager, 0, type, value);
+    Eval::SetInput(simManager, Eval::tInput, type, value);
 }
 
 void IncSetInput(SimulationManager@ simManager, const ms relativeTime, const InputType type, const int value)
 {
-    Eval::SetInput(simManager, utils::MsToTick(relativeTime), type, value);
+    Eval::SetInput(simManager, IncGetAbsoluteTime(relativeTime), type, value);
 }
 
 bool IncHasInputs(
     SimulationManager@ simManager,
     const InputType type = InputType::None, const int value = Math::INT_MAX)
 {
-    return IncHasInputs(simManager, 0, type, value);
+    return Eval::HasInputs(simManager, Eval::tInput, type, value);
 }
 
 bool IncHasInputs(
-    SimulationManager@ simManager, const ms relativeTime,
-    const InputType type = InputType::None, const int value = Math::INT_MAX)
+    SimulationManager@ simManager,
+    const ms relativeTime, const InputType type = InputType::None, const int value = Math::INT_MAX)
 {
-    return !simManager.InputEvents.Find(IncGetAbsoluteTime(relativeTime), type, value).IsEmpty();
+    return Eval::HasInputs(simManager, IncGetAbsoluteTime(relativeTime), type, value);
 }
 
 void IncRemoveInputs(
     SimulationManager@ simManager,
     const InputType type = InputType::None, const int value = Math::INT_MAX)
 {
-    IncRemoveInputs(simManager, 0, type, value);
+    Eval::RemoveInputs(simManager, Eval::tInput, type, value);
 }
 
 void IncRemoveInputs(
-    SimulationManager@ simManager, const ms relativeTime,
-    const InputType type = InputType::None, const int value = Math::INT_MAX)
+    SimulationManager@ simManager,
+    const ms relativeTime, const InputType type = InputType::None, const int value = Math::INT_MAX)
 {
-    auto@ const buffer = simManager.InputEvents;
-    const uint len = buffer.Length;
-    utils::BufferRemoveIndices(buffer, buffer.Find(IncGetAbsoluteTime(relativeTime), type, value));
-
-    if (buffer.Length < len)
-        Eval::ClearInputCaches();
+    Eval::RemoveInputs(simManager, IncGetAbsoluteTime(relativeTime), type, value);
 }
 
 void IncRemoveSteeringAhead(SimulationManager@ simManager)
 {
-    auto@ const buffer = simManager.InputEvents;
-    const uint len = buffer.Length;
-    utils::BufferRemoveInTimerange(
-        buffer, Eval::tInput, Eval::tCleanup,
-        { InputType::Left, InputType::Right, InputType::Steer });
-
-    if (buffer.Length < len)
-        Eval::ClearInputCaches();
+    Eval::RemoveSteeringAhead(simManager);
 }
 
 SimulationState@ IncGetTrailingState()

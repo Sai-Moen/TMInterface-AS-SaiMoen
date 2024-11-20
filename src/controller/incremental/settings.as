@@ -100,12 +100,12 @@ void RenderSettings()
         varSaveStateName = UI::InputTextVar("Save State name", VAR_SAVE_STATE_NAME);
         UI::EndDisabled();
 
-        // UI::Separator();
+        UI::Separator();
 
-        // varInputsReach = UI::InputTimeVar("Inputs Reach", VAR_INPUTS_REACH);
-        // utils::TooltipOnHover("InputsReach", INFO_INPUTS_REACH);
-        // if (UI::Button("Start Run-mode Bruteforce"))
-        //     soState = SimOnlyState::INIT;
+        varInputsReach = UI::InputTimeVar("Inputs Reach", VAR_INPUTS_REACH);
+        utils::TooltipOnHover("InputsReach", INFO_INPUTS_REACH);
+        if (UI::Button("Start Run-mode Bruteforce"))
+            soState = SimOnlyState::PRE_INIT;
     }
 
     if (UI::CollapsingHeader("Modes"))

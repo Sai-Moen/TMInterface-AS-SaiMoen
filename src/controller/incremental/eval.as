@@ -47,7 +47,6 @@ void Initialize(SimulationManager@ simManager)
 
 void Advance()
 {
-    PopInputStates();
     PopInputCaches();
     Bump();
 }
@@ -210,25 +209,37 @@ class InputStates
     int brake = -1;
     int gas   = -1;
     int steer = Math::INT_MIN;
-
-    InputStates()
-    {}
-
-    InputStates(const bool removeInputs = false)
-    {
-        if (removeInputs)
-        {
-            brake = -2;
-            gas   = -2;
-            steer = Math::INT_MAX;
-        }
-    }
 }
 
-const InputStates inputNeutral(false);
-const InputStates inputRemove(true);
+const InputStates inputNeutral;
 
 array<InputStates> inputStatesList;
+
+void InitInputStates()
+{
+    const uint len = utils::MsToTick(Settings::varInputsReach);
+    inputStatesList.Resize(len);
+}
+
+void CollectInputStates(SimulationManager@ simManager)
+{
+    CollectInputStates(simManager, simManager.TickTime);
+}
+
+void CollectInputStates(SimulationManager@ simManager, const ms time)
+{
+    const uint index = utils::MsToTick(time) - 1;
+    if (index >= inputStatesList.Length)
+        return;
+
+    const auto@ const svc = simManager.SceneVehicleCar;
+
+    InputStates inputStates;
+    inputStates.brake = int(svc.InputBrake);
+    inputStates.gas   = int(svc.InputGas);
+    inputStates.steer = utils::ToSteer(svc.InputSteer);
+    inputStatesList[index] = inputStates;
+}
 
 void ApplyInputStates(SimulationManager@ simManager)
 {
@@ -240,11 +251,10 @@ void ApplyInputStates(SimulationManager@ simManager, const ms time)
     if (!IsRunSimOnly)
         return;
 
-    const uint index = utils::MsToTick(IncGetRelativeTime(time));
+    const uint index = utils::MsToTick(time);
     if (index >= inputStatesList.Length)
         return;
 
-    // TODO check for removals here
     const auto@ const inputStates = inputStatesList[index];
 
     const int brake = inputStates.brake;
@@ -255,26 +265,9 @@ void ApplyInputStates(SimulationManager@ simManager, const ms time)
     if (gas != inputNeutral.gas)
         simManager.SetInputState(InputType::Up, gas);
 
-    const auto state = simManager.GetInputState();
-
     const int steer = inputStates.steer;
     if (steer != inputNeutral.steer)
         simManager.SetInputState(InputType::Steer, steer);
-    else if (state.Left)
-        simManager.SetInputState(InputType::Steer, STEER::MIN);
-    else if (state.Right)
-        simManager.SetInputState(InputType::Steer, STEER::MAX);
-}
-
-void PopInputStates()
-{
-    if (inputStatesList.IsEmpty())
-        return;
-
-    const uint last = inputStatesList.Length - 1;
-    for (uint i = 0; i < last; i++)
-        inputStatesList[i] = inputStatesList[i + 1];
-    inputStatesList[last] = inputNeutral;
 }
 
 // - Inputs
@@ -284,8 +277,28 @@ array<uint> cacheDown;
 array<uint> cacheUp;
 array<uint> cacheSteer;
 
-void SetInput(SimulationManager@ simManager, const uint index, const InputType type, const int value)
+void SetInput(SimulationManager@ simManager, const ms time, const InputType type, const int value)
 {
+    const uint absoluteIndex = utils::MsToTick(time);
+    if (IsRunSimOnly)
+    {
+        if (absoluteIndex >= inputStatesList.Length)
+            inputStatesList.Resize(absoluteIndex + 1);
+
+        InputStates@ const inputStates = inputStatesList[absoluteIndex];
+        switch (type)
+        {
+        case InputType::Down:  inputStates.brake = value; break;
+        case InputType::Up:    inputStates.gas   = value; break;
+        case InputType::Steer: inputStates.steer = value; break;
+        default:
+            print("Unsupported InputType for run-mode", Severity::Error);
+            // fallthrough
+        }
+
+        return;
+    }
+
     array<uint>@ cache;
     switch (type)
     {
@@ -297,6 +310,7 @@ void SetInput(SimulationManager@ simManager, const uint index, const InputType t
         return;
     }
 
+    const uint index = absoluteIndex - utils::MsToTick(tInput);
     const uint len = cache.Length;
     if (index >= len)
     {
@@ -310,7 +324,6 @@ void SetInput(SimulationManager@ simManager, const uint index, const InputType t
     uint eventIndex = cache[index];
     if (eventIndex == INVALID_CACHE)
     {
-        const ms time = tInput + utils::TickToMs(index);
         auto@ indices = buffer.Find(time, type);
         switch (indices.Length)
         {
@@ -337,10 +350,127 @@ void SetInput(SimulationManager@ simManager, const uint index, const InputType t
     buffer[eventIndex].Value.Analog = value;
 }
 
+bool HasInputs(
+    SimulationManager@ simManager,
+    const ms time, const InputType type = InputType::None, const int value = Math::INT_MAX)
+{
+    if (IsRunSimOnly)
+    {
+        const uint index = utils::MsToTick(time);
+        if (index >= inputStatesList.Length)
+            return false;
+        
+        const auto@ const inputStates = inputStatesList[index];
+        switch (type)
+        {
+        case InputType::None:
+            return
+                HasInputValue(inputStates.brake, inputNeutral.brake, value) ||
+                HasInputValue(inputStates.gas,   inputNeutral.gas,   value) ||
+                HasInputValue(inputStates.steer, inputNeutral.steer, value);
+        case InputType::Down:
+            return HasInputValue(inputStates.brake, inputNeutral.brake, value);
+        case InputType::Up:
+            return HasInputValue(inputStates.gas,   inputNeutral.gas,   value);
+        case InputType::Steer:
+            return HasInputValue(inputStates.steer, inputNeutral.steer, value);
+        default:
+            print("Unsupported InputType in HasInputs", Severity::Error);
+            return false;
+        }
+    }
+    else
+    {
+        return !simManager.InputEvents.Find(time, type, value).IsEmpty();
+    }
+}
+
+bool HasInputValue(const int inputValue, const int neutral, const int value)
+{
+    if (inputValue == neutral)
+        return false;
+
+    if (value == Math::INT_MAX)
+        return true;
+
+    return inputValue == value;
+}
+
+void RemoveInputs(
+    SimulationManager@ simManager,
+    const ms time, const InputType type = InputType::None, const int value = Math::INT_MAX)
+{
+    if (IsRunSimOnly)
+    {
+        const uint index = utils::MsToTick(time);
+        if (index >= inputStatesList.Length)
+            return;
+
+        InputStates@ const inputStates = inputStatesList[index];
+        switch (type)
+        {
+        case InputType::None:
+            if (value == Math::INT_MAX)
+            {
+                inputStatesList[index] = inputNeutral;
+            }
+            else
+            {
+                if (inputStates.brake == value) inputStates.brake = inputNeutral.brake;
+                if (inputStates.gas   == value) inputStates.gas   = inputNeutral.gas;
+                if (inputStates.steer == value) inputStates.steer = inputNeutral.steer;
+            }
+            break;
+        case InputType::Down:
+            if (value == Math::INT_MAX || inputStates.brake == value)
+                inputStates.brake = inputNeutral.brake;
+            break;
+        case InputType::Up:
+            if (value == Math::INT_MAX || inputStates.gas == value)
+                inputStates.gas = inputNeutral.gas;
+            break;
+        case InputType::Steer:
+            if (value == Math::INT_MAX || inputStates.steer == value)
+                inputStates.steer = inputNeutral.steer;
+            break;
+        }
+    }
+    else
+    {
+        auto@ const buffer = simManager.InputEvents;
+        const uint len = buffer.Length;
+        utils::BufferRemoveIndices(buffer, buffer.Find(time, type, value));
+
+        if (buffer.Length < len)
+            ClearInputCaches();
+    }
+}
+
+void RemoveSteeringAhead(SimulationManager@ simManager)
+{
+    if (IsRunSimOnly)
+    {
+        const uint len = inputStatesList.Length;
+        for (uint i = utils::MsToTick(tInput); i < len; i++)
+            inputStatesList[i].steer = inputNeutral.steer;
+    }
+    else
+    {
+        auto@ const buffer = simManager.InputEvents;
+        const uint len = buffer.Length;
+        utils::BufferRemoveInTimerange(
+            buffer, tInput, tCleanup,
+            { InputType::Left, InputType::Right, InputType::Steer });
+
+        if (buffer.Length < len)
+            ClearInputCaches();
+    }
+}
+
 void ShiftInputCaches(const array<uint>@ const indices, const int shift)
 {
-    ShiftInputCache(cacheDown, indices, shift);
-    ShiftInputCache(cacheUp, indices, shift);
+    ShiftInputCache(cacheDown,  indices, shift);
+    ShiftInputCache(cacheUp,    indices, shift);
     ShiftInputCache(cacheSteer, indices, shift);
 }
 
@@ -413,7 +543,7 @@ void SaveResult(SimulationManager@ simManager)
             const uint index = indices[0];
             auto event = buffer[index];
             buffer.RemoveAt(index);
-            event.Time = Eval::tInput + MAGIC_NANDO_TIME_OFFSET - 10;
+            event.Time = tInput + MAGIC_NANDO_TIME_OFFSET - 10;
             buffer.Add(event);
         }
     case 0:

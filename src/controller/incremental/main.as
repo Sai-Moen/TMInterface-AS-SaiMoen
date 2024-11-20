@@ -30,7 +30,11 @@ void Main()
 
 void OnSimulationBegin(SimulationManager@ simManager)
 {
-    if (!IsRunSimOnly)
+    if (IsRunSimOnly)
+    {
+        Eval::Initialize(null);
+    }
+    else
     {
         if (IsOtherController)
             return;
@@ -116,7 +120,7 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
             }
 
             simManager.RewindToState(userStateFile);
-            if (simManager.TickTime >= Eval::tInit)
+            if (simManager.TickTime >= Eval::tInit) // TickTime here is not the same as 'time'
             {
                 print("Attempted to load state that occurs too late! Reverting to start...", Severity::Warning);
                 simManager.RewindToState(startStateFile);
@@ -197,7 +201,7 @@ enum SimOnlyState
 {
     NONE,
 
-    INIT,
+    PRE_INIT, INIT, COLLECT,
     BEGIN, STEP, END,
 
     COUNT
@@ -205,28 +209,57 @@ enum SimOnlyState
 
 SimOnlyState soState = SimOnlyState::NONE;
 
+uint64 clock;
+
 void OnRunStep(SimulationManager@ simManager)
 {
+    // if (clock != 0 && clock < Time::Now)
+    // {
+    //     clock = 0;
+    //     simManager.SimulationOnly = false;
+    //     utils::DrawGame(true);
+    //     utils::ExecuteCommands(true);
+    //     soState = SimOnlyState::NONE;
+    // }
+
     switch (soState)
     {
-    case SimOnlyState::INIT:
+    case SimOnlyState::PRE_INIT:
+        //clock = Time::Now + uint64(2000);
         utils::DrawGame(false);
         simManager.GiveUp();
-        soState = SimOnlyState::BEGIN;
+        soState = SimOnlyState::INIT;
+        break;
+    case SimOnlyState::INIT:
+        simManager.SimulationOnly = true;
+        Eval::InitInputStates();
+        preventSimulationFinish = true;
+        soState = SimOnlyState::COLLECT;
+        break;
+    case SimOnlyState::COLLECT:
+        Eval::CollectInputStates(simManager);
+        if (simManager.TickTime > Settings::varInputsReach)
+        {
+            utils::ExecuteCommands(false);
+            simManager.SimulationOnly = false;
+            simManager.GiveUp();
+            soState = SimOnlyState::BEGIN;
+        }
         break;
     case SimOnlyState::BEGIN:
         simManager.SimulationOnly = true;
-        Eval::Initialize(null);
         OnSimulationBegin(simManager);
         soState = SimOnlyState::STEP;
         break;
     case SimOnlyState::STEP:
         OnSimulationStep(simManager, false);
+        Eval::ApplyInputStates(simManager);
         // state changes when Eval::Finish is called
         break;
     case SimOnlyState::END:
         OnSimulationEnd(simManager, SimulationResult::Valid);
         simManager.SimulationOnly = false;
+        utils::ExecuteCommands(true);
         utils::DrawGame(true);
         soState = SimOnlyState::NONE;
         break;
