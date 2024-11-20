@@ -7,6 +7,7 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v2.1.1h](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1h/incremental.zip)
 - [v2.1.1g](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1g/incremental.zip)
 - [v2.1.1f](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1f/incremental.zip)
 - [v2.1.1e](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1e/incremental.zip)
@@ -117,6 +118,11 @@ or if the simulation is cancelled by pressing Escape with the external console i
   - Determines the end of the evaluation timerange.
 
 ## Patch Notes
+
+### v2.1.1h
+
+- Note: this is an experimental version.
+- Added run-mode bruteforce.
 
 ### v2.1.1g
 
