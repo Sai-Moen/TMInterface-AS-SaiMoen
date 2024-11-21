@@ -59,7 +59,6 @@ void RegisterSettings()
 
 const string INFO_LOCK_TIMERANGE = "Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.";
 const string INFO_SHOW_INFO = "Show additional information about the simulation.";
-const string INFO_REPLAY_TIME = "When using run-mode bruteforce, what time the last input that needs to be included has.";
 
 void RenderSettings()
 {
@@ -99,13 +98,6 @@ void RenderSettings()
         UI::BeginDisabled(!varUseSaveState);
         varSaveStateName = UI::InputTextVar("Save State name", VAR_SAVE_STATE_NAME);
         UI::EndDisabled();
-
-        UI::Separator();
-
-        varReplayTime = UI::InputTimeVar("Replay Time", VAR_REPLAY_TIME);
-        utils::TooltipOnHover("ReplayTime", INFO_REPLAY_TIME);
-        if (UI::Button("Start Run-mode Bruteforce"))
-            soState = SimOnlyState::PRE_INIT;
     }
 
     if (UI::CollapsingHeader("Modes"))
@@ -121,6 +113,27 @@ void RenderSettings()
         varShowInfo = UI::CheckboxVar("Show Info", VAR_SHOW_INFO);
         utils::TooltipOnHover("ShowInfo", INFO_SHOW_INFO);
     }
+}
+
+const string INFO_RUN_MODE_NOTE =
+    "Note: this is the run-mode settings page for Incremental.\n"
+    "For the actual settings, select the Incremental validation handler.";
+const string INFO_REPLAY_TIME = "This is the equivalent to the replay time when using simulation mode.";
+
+void RenderRunMode()
+{
+    UI::TextWrapped(INFO_RUN_MODE_NOTE);
+
+    UI::Separator();
+
+    varReplayTime = UI::InputTimeVar("Replay Time", VAR_REPLAY_TIME);
+    utils::TooltipOnHover("ReplayTime", INFO_REPLAY_TIME);
+    if (UI::Button("Start Run-Mode Bruteforce"))
+        soState = SimOnlyState::PRE_INIT;
+
+    UI::Separator();
+
+    UI::TextWrapped("Coming Soon! Presets to quickly run modes with certain settings in run-mode!");
 }
 
 void PrintInfo(const array<InputCommand>@ const commands)

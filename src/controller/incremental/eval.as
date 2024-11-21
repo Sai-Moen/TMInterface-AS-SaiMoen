@@ -34,7 +34,7 @@ void Initialize(SimulationManager@ simManager)
 
     ms duration;
     if (IsRunSimOnly)
-        duration = Settings::varReplayTime;
+        duration = runReplayTime;
     else
         duration = simManager.EventsDuration;
 
@@ -163,6 +163,8 @@ SimulationState@ trailingState;
 const vec3 NO_SPEED = vec3();
 vec3 speed;
 
+bool rewinding = false;
+
 void Bump()
 {
     tTrail += TICK;
@@ -201,6 +203,18 @@ bool IsAtLeastInputTime(SimulationManager@ simManager)
     return time >= tInput;
 }
 
+void RewindToInitState(SimulationManager@ simManager)
+{
+    simManager.RewindToState(initState);
+    rewinding = true;
+}
+
+void RewindToTrailingState(SimulationManager@ simManager)
+{
+    simManager.RewindToState(trailingState);
+    rewinding = true;
+}
+
 // - Run Mode
 
 // mirrors the SceneVehicleCar.Input* properties
@@ -213,12 +227,13 @@ class InputStates
 
 const InputStates inputNeutral;
 
+ms runReplayTime;
 array<InputStates> inputStatesList;
 
 void InitInputStates()
 {
-    const uint len = utils::MsToTick(Settings::varReplayTime);
-    inputStatesList.Resize(len);
+    runReplayTime = Settings::varReplayTime;
+    inputStatesList.Resize(utils::MsToTick(runReplayTime));
 }
 
 void CollectInputStates(SimulationManager@ simManager)
@@ -251,27 +266,85 @@ void ApplyInputStates(SimulationManager@ simManager, const ms time)
     if (!IsRunSimOnly)
         return;
 
+    // defer rewinding = false;
+
     const uint index = utils::MsToTick(time);
     if (index >= inputStatesList.Length)
+    {
+        rewinding = false;
         return;
+    }
 
     const auto@ const inputStates = inputStatesList[index];
+    const InputState oldInputState = simManager.GetInputState();
+    auto@ const buffer = simManager.InputEvents;
 
-    const int brake = inputStates.brake;
-    if (brake != inputNeutral.brake)
-        simManager.SetInputState(InputType::Down, brake);
+    {
+        const InputType type = InputType::Down;
+        const int value = inputStates.brake;
+        if (value != inputNeutral.brake)
+        {
+            if (rewinding)
+            {
+                const uint oldLen = buffer.Length;
+                simManager.SetInputState(type, value);
+                const uint newLen = buffer.Length;
+                if (oldLen == newLen && oldInputState.Down != simManager.GetInputState().Down)
+                    buffer.Add(time, type, value);
+            }
+            else
+            {
+                simManager.SetInputState(type, value);
+            }
+        }
+    }
 
-    const int gas = inputStates.gas;
-    if (gas != inputNeutral.gas)
-        simManager.SetInputState(InputType::Up, gas);
+    {
+        const InputType type = InputType::Up;
+        const int value = inputStates.gas;
+        if (value != inputNeutral.gas)
+        {
+            if (rewinding)
+            {
+                const uint oldLen = buffer.Length;
+                simManager.SetInputState(type, value);
+                const uint newLen = buffer.Length;
+                if (oldLen == newLen && oldInputState.Up != simManager.GetInputState().Up)
+                    buffer.Add(time, type, value);
+            }
+            else
+            {
+                simManager.SetInputState(type, value);
+            }
+        }
+    }
 
-    const int steer = inputStates.steer;
-    if (steer != inputNeutral.steer)
-        simManager.SetInputState(InputType::Steer, steer);
+    {
+        const InputType type = InputType::Steer;
+        const int value = inputStates.steer;
+        if (value != inputNeutral.steer)
+        {
+            if (rewinding)
+            {
+                const uint oldLen = buffer.Length;
+                simManager.SetInputState(type, value);
+                const uint newLen = buffer.Length;
+                if (oldLen == newLen && oldInputState.Steer != simManager.GetInputState().Steer)
+                    buffer.Add(time, type, value);
+            }
+            else
+            {
+                simManager.SetInputState(type, value);
+            }
+        }
+    }
+
+    rewinding = false;
 }
 
 void ResetInputStates()
 {
+    runReplayTime = 0;
     inputStatesList.Clear();
 }
 
@@ -573,7 +646,7 @@ void PrepareResult(SimulationManager@ simManager)
 {
     if (!IsRunSimOnly)
         utils::ReplaceInputEvents(simManager.InputEvents, initialEvents);
-    simManager.RewindToState(initState);
+    RewindToInitState(simManager);
     modeOnBegin(simManager);
 }
 

@@ -89,7 +89,7 @@ SimulationState@ IncGetTrailingState()
 
 void IncRewind(SimulationManager@ simManager)
 {
-    simManager.RewindToState(Eval::trailingState);
+    Eval::RewindToTrailingState(simManager);
 }
 
 class IncCommitContext

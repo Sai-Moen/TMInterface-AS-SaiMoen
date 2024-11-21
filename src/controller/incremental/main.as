@@ -9,7 +9,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = TITLE;
-    info.Version = "v2.1.1h";
+    info.Version = "v2.1.1i";
     return info;
 }
 
@@ -26,6 +26,7 @@ void Main()
     InputSimplifier::Main();
 
     RegisterValidationHandler(ID, TITLE, Settings::RenderSettings);
+    RegisterSettingsPage("Incremental Run-Mode", Settings::RenderRunMode);
 }
 
 void OnSimulationBegin(SimulationManager@ simManager)
@@ -224,7 +225,7 @@ void OnRunStep(SimulationManager@ simManager)
         break;
     case SimOnlyState::COLLECT:
         Eval::CollectInputStates(simManager);
-        if (simManager.TickTime > Settings::varReplayTime)
+        if (simManager.TickTime > Eval::runReplayTime)
         {
             utils::ExecuteCommands(false);
             simManager.SimulationOnly = false;
