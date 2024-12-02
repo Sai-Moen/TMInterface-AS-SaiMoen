@@ -1,6 +1,6 @@
 // API
 
-typedef int ms;
+typedef int32 ms;
 
 interface IncMode
 {
@@ -13,15 +13,14 @@ interface IncMode
     void OnEnd(SimulationManager@);
 }
 
-bool IncRegisterMode(const string &in name, IncMode@ imode)
+bool IncRegisterMode(const string &in modeName, IncMode@ imode)
 {
-    const bool success = Eval::modeNames.Find(name) == -1;
-    if (success)
-    {
-        Eval::modeNames.Add(name);
-        Eval::modes.Add(imode);
-    }
-    return success;
+    if (Eval::modeNames.Find(modeName) != -1)
+        return false;
+
+    Eval::modeNames.Add(modeName);
+    Eval::modes.Add(imode);
+    return true;
 }
 
 ms IncGetRelativeTime(SimulationManager@ simManager)

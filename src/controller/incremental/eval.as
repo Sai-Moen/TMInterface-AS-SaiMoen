@@ -66,8 +66,6 @@ void Reset()
 {
     @initialEvents = null;
 
-    inputStatesList.Clear();
-
     @initState = null;
     @trailingState = null;
     speed = NO_SPEED;
@@ -81,9 +79,7 @@ void Reset()
 }
 
 // - Modes
-const uint INVALID_MODE_INDEX = uint(-1);
-
-uint modeIndex = INVALID_MODE_INDEX;
+uint modeIndex;
 array<string> modeNames;
 array<IncMode@> modes;
 
@@ -115,31 +111,42 @@ string GetCurrentModeName()
     return modeNames[modeIndex];
 }
 
-void CheckMode()
+void OnModeIndex(const uint index)
 {
-    if (modeIndex != INVALID_MODE_INDEX)
-        return;
-
-    const uint index = modeNames.Find(GetVariableString(Settings::VAR_MODE));
-    modeIndex = index < modeNames.Length ? index : 0;
-    ModeDispatch();
+    if (!SetModeIndex(index))
+        log("Mode Index went out of bounds... (" + index + " >= " + modes.Length + ")", Severity::Warning);
 }
 
-void OnModeIndex(const uint newIndex)
+void ResolveModeIndex()
 {
-    modeIndex = newIndex;
+    const uint index = GetCurrentModeIndex();
+    if (index == 0)
+        log("Mode resolved to Home...?", Severity::Warning);
 
-    const uint len = modes.Length;
-    if (modeIndex < len)
-        ModeDispatch();
-    else
-        log("Mode Index somehow went out of bounds... (" + modeIndex + " >= " + len + ")", Severity::Warning);
+    SetModeIndex(index);
+}
+
+uint GetCurrentModeIndex()
+{
+    const uint index = modeNames.Find(GetVariableString(Settings::VAR_MODE));
+    return index < modes.Length ? index : 0;
+}
+
+bool SetModeIndex(const uint index)
+{
+    if (index >= modes.Length)
+        return false;
+
+    modeIndex = index; // for side effects!
+
+    ModeDispatch();
+    SetVariable(Settings::VAR_MODE, GetCurrentModeName());
+    return true;
 }
 
 void ModeDispatch()
 {
     IncMode@ const imode = modes[modeIndex];
-    SetVariable(Settings::VAR_MODE, GetCurrentModeName());
 
     supportsUnlockedTimerange = imode.SupportsUnlockedTimerange;
 
@@ -408,6 +415,7 @@ void SetInput(SimulationManager@ simManager, const ms time, const InputType type
         case 0:
             if (tCleanup < time)
                 tCleanup = time;
+
             buffer.Add(time, type, value);
             @indices = buffer.Find(time, type);
             ShiftInputCaches(indices, 1);
@@ -429,9 +437,7 @@ void SetInput(SimulationManager@ simManager, const ms time, const InputType type
     buffer[eventIndex].Value.Analog = value;
 }
 
-bool HasInputs(
-    SimulationManager@ simManager,
-    const ms time, const InputType type = InputType::None, const int value = Math::INT_MAX)
+bool HasInputs(SimulationManager@ simManager, const ms time, const InputType type, const int value)
 {
     if (IsRunSimOnly)
     {
@@ -475,9 +481,7 @@ bool HasInputValue(const int inputValue, const int neutral, const int value)
     return inputValue == value;
 }
 
-void RemoveInputs(
-    SimulationManager@ simManager,
-    const ms time, const InputType type = InputType::None, const int value = Math::INT_MAX)
+void RemoveInputs(SimulationManager@ simManager, const ms time, const InputType type, const int value)
 {
     if (IsRunSimOnly)
     {

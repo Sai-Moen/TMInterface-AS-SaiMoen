@@ -62,8 +62,6 @@ const string INFO_SHOW_INFO = "Show additional information about the simulation.
 
 void RenderSettings()
 {
-    Eval::CheckMode();
-
     if (UI::CollapsingHeader("General"))
     {
         const bool lockedTimerange = !Eval::supportsUnlockedTimerange;
@@ -130,10 +128,6 @@ void RenderRunMode()
     utils::TooltipOnHover("ReplayTime", INFO_REPLAY_TIME);
     if (UI::Button("Start Run-Mode Bruteforce"))
         soState = SimOnlyState::PRE_INIT;
-
-    UI::Separator();
-
-    UI::TextWrapped("Coming Soon! Presets to quickly run modes with certain settings in run-mode!");
 }
 
 void PrintInfo(const array<InputCommand>@ const commands)
@@ -173,6 +167,10 @@ class Home : IncMode
     void RenderSettings()
     {
         UI::TextWrapped("Hello!");
+
+        const uint index = Eval::GetCurrentModeIndex();
+        if (index != 0)
+            Eval::SetModeIndex(index);
     }
 
     void OnBegin(SimulationManager@) {}

@@ -303,12 +303,12 @@ void OnStepScan(SimulationManager@ simManager)
             IncSetInput(simManager, time, InputType::Steer, oldInputSteer);
 
         // only do this stuff if we are able to remove it later
-        isBraking = varMinimizeBrake && oldInputBrake != 0;
+        isBraking = varMinimizeBrake && oldInputBrake == 1;
         if (isBraking)
         {
             const bool mustAddDownPress =
-                prevInputBrake == oldInputBrake &&                // no point in pressing if we are already pressing
-                !IncHasInputs(simManager, time, InputType::Down); // catches edge cases like a 1-tick brake
+                prevInputBrake == 0 &&                            // we started pressing down at relative time 0 and not before
+                !IncHasInputs(simManager, time, InputType::Down); // we do not already have a down input at relative time 10
             if (mustAddDownPress)
                 IncSetInput(simManager, time, InputType::Down, 1);
         }
@@ -329,10 +329,13 @@ void OnStepScan(SimulationManager@ simManager)
     }
 }
 
+int brake;
+
 void OnStepMinimizeBrake(SimulationManager@ simManager)
 {
     if (!isBraking)
     {
+        brake = ctxNeutral.down;
         NextStrategy(simManager);
         IncRewind(simManager);
         return;
@@ -342,18 +345,22 @@ void OnStepMinimizeBrake(SimulationManager@ simManager)
     switch (utils::MsToTick(time))
     {
     case 0:
-        IncSetInput(simManager, InputType::Down, 0);
+        brake = 0;
+        IncSetInput(simManager, InputType::Down, brake);
+        // fallthrough
     case 1:
         return;
     }
 
     if (Desynced(simManager, time))
     {
-        SetDown(simManager, 1);
+        brake = 1;
+        SetDown(simManager);
     }
     else if (time == contextTimespan)
     {
-        SetDown(simManager, 0);
+        brake = 0;
+        SetDown(simManager);
         if (nextInputBrake == 0)
             IncRemoveInputs(simManager, TICK, InputType::Down, 0);
     }
@@ -363,6 +370,17 @@ void OnStepMinimizeBrake(SimulationManager@ simManager)
     }
 
     IncRewind(simManager);
+}
+
+void SetDown(SimulationManager@ simManager)
+{
+    IncRemoveInputs(simManager, InputType::Down);
+    if (brake == prevInputBrake)
+        brake = ctxNeutral.down;
+    else
+        IncSetInput(simManager, InputType::Down, brake);
+
+    NextStrategy(simManager);
 }
 
 int steer;
@@ -375,6 +393,7 @@ void OnStepTurningRate(SimulationManager@ simManager)
     case 0:
         steer = utils::RoundAway(nextTurningRate * STEER::FULL, nextTurningRate - oldTurningRate);
         IncSetInput(simManager, InputType::Steer, steer);
+        // fallthrough
     case 1:
         return;
     }
@@ -397,6 +416,7 @@ void OnStepAir(SimulationManager@ simManager)
     case 0:
         steer = utils::Sign(oldInputSteer) * varMagnitude;
         IncSetInput(simManager, InputType::Steer, steer);
+        // fallthrough
     case 1:
         return;
     }
@@ -418,6 +438,7 @@ void OnStepRemoval(SimulationManager@ simManager)
     {
     case 0:
         IncRemoveInputs(simManager, InputType::Steer);
+        // fallthrough
     case 1:
         return;
     }
@@ -428,7 +449,7 @@ void OnStepRemoval(SimulationManager@ simManager)
     }
     else if (time == contextTimespan)
     {
-        IncCommit(simManager);
+        Commit(simManager);
         Reset();
     }
     else
@@ -461,13 +482,13 @@ void NextStrategy(SimulationManager@ simManager)
     @onStep = strats[stratIndex++];
     if (onStep is null)
     {
-        print("Desynchronized, restoring old steering value...", Severity::Warning);
+        print("Desynchronized, restoring old inputs...", Severity::Warning);
 
         IncCommitContext ctx;
         ctx.down  = oldInputBrake;
         ctx.up    = oldInputGas;
         ctx.steer = oldInputSteer;
-        IncCommit(simManager, ctx);
+        Commit(simManager, ctx);
 
         Reset();
     }
@@ -480,17 +501,15 @@ void AdvanceUnfill(SimulationManager@ simManager)
         IncRemoveInputs(simManager, InputType::Steer);
     else
         ctx.steer = steer;
-    IncCommit(simManager, ctx);
+    Commit(simManager, ctx);
 
     Reset();
 }
 
-void SetDown(SimulationManager@ simManager, const int value)
+void Commit(SimulationManager@ simManager, IncCommitContext ctx = ctxNeutral)
 {
-    IncRemoveInputs(simManager, InputType::Down);
-    if (value != prevInputBrake)
-        IncSetInput(simManager, InputType::Down, value);
-    NextStrategy(simManager);
+    ctx.down = brake;
+    IncCommit(simManager, ctx);
 }
 
 

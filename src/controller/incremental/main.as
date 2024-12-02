@@ -9,7 +9,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = TITLE;
-    info.Version = "v2.1.1i";
+    info.Version = "v2.1.1j";
     return info;
 }
 
@@ -20,6 +20,7 @@ void Main()
     Settings::RegisterSettings();
 
     IncRegisterMode("Home", Settings::Home());
+    Eval::ModeDispatch();
 
     SpeedDrift::Main();
     Wallhugger::Main();
@@ -57,7 +58,7 @@ void OnSimulationBegin(SimulationManager@ simManager)
         onStep = OnStepState::SAVE_STATE;
     }
 
-    Eval::ModeDispatch();
+    Eval::ResolveModeIndex();
     print();
     print(TITLE + " w/ " + Eval::GetCurrentModeName());
     print();
@@ -227,7 +228,7 @@ void OnRunStep(SimulationManager@ simManager)
         Eval::CollectInputStates(simManager);
         if (simManager.TickTime > Eval::runReplayTime)
         {
-            utils::ExecuteCommands(false);
+            SetCurrentCommandList(null);
             simManager.SimulationOnly = false;
             simManager.GiveUp();
             soState = SimOnlyState::BEGIN;
@@ -245,7 +246,6 @@ void OnRunStep(SimulationManager@ simManager)
         break;
     case SimOnlyState::END:
         OnSimulationEnd(simManager, SimulationResult::Valid);
-        utils::ExecuteCommands(true);
         Eval::ResetInputStates();
         simManager.SimulationOnly = false;
         utils::DrawGame(true);
