@@ -1,11 +1,30 @@
-typedef int ms;
+typedef int32 ms;
 
-string PreciseFormat(const double value)
+string PreciseFormat(const double value, const uint precision = 12)
 {
-    return Text::FormatFloat(value, " ", 0, 16);
+    return Text::FormatFloat(value, " ", 0, precision);
 }
 
-// combo w/ index
+string PreciseFormat(const vec3 &in value, const uint precision = 12)
+{
+    return
+        PreciseFormat(value.x, precision) + " " +
+        PreciseFormat(value.y, precision) + " " +
+        PreciseFormat(value.z, precision);
+}
+
+string RightPad(string &in s, const uint padTo)
+{
+    const uint len = s.Length;
+    if (len < padTo)
+    {
+        s.Resize(padTo);
+        for (uint i = len; i < padTo; i++)
+            s[i] = ' ';
+    }
+    return s;
+}
+
 funcdef void OnSelectIndex(const uint newIndex);
 
 bool ComboHelper(
