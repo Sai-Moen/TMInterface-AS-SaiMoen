@@ -30,7 +30,7 @@ Bruteforce plugins.
 These will show up as modes under the built-in bruteforce controller
 (Bruteforce page -> Optimization tab, where e.g. trigger and point are).
 
-- [Finetune Location](bruteforce/finetune_location.md)
+- [Finetuner](bruteforce/finetuner.md)
 - [SD Entry](bruteforce/sd_entry.md)
 - [Speed Ladder](bruteforce/speed_ladder.md)
 

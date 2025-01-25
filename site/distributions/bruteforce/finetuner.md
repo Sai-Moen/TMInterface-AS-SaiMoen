@@ -1,11 +1,20 @@
 {{ site.header }}
 
-# Finetune Location
+# Finetuner
+
+Formerly known as 'Finetune Location'.
 
 Allows you to specify a certain location to be contained within, and to bruteforce towards a certain goal.
-This could be position, rotation or speed (to get a specific value).
+This could be position, rotation or speed (to get a specific value),
+and many more combinations with modes/conditions are possible.
 
 ## Installation
+
+### Finetuner
+
+- [v2.1.1b](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1b/finetuner.zip)
+
+### Finetune Location
 
 - [v2.1.1a](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetune_location_v2.1.1a/finetune_location.zip)
 
@@ -20,6 +29,12 @@ This plugin will register itself as a bruteforce mode.
 Therefore, it can be found as a mode in the built-in bruteforce controller, under Optimization.
 
 ## Patch Notes
+
+### v2.1.1b
+
+- Renamed to 'Finetuner'.
+- Completely rewrote the plugin
+  (yes this is not SemVer at all, next TMInterface version I'm gonna switch to a sensible versioning scheme, I promise).
 
 ### v2.1.1a
 
