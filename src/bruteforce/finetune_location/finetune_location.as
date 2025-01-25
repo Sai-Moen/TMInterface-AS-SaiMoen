@@ -169,7 +169,13 @@ void RenderSettings()
     evalTo = UI::InputTimeVar("Evaluate To?", EVAL_TO);
     CapMax(EVAL_TO, evalFrom, evalTo);
 
-    ComboHelper("Target mode", modes[mode], modes, function(s) { SetVariable(MODE, mode = Kind(modes.Find(s))); } );
+    ComboHelper("Target mode", modes[mode], modes, function(s) {
+        int idx = modes.Find(s);
+        if (idx == -1)
+            idx = 0;
+
+        SetVariable(MODE, mode = Kind(idx));
+    });
     target = UI::InputFloatVar("Target value", TARGET);
 
     for (uint i = 0; i < bounds.Length; i++)
