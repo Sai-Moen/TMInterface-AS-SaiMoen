@@ -25,6 +25,15 @@ string RightPad(string &in s, const uint padTo)
     return s;
 }
 
+string Repeat(const uint8 char, const uint times)
+{
+    string builder;
+    builder.Resize(times);
+    for (uint i = 0; i < times; i++)
+        builder[i] = char;
+    return builder;
+}
+
 funcdef void OnSelectIndex(const uint newIndex);
 
 bool ComboHelper(

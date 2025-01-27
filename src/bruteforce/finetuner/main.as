@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1b";
+    info.Version = "v2.1.1c";
     return info;
 }
 
@@ -17,12 +17,9 @@ void Main()
     RegisterBruteforceEvaluation(ID, "Finetuner", OnEvaluate, RenderSettings);
 }
 
-void OnDisabled()
-{
-    SaveSettings();
-}
-
 const string ARROW = " => ";
+
+bool customTargetTowards;
 
 bool valid;
 ms impTime;
@@ -34,8 +31,6 @@ double current;
 vec3   current3;
 double best;
 vec3   best3;
-
-bool customTargetTowards;
 
 funcdef bool IsBetterTargeted(SimulationManager@ simManager);
 const IsBetterTargeted@ isBetter;
@@ -51,11 +46,10 @@ void OnSimulationBegin(SimulationManager@)
     if (!(GetVariableString("controller") == "bruteforce" && ID == GetVariableString("bf_target")))
         return;
 
-    print("\n---------\nFinetuner\n---------\n");
+    print("\n=========\nFinetuner\n=========\n");
 
+    customTargetTowards = targetTowards == 0;
     valid = false;
-
-    customTargetTowards = customTargetTowards;
 
     if (isTargetGrouped)
     {
@@ -138,84 +132,136 @@ void OnSimulationBegin(SimulationManager@)
 
     for (uint g = 0; g < GroupKind::COUNT; g++)
     {
-        if (!groups[g].active)
+        const GroupKind groupKind = GroupKind(g);
+        if (!groups[groupKind].active)
             continue;
 
         array<ModeKind> tempModeKinds;
-        if (!GroupKindToModeKinds(GroupKind(g), tempModeKinds))
+        if (!GroupKindToModeKinds(groupKind, tempModeKinds))
             continue;
 
         for (uint k = 0; k < tempModeKinds.Length; k++)
         {
-            const ModeKind kind = tempModeKinds[k];
-            if (modes[kind].IsActive())
-                modeIndices.Add(kind);
+            const ModeKind modeKind = tempModeKinds[k];
+            const Mode@ const mode = modes[modeKind];
+            if (mode.lower || mode.upper)
+                modeIndices.Add(modeKind);
         }
     }
 
     for (uint c = 0; c < ConditionKind::COUNT; c++)
     {
-        if (conditions[c].active)
-            conditionIndices.Add(ConditionKind(c));
+        const ConditionKind kind = ConditionKind(c);
+        if (conditions[kind].active)
+            conditionIndices.Add(kind);
     }
 
-    print("Bounds (actual values, so angles in radians and speeds in m/s):");
-    if (modeIndices.IsEmpty())
     {
-        print("None.\n");
+        print("Target:");
+        string strTarget;
+        string strTargetValue;
+        if (isTargetGrouped)
+        {
+            strTarget = "Group = " + groupNames[targetGroup];
+            strTargetValue = "Values = " + PreciseFormat(target3Values);
+        }
+        else
+        {
+            strTarget = "Mode = " + modeNames[targetMode];
+            strTargetValue = "Value = " + PreciseFormat(targetValue);
+        }
+        print(strTarget);
+        if (customTargetTowards)
+            print(strTargetValue);
+
+        string strTargetTowards = "Towards = ";
+        bool ok = true;
+        switch (targetTowards)
+        {
+        case -1:
+            strTargetTowards += "Lower value is better.";
+            break;
+        case 0:
+            strTargetTowards += "Custom.";
+            break;
+        case 1:
+            strTargetTowards += "Higher value is better.";
+            break;
+        default:
+            ok = false;
+            break;
+        }
+
+        if (ok)
+            print(strTargetTowards);
+
+        print(Repeat('-', strTargetTowards.Length) + "\n");
     }
-    else
+
     {
+        print("Bounds: (actual values, so angles in radians and speeds in m/s)");
         uint maxModeNameLength = 0;
-        for (uint i = 0; i < modeIndices.Length; i++)
+        if (modeIndices.IsEmpty())
         {
-            const uint len = modeNames[modeIndices[i]].Length;
-            if (maxModeNameLength < len)
-                maxModeNameLength = len;
+            const string NO_MODES = "None.";
+            print(NO_MODES);
+            maxModeNameLength = NO_MODES.Length;
         }
-
-        for (uint i = 0; i < modeIndices.Length; i++)
+        else
         {
-            const ModeKind kind = modeIndices[i];
-            string builder = RightPad(modeNames[kind], maxModeNameLength) + ARROW;
+            for (uint i = 0; i < modeIndices.Length; i++)
+            {
+                const uint len = modeNames[modeIndices[i]].Length;
+                if (maxModeNameLength < len)
+                    maxModeNameLength = len;
+            }
 
-            if (modes[kind].lower)
-                builder += "Lower: " + PreciseFormat(modes[kind].lowerValue);
+            for (uint i = 0; i < modeIndices.Length; i++)
+            {
+                const ModeKind kind = modeIndices[i];
+                const Mode@ const mode = modes[kind];
+                string builder = RightPad(modeNames[kind], maxModeNameLength) + ARROW;
 
-            if (modes[kind].lower && modes[kind].upper)
-                builder += ", ";
+                if (mode.lower)
+                    builder += "Lower: " + PreciseFormat(mode.lowerValue);
 
-            if (modes[kind].upper)
-                builder += "Upper: " + PreciseFormat(modes[kind].upperValue);
+                if (mode.lower && mode.upper)
+                    builder += ", ";
 
-            print(builder);
+                if (mode.upper)
+                    builder += "Upper: " + PreciseFormat(mode.upperValue);
+
+                print(builder);
+            }
         }
-
-        print("");
+        print(Repeat('-', maxModeNameLength) + "\n");
     }
 
-    print("Conditions (actual values):");
-    if (conditionIndices.IsEmpty())
     {
-        print("None.\n");
-    }
-    else
-    {
+        print("Conditions: (actual values)");
         uint maxConditionNameLength = 0;
-        for (uint i = 0; i < conditionIndices.Length; i++)
+        if (conditionIndices.IsEmpty())
         {
-            const uint len = conditionNames[conditionIndices[i]].Length;
-            if (maxConditionNameLength < len)
-                maxConditionNameLength = len;
+            const string NO_CONDITIONS = "None.";
+            print(NO_CONDITIONS);
+            maxConditionNameLength = NO_CONDITIONS.Length;
         }
-
-        for (uint i = 0; i < conditionIndices.Length; i++)
+        else
         {
-            const ConditionKind kind = conditionIndices[i];
-            print(RightPad(conditionNames[kind], maxConditionNameLength) + ARROW + conditions[kind].value);
-        }
+            for (uint i = 0; i < conditionIndices.Length; i++)
+            {
+                const uint len = conditionNames[conditionIndices[i]].Length;
+                if (maxConditionNameLength < len)
+                    maxConditionNameLength = len;
+            }
 
-        print("");
+            for (uint i = 0; i < conditionIndices.Length; i++)
+            {
+                const ConditionKind kind = conditionIndices[i];
+                print(RightPad(conditionNames[kind], maxConditionNameLength) + ARROW + conditions[kind].value);
+            }
+        }
+        print(Repeat('-', maxConditionNameLength) + "\n");
     }
 }
 
@@ -311,25 +357,26 @@ bool IsBetter(SimulationManager@ simManager)
     for (uint i = 0; i < conditionIndices.Length; i++)
     {
         const ConditionKind kind = conditionIndices[i];
+        const Condition@ const condition = conditions[kind];
         switch (kind)
         {
         case ConditionKind::MIN_REAL_SPEED:
-            if (simManager.Dyna.RefStateCurrent.LinearSpeed.Length() < conditions[kind].value)
+            if (simManager.Dyna.RefStateCurrent.LinearSpeed.Length() < condition.value)
                 return false;
 
             break;
         case ConditionKind::FREEWHEELING:
-            if (svc.IsFreeWheeling != (conditions[kind].value != 0))
+            if (svc.IsFreeWheeling != (condition.value != 0))
                 return false;
 
             break;
         case ConditionKind::SLIDING:
-            if (svc.IsSliding != (conditions[kind].value != 0))
+            if (svc.IsSliding != (condition.value != 0))
                 return false;
 
             break;
         case ConditionKind::WHEEL_TOUCHING:
-            if (svc.HasAnyLateralContact != (conditions[kind].value != 0))
+            if (svc.HasAnyLateralContact != (condition.value != 0))
                 return false;
 
             break;
@@ -343,22 +390,22 @@ bool IsBetter(SimulationManager@ simManager)
                         contacts++;
                 }
 
-                if (contacts != uint(conditions[kind].value))
+                if (contacts != uint(condition.value))
                     return false;
             }
             break;
         case ConditionKind::CHECKPOINTS:
-            if (playerInfo.CurCheckpointCount != uint(conditions[kind].value))
+            if (playerInfo.CurCheckpointCount != uint(condition.value))
                 return false;
 
             break;
         case ConditionKind::GEAR:
-            if (engine.Gear != int(conditions[kind].value))
+            if (engine.Gear != int(condition.value))
                 return false;
 
             break;
         case ConditionKind::REAR_GEAR:
-            if (engine.RearGear != int(conditions[kind].value))
+            if (engine.RearGear != int(condition.value))
                 return false;
 
             break;
@@ -373,7 +420,8 @@ bool IsBetter(SimulationManager@ simManager)
         const ModeKind kind = modeIndices[i];
         const double value = GetModeValue(simManager, kind);
 
-        if (!modes[kind].Validate(value))
+        const Mode@ const mode = modes[kind];
+        if ((mode.lower && value < mode.lowerValue) || (mode.upper && value > mode.upperValue))
             return false;
     }
 

@@ -161,9 +161,11 @@ void RenderSettings()
             {
                 UI::PushID("" + i);
 
-                groups[i].active = UI::Checkbox("##active", groups[i].active);
-                UI::SameLine();
                 const GroupKind kind = GroupKind(i);
+                Group@ const group = groups[kind];
+
+                group.active = UI::Checkbox("##active", group.active);
+                UI::SameLine();
                 if (UI::Selectable(groupNames[kind], groupInEditor == kind))
                     groupInEditor = kind;
 
@@ -179,30 +181,31 @@ void RenderSettings()
         array<ModeKind> modesToRender;
         if (GroupKindToModeKinds(groupInEditor, modesToRender))
         {
+            UI::PushID("group_in_editor_" + groupInEditor);
+
             const bool resetAll = UI::Button("Reset All");
             UI::SameLine();
             UI::TextWrapped(
                 "Group: " + groupNames[groupInEditor] +
                 " = " + (groups[groupInEditor].active ? "ON" : "OFF"));
 
-            UI::PushID("group_in_editor_" + groupInEditor);
-
             for (uint i = 0; i < modesToRender.Length; i++)
             {
-                UI::Separator();
-
                 UI::PushID("" + i);
 
+                UI::Separator();
+
                 const ModeKind modeKind = modesToRender[i];
+                Mode@ const mode = modes[modeKind];
                 // button has to be first or it will magically disappear for a frame if you Reset All
                 if (UI::Button("Reset") || resetAll)
-                    modes[modeKind].Reset();
+                    mode.Reset();
                 UI::SameLine();
                 UI::TextWrapped("Mode: " + modeNames[modeKind]);
 
-                modes[modeKind].lower = UI::Checkbox("Lower Bound", modes[modeKind].lower);
+                mode.lower = UI::Checkbox("Lower Bound", mode.lower);
                 UI::SameLine();
-                modes[modeKind].upper = UI::Checkbox("Upper Bound", modes[modeKind].upper);
+                mode.upper = UI::Checkbox("Upper Bound", mode.upper);
 
                 GroupKind groupKind;
                 // discard
@@ -210,29 +213,24 @@ void RenderSettings()
 
                 UI::PushItemWidth(192);
 
-                UI::BeginDisabled(!modes[modeKind].lower);
+                UI::BeginDisabled(!mode.lower);
 
-                modes[modeKind].lowerDisplay = UI::InputFloat("##lower", modes[modeKind].lowerDisplay);
-                if (modes[modeKind].lower)
-                {
-                    modes[modeKind].lowerValue =
-                        ConvertDisplayToValue(groupKind, modes[modeKind].lowerDisplay);
-                }
+                mode.lowerDisplay = UI::InputFloat("##lower", mode.lowerDisplay);
+                if (mode.lower)
+                    mode.lowerValue = ConvertDisplayToValue(groupKind, mode.lowerDisplay);
 
                 UI::EndDisabled();
                 UI::SameLine();
-                UI::BeginDisabled(!modes[modeKind].upper);
+                UI::BeginDisabled(!mode.upper);
 
-                modes[modeKind].upperDisplay = UI::InputFloat("##upper", modes[modeKind].upperDisplay);
-                if (modes[modeKind].upper)
-                {
-                    modes[modeKind].upperValue =
-                        ConvertDisplayToValue(groupKind, modes[modeKind].upperDisplay);
-                }
+                mode.upperDisplay = UI::InputFloat("##upper", mode.upperDisplay);
+                if (mode.upper)
+                    mode.upperValue = ConvertDisplayToValue(groupKind, mode.upperDisplay);
 
                 UI::EndDisabled();
 
                 UI::PopItemWidth();
+
                 UI::PopID();
             }
 
@@ -259,9 +257,11 @@ void RenderSettings()
             {
                 UI::PushID("" + i);
 
-                conditions[i].active = UI::Checkbox("##active", conditions[i].active);
-                UI::SameLine();
                 const ConditionKind kind = ConditionKind(i);
+                Condition@ const condition = conditions[kind];
+
+                condition.active = UI::Checkbox("##active", condition.active);
+                UI::SameLine();
                 if (UI::Selectable(conditionNames[kind], conditionInEditor == kind))
                     conditionInEditor = kind;
 
@@ -277,22 +277,23 @@ void RenderSettings()
     {
         UI::PushID("condition_in_editor_" + conditionInEditor);
 
+        Condition@ const condition = conditions[conditionInEditor];
         if (UI::Button("Reset"))
-            conditions[conditionInEditor].Reset();
+            condition.Reset();
         UI::SameLine();
         UI::TextWrapped(
             "Condition: " + conditionNames[conditionInEditor] +
-            " = " + (conditions[conditionInEditor].active ? "ON" : "OFF"));
+            " = " + (condition.active ? "ON" : "OFF"));
 
         switch (conditionInEditor)
         {
         case ConditionKind::MIN_REAL_SPEED:
             {
                 const float tempValue = UI::InputFloat(
-                    "##min_real_speed", conditions[conditionInEditor].display);
-                conditions[conditionInEditor].display = tempValue;
+                    "##min_real_speed", condition.display);
+                condition.display = tempValue;
 
-                conditions[conditionInEditor].value = conditions[conditionInEditor].display / 3.6;
+                condition.value = condition.display / 3.6;
                 UI::TextDimmed(
                     "The car MUST have a real speed of at least " +
                     tempValue +
@@ -302,10 +303,10 @@ void RenderSettings()
         case ConditionKind::FREEWHEELING:
             {
                 const bool tempValue = UI::Checkbox(
-                    "##freewheeling", conditions[conditionInEditor].display != 0);
-                conditions[conditionInEditor].display = tempValue ? 1 : 0;
+                    "##freewheeling", condition.display != 0);
+                condition.display = tempValue ? 1 : 0;
 
-                conditions[conditionInEditor].value = conditions[conditionInEditor].display;
+                condition.value = condition.display;
                 UI::TextDimmed(
                     "The car MUST" +
                     (tempValue ? " " : " NOT ") +
@@ -315,10 +316,10 @@ void RenderSettings()
         case ConditionKind::SLIDING:
             {
                 const bool tempValue = UI::Checkbox(
-                    "##sliding", conditions[conditionInEditor].display != 0);
-                conditions[conditionInEditor].display = tempValue ? 1 : 0;
+                    "##sliding", condition.display != 0);
+                condition.display = tempValue ? 1 : 0;
 
-                conditions[conditionInEditor].value = conditions[conditionInEditor].display;
+                condition.value = condition.display;
                 UI::TextDimmed(
                     "The car MUST" +
                     (tempValue ? " " : " NOT ") +
@@ -328,10 +329,10 @@ void RenderSettings()
         case ConditionKind::WHEEL_TOUCHING:
             {
                 const bool tempValue = UI::Checkbox(
-                    "##wheel_touching", conditions[conditionInEditor].display != 0);
-                conditions[conditionInEditor].display = tempValue ? 1 : 0;
+                    "##wheel_touching", condition.display != 0);
+                condition.display = tempValue ? 1 : 0;
 
-                conditions[conditionInEditor].value = conditions[conditionInEditor].display;
+                condition.value = condition.display;
                 UI::TextDimmed(
                     "The car MUST" +
                     (tempValue ? " " : " NOT ") +
@@ -341,10 +342,10 @@ void RenderSettings()
         case ConditionKind::WHEEL_CONTACTS:
             {
                 const uint tempValue = UI::SliderInt(
-                    "##wheel_contacts", uint(conditions[conditionInEditor].display), 0, 4);
-                conditions[conditionInEditor].display = tempValue;
+                    "##wheel_contacts", uint(condition.display), 0, 4);
+                condition.display = tempValue;
 
-                conditions[conditionInEditor].value = conditions[conditionInEditor].display;
+                condition.value = condition.display;
                 UI::TextDimmed(
                     "The car MUST have at least " +
                     tempValue +
@@ -354,10 +355,10 @@ void RenderSettings()
         case ConditionKind::CHECKPOINTS:
             {
                 const uint tempValue = UI::InputInt(
-                    "##checkpoints", uint(conditions[conditionInEditor].display));
-                conditions[conditionInEditor].display = tempValue;
+                    "##checkpoints", uint(condition.display));
+                condition.display = tempValue;
 
-                conditions[conditionInEditor].value = conditions[conditionInEditor].display;
+                condition.value = condition.display;
                 UI::TextDimmed(
                     "The car MUST have collected exactly " +
                     tempValue +
@@ -367,10 +368,10 @@ void RenderSettings()
         case ConditionKind::GEAR:
             {
                 const int tempValue = UI::SliderInt(
-                    "##gear", int(conditions[conditionInEditor].display), 0, 5);
-                conditions[conditionInEditor].display = tempValue;
+                    "##gear", int(condition.display), 0, 5);
+                condition.display = tempValue;
 
-                conditions[conditionInEditor].value = conditions[conditionInEditor].display;
+                condition.value = condition.display;
                 UI::TextDimmed(
                     "The car MUST be in exactly gear " +
                     tempValue +
@@ -380,10 +381,10 @@ void RenderSettings()
         case ConditionKind::REAR_GEAR:
             {
                 const int tempValue = UI::SliderInt(
-                    "##rear_gear", int(conditions[conditionInEditor].display), 0, 1);
-                conditions[conditionInEditor].display = tempValue;
+                    "##rear_gear", int(condition.display), 0, 1);
+                condition.display = tempValue;
 
-                conditions[conditionInEditor].value = conditions[conditionInEditor].display;
+                condition.value = condition.display;
                 UI::TextDimmed(
                     "The car MUST be in exactly rear gear " +
                     tempValue +
@@ -397,4 +398,6 @@ void RenderSettings()
 
         UI::PopID();
     }
+
+    SaveSettings();
 }

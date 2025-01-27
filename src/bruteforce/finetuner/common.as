@@ -56,7 +56,8 @@ string SerializeGroups()
     array<string> kinds;
     for (uint i = 0; i < GroupKind::COUNT; i++)
     {
-        kinds.Add(groupNames[i] + PAIR_SEP + SerializeBool(groups[i].active));
+        const GroupKind groupKind = GroupKind(i);
+        kinds.Add(groupNames[groupKind] + PAIR_SEP + SerializeBool(groups[groupKind].active));
     }
     return Text::Join(kinds, KIND_SEP);
 }
@@ -81,8 +82,8 @@ void DeserializeGroups(const string &in s)
         }
 
         const string keyString = kv[0];
-        const int index = groupNames.Find(keyString);
-        if (index == -1)
+        const GroupKind kind = GroupKind(groupNames.Find(keyString));
+        if (kind == GroupKind::NONE)
         {
             log("Could not find this group: " + keyString, Severity::Warning);
             continue;
@@ -96,7 +97,7 @@ void DeserializeGroups(const string &in s)
             continue;
         }
 
-        groups[index].active = value;
+        groups[kind].active = value;
     }
 }
 
@@ -144,16 +145,6 @@ class Mode
     float lowerDisplay;
     float upperDisplay;
 
-    bool IsActive()
-    {
-        return lower || upper;
-    }
-
-    bool Validate(const double value)
-    {
-        return (!lower || value >= lowerValue) && (!upper || value <= upperValue);
-    }
-
     void Reset()
     {
         lower = false;
@@ -172,16 +163,18 @@ string SerializeModes()
     array<string> kinds;
     for (uint i = 0; i < ModeKind::COUNT; i++)
     {
+        const ModeKind modeKind = ModeKind(i);
+        const Mode@ const mode = modes[modeKind];
         const array<string> kind =
         {
-            SerializeBool(modes[i].lower),
-            SerializeBool(modes[i].upper),
-            modes[i].lowerValue,
-            modes[i].upperValue,
-            modes[i].lowerDisplay,
-            modes[i].upperDisplay
+            SerializeBool(mode.lower),
+            SerializeBool(mode.upper),
+            mode.lowerValue,
+            mode.upperValue,
+            mode.lowerDisplay,
+            mode.upperDisplay
         };
-        kinds.Add(modeNames[i] + PAIR_SEP + Text::Join(kind, ITEM_SEP));
+        kinds.Add(modeNames[modeKind] + PAIR_SEP + Text::Join(kind, ITEM_SEP));
     }
     return Text::Join(kinds, KIND_SEP);
 }
@@ -206,8 +199,8 @@ void DeserializeModes(const string &in s)
         }
 
         const string keyString = kv[0];
-        const int index = modeNames.Find(keyString);
-        if (index == -1)
+        const ModeKind kind = ModeKind(modeNames.Find(keyString));
+        if (kind == ModeKind::NONE)
         {
             log("Could not find this mode: " + keyString, Severity::Warning);
             continue;
@@ -235,12 +228,13 @@ void DeserializeModes(const string &in s)
         const double lowerDisplay = Text::ParseFloat(values[4]);
         const double upperDisplay = Text::ParseFloat(values[5]);
 
-        modes[index].lower = lower;
-        modes[index].upper = upper;
-        modes[index].lowerValue = lowerValue;
-        modes[index].upperValue = upperValue;
-        modes[index].lowerDisplay = lowerDisplay;
-        modes[index].upperDisplay = upperDisplay;
+        Mode@ const mode = modes[kind];
+        mode.lower = lower;
+        mode.upper = upper;
+        mode.lowerValue = lowerValue;
+        mode.upperValue = upperValue;
+        mode.lowerDisplay = lowerDisplay;
+        mode.upperDisplay = upperDisplay;
     }
 }
 
@@ -300,13 +294,15 @@ string SerializeConditions()
     array<string> kinds;
     for (uint i = 0; i < ConditionKind::COUNT; i++)
     {
+        const ConditionKind conditionKind = ConditionKind(i);
+        const Condition@ const condition = conditions[conditionKind];
         const array<string> kind =
         {
-            SerializeBool(conditions[i].active),
-            conditions[i].value,
-            conditions[i].display
+            SerializeBool(condition.active),
+            condition.value,
+            condition.display
         };
-        kinds.Add(conditionNames[i] + PAIR_SEP + Text::Join(kind, ITEM_SEP));
+        kinds.Add(conditionNames[conditionKind] + PAIR_SEP + Text::Join(kind, ITEM_SEP));
     }
     return Text::Join(kinds, KIND_SEP);
 }
@@ -331,8 +327,8 @@ void DeserializeConditions(const string &in s)
         }
 
         const string keyString = kv[0];
-        const int index = conditionNames.Find(keyString);
-        if (index == -1)
+        const ConditionKind kind = ConditionKind(conditionNames.Find(keyString));
+        if (kind == ConditionKind::NONE)
         {
             log("Could not find this condition: " + keyString, Severity::Warning);
             continue;
@@ -356,9 +352,10 @@ void DeserializeConditions(const string &in s)
         const double value = Text::ParseFloat(values[1]);
         const float display = Text::ParseFloat(values[2]);
 
-        conditions[index].active = active;
-        conditions[index].value = value;
-        conditions[index].display = display;
+        Condition@ const condition = conditions[kind];
+        condition.active = active;
+        condition.value = value;
+        condition.display = display;
     }
 }
 
