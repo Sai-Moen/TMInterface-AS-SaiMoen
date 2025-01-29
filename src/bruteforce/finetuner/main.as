@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1c";
+    info.Version = "v2.1.1d";
     return info;
 }
 
@@ -49,7 +49,6 @@ void OnSimulationBegin(SimulationManager@)
     print("\n=========\nFinetuner\n=========\n");
 
     customTargetTowards = targetTowards == 0;
-    valid = false;
 
     if (isTargetGrouped)
     {
@@ -267,6 +266,7 @@ void OnSimulationBegin(SimulationManager@)
 
 void OnSimulationEnd(SimulationManager@, SimulationResult)
 {
+    valid = false;
     modeIndices.Clear();
     conditionIndices.Clear();
 }
@@ -425,7 +425,7 @@ bool IsBetter(SimulationManager@ simManager)
             return false;
     }
 
-    return !valid || isBetter(simManager);
+    return isBetter(simManager) || !valid;
 }
 
 vec3 GetGroupValue(SimulationManager@ simManager, const GroupKind kind)
