@@ -8,25 +8,26 @@ Compilation of useful code snippets for creating TMInterface AngelScript plugins
 
 Since neither of the code reuse features provided by angelscript (`shared`, `import`) are supported by the tmi implementation,
 this library is designed to be vendored:
-- You can copy sections of the code into your plugin.
-- You can copy files into your plugin.
-- You can copy the folder into your plugin.
+- You can copy sections of the code in the `src` folder into your plugin.
+- You can copy files from the `src` folder into your plugin.
+- You can copy the entire `src` folder into your plugin.
 
 For the last two options, the plugin should be a folder.
 It might be better for organizational purposes to keep the library code separate from main plugin code,
-so that it's easier to see what library code is outdated (given that each file has a version).
+so that it's easier to see what library code in your plugin is potentially outdated (given that each file has a version).
 
-Example folder structure:
+Example folder structure: (`src` copied into the main plugin's folder and renamed to something more descriptive)
 ```
 /plugin_name/
     smn_utils/
-    main.as
-    xyz.as
+    x.as
+    y.as
+    z.as
     ...
 ```
 
-It's not possible to just put the library in the Plugins folder,
-then TMInterface will complain that required functions are not implemented.
+The reason for putting the actual library code in the `src` is so that it can easily be copied.
+Don't put the entire library folder in a plugin, that'll just cause a duplicate function conflict.
 
 ### Namespacing
 
@@ -46,4 +47,4 @@ This library doesn't have an API, so that's why it's a vendor library instead.
 Although API's could also be done by including a mode in the plugin's folder somewhere, that has the following problems:
 - Users now need to mess around with the file structure, and edit the code if those modes also need to be called in Main.
 - If the plugin's file structure ever changes, or the extraction of the ZIP goes wrong, it might mess up the modes.
-- If plugins will become loadable from a ZIP file, then that wouldn't work obviously.
+- If plugins were to become loadable from a ZIP file, then that wouldn't work obviously.

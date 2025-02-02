@@ -1,11 +1,11 @@
-// smn_utils - v2.1.0a
+// smn_utils - v2.1.1a
 
 /*
 
 Time
 - milliseconds alias
-- Constants
-- Functions
+- constants
+- functions
 
 */
 

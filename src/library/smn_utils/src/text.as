@@ -1,16 +1,16 @@
-// smn_utils - v2.1.0a
+// smn_utils - v2.1.1a
 
 /*
 
 Text
-- Precise Format
-- Parse wrappers
+- precise format
+- parse wrappers
 
 */
 
 
 // - Formatting
-string PreciseFormat(const double value, const uint precision = 12)
+string FormatPrecise(const double value, const uint precision = 12)
 {
     return Text::FormatFloat(value, " ", 0, precision);
 }

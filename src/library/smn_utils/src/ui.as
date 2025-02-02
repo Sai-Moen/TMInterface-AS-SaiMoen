@@ -1,29 +1,32 @@
-// smn_utils - v2.1.0a
+// smn_utils - v2.1.1a
 
 /*
 
 User Interface
-- Widget helpers
+- widget helpers
 
 */
 
 
-// puts a (i) on the same line and returns whether it is being hovered
+// puts a (i) on the same line and draws a tooltip with the given text if it is being hovered
 void TooltipOnHover(const string &in text)
 {
     UI::SameLine();
     UI::TextDimmed("(i)");
-    if (UI::IsItemHovered() && UI::BeginTooltip())
+    if (UI::IsItemHovered())
     {
-        UI::Text(text);
-        UI::EndTooltip();
+        if (UI::BeginTooltip())
+        {
+            UI::Text(text);
+            UI::EndTooltip();
+        }
     }
 }
 
 // combo w/ index
-funcdef void OnNewModeIndex(const uint newIndex);
+funcdef void OnSelectIndex(const uint index);
 
-bool ComboHelper(const string &in label, const array<string>@ names, const uint currentIndex, OnNewModeIndex@ onNewMode)
+bool ComboHelper(const string &in label, const array<string>@ names, const uint currentIndex, OnSelectIndex@ onSelect)
 {
     const bool isOpen = UI::BeginCombo(label, names[currentIndex]);
     if (isOpen)
@@ -33,7 +36,7 @@ bool ComboHelper(const string &in label, const array<string>@ names, const uint 
         {
             const string name = names[i];
             if (UI::Selectable(name, i == currentIndex))
-                onNewMode(i);
+                onSelect(i);
         }
 
         UI::EndCombo();
@@ -42,9 +45,9 @@ bool ComboHelper(const string &in label, const array<string>@ names, const uint 
 }
 
 // combo w/ string
-funcdef void OnNewModeName(const string &in newName);
+funcdef void OnSelectName(const string &in name);
 
-bool ComboHelper(const string &in label, const array<string>@ names, const string &in currentName, OnNewModeName@ onNewMode)
+bool ComboHelper(const string &in label, const array<string>@ names, const string &in currentName, OnSelectName@ onSelect)
 {
     const bool isOpen = UI::BeginCombo(label, currentName);
     if (isOpen)
@@ -54,7 +57,7 @@ bool ComboHelper(const string &in label, const array<string>@ names, const strin
         {
             const string name = names[i];
             if (UI::Selectable(name, name == currentName))
-                onNewMode(name);
+                onSelect(name);
         }
 
         UI::EndCombo();

@@ -1,10 +1,10 @@
-// smn_utils - v2.1.0a
+// smn_utils - v2.1.1a
 
 /*
 
 Global namespace
-- Extra log/print overloads
-- 'Variables that could also be part of the API maybe'-wrappers
+- extra log/print overloads
+- 'vars that could also be part of the API maybe'-wrappers
 
 */
 
@@ -39,4 +39,3 @@ void DrawGame(const bool value)
 {
     SetVariable("draw_game", value);
 }
-

@@ -1,5 +1,6 @@
 """Zips the given plugin and puts that zip in lab/archive."""
 
+from pathlib import PurePath
 from sys import argv
 from zipfile import ZipFile, ZIP_DEFLATED
 
@@ -24,14 +25,12 @@ def main(arg: str):
             zf.write(p, name)
             return
 
-        for root, _, files in p.walk():
-            relative = name / root.relative_to(p)
+        for absolute, _, files in p.walk():
+            relative = name / absolute.relative_to(p)
             for file in files:
-                absolute = root / file
-                if file.casefold() == "readme.md":
-                    zf.write(absolute, file)
-                else:
-                    zf.write(absolute, relative / file)
+                file = PurePath(file)
+                if file.suffix == ".as":
+                    zf.write(absolute / file, relative / file)
 
 if __name__ == "__main__":
     main_args()
