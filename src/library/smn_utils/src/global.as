@@ -4,12 +4,11 @@
 
 Global namespace
 - extra log/print overloads
-- 'vars that could also be part of the API maybe'-wrappers
+- var wrappers
 
 */
 
 
-// - log
 void log() { log(""); }
 
 void log(const bool value,   Severity severity = Severity::Info) { log("" + value, severity); }
@@ -21,7 +20,6 @@ void log(const float value,  Severity severity = Severity::Info) { log("" + valu
 void log(const double value, Severity severity = Severity::Info) { log("" + value, severity); }
 
 
-// - print
 void print() { print(""); }
 
 void print(const bool value,   Severity severity = Severity::Info) { print("" + value, severity); }
@@ -33,7 +31,15 @@ void print(const float value,  Severity severity = Severity::Info) { print("" + 
 void print(const double value, Severity severity = Severity::Info) { print("" + value, severity); }
 
 
-// - ConVars
+ms GetVariableTime(const string &in name)
+{
+    return ms(GetVariableDouble(name));
+}
+
+int GetVariableInt(const string &in name)
+{
+    return int(GetVariableDouble(name));
+}
 
 void DrawGame(const bool value)
 {

@@ -9,7 +9,7 @@ Compilation of useful code snippets for creating TMInterface AngelScript plugins
 Since neither of the code reuse features provided by angelscript (`shared`, `import`) are supported by the tmi implementation,
 this library is designed to be vendored:
 - You can copy sections of the code in the `src` folder into your plugin.
-- You can copy files from the `src` folder into your plugin.
+- You can copy files from the `src` folder into your plugin (beware of the dependencies e.g. ms).
 - You can copy the entire `src` folder into your plugin.
 
 For the last two options, the plugin should be a folder.

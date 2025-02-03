@@ -9,14 +9,12 @@ Text
 */
 
 
-// - Formatting
 string FormatPrecise(const double value, const uint precision = 12)
 {
     return Text::FormatFloat(value, " ", 0, precision);
 }
 
 
-// - Parsing
 bool ParseFloat(const string &in s, double &out value)
 {
     uint byteCount;
