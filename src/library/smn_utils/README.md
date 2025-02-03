@@ -8,15 +8,15 @@ Compilation of useful code snippets for creating TMInterface AngelScript plugins
 
 Since neither of the code reuse features provided by angelscript (`shared`, `import`) are supported by the tmi implementation,
 this library is designed to be vendored:
-- You can copy sections of the code in the `src` folder into your plugin.
-- You can copy files from the `src` folder into your plugin (beware of the dependencies e.g. ms).
-- You can copy the entire `src` folder into your plugin.
+- You can copy sections of the code from the `smn_utils` sub-folder into your plugin.
+- You can copy files from the sub-folder into your plugin (beware of the dependencies e.g. ms).
+- You can copy the entire sub-folder into your plugin.
 
 For the last two options, the plugin should be a folder.
 It might be better for organizational purposes to keep the library code separate from main plugin code,
 so that it's easier to see what library code in your plugin is potentially outdated (given that each file has a version).
 
-Example folder structure: (`src` copied into the main plugin's folder and renamed to something more descriptive)
+Example folder structure: (sub-folder copied into the main plugin's folder)
 ```
 /plugin_name/
     smn_utils/
@@ -26,8 +26,8 @@ Example folder structure: (`src` copied into the main plugin's folder and rename
     ...
 ```
 
-The reason for putting the actual library code in the `src` is so that it can easily be copied.
-Don't put the entire library folder in a plugin, that'll just cause a duplicate function conflict.
+The reason for putting the actual library code in the sub-folder is so that it can easily be copied,
+without the README, gitignore, and possibly other (local) files being unnecessarily added too.
 
 ### Namespacing
 
