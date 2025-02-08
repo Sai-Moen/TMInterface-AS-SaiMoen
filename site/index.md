@@ -25,7 +25,6 @@ One of the blogs of all time.
 
 ### [Dev](dev)
 
-When `import` starts working in TMInterface AngelScript,
-I will document API's here (e.g. for giving callbacks to a custom bruteforce controller).
+Subjects relating to the development of this repository (e.g. documentation).
 
 ---
