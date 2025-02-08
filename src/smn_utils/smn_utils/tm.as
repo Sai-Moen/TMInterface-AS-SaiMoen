@@ -21,7 +21,7 @@ void BufferReplaceInputEvents(TM::InputEventBuffer@ buffer, const array<TM::Inpu
 {
     const uint bufferLen = buffer.Length;
     const uint eventsLen = events.Length;
-    if (bufferLen >= eventsLen)
+    if (bufferLen > eventsLen)
     {
         uint i;
         for (i = 0; i < eventsLen; i++)
