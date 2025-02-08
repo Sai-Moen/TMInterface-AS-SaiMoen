@@ -7,3 +7,4 @@ If you are just looking to install plugins, then go back to the homepage and cli
 ## Topics
 
 - [Versioning](versioning.md)
+- [Libraries](libraries.md)
