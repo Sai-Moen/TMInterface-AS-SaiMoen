@@ -49,7 +49,7 @@ vec3 GetVariableVec3(const string &in name)
 
 void SetVariableVec3(const string &in name, const vec3 value)
 {
-    SetVariableString(name, value.ToString());
+    SetVariable(name, value.ToString());
 }
 
 
