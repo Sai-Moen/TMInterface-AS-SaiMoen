@@ -10,6 +10,8 @@ const string VAR_TARGET_VALUE   = VAR + "target_value";
 const string VAR_TARGET_3VALUES = VAR + "target_3values";
 const string VAR_TARGET_TOWARDS = VAR + "target_towards";
 
+const string VAR_PRINT_BY_COMPONENT = VAR + "print_by_component";
+
 const string VAR_COMMON_GROUPS     = VAR + "common_groups";
 const string VAR_COMMON_MODES      = VAR + "common_modes";
 const string VAR_COMMON_CONDITIONS = VAR + "common_conditions";
@@ -24,6 +26,8 @@ int targetTowards;
 double targetValue;
 vec3 target3Values;
 
+bool printByComponent;
+
 void RegisterSettings()
 {
     RegisterVariable(VAR_EVAL_FROM, 0);
@@ -36,23 +40,27 @@ void RegisterSettings()
     RegisterVariable(VAR_TARGET_VALUE,   0);
     RegisterVariable(VAR_TARGET_3VALUES, vec3().ToString());
 
+    RegisterVariable(VAR_PRINT_BY_COMPONENT, false);
+
     RegisterVariable(VAR_COMMON_GROUPS,     "");
     RegisterVariable(VAR_COMMON_MODES,      "");
     RegisterVariable(VAR_COMMON_CONDITIONS, "");
 
-    evalFrom = ms(GetVariableDouble(VAR_EVAL_FROM));
-    evalTo   = ms(GetVariableDouble(VAR_EVAL_TO));
+    evalFrom = GetConVarTime(VAR_EVAL_FROM);
+    evalTo   = GetConVarTime(VAR_EVAL_TO);
 
-    isTargetGrouped = GetVariableBool(VAR_TARGET_GROUPED);
+    isTargetGrouped = GetConVarBool(VAR_TARGET_GROUPED);
     targetMode      = ModeKind(GetVariableDouble(VAR_TARGET_MODE));
     targetGroup     = GroupKind(GetVariableDouble(VAR_TARGET_GROUP));
-    targetTowards   = int(GetVariableDouble(VAR_TARGET_TOWARDS));
-    targetValue     = GetVariableDouble(VAR_TARGET_VALUE);
-    target3Values    = Text::ParseVec3(GetVariableString(VAR_TARGET_3VALUES));
+    targetTowards   = GetConVarInt(VAR_TARGET_TOWARDS);
+    targetValue     = GetConVarDouble(VAR_TARGET_VALUE);
+    target3Values   = GetConVarVec3(VAR_TARGET_3VALUES);
 
-    DeserializeGroups(    GetVariableString(VAR_COMMON_GROUPS));
-    DeserializeModes(     GetVariableString(VAR_COMMON_MODES));
-    DeserializeConditions(GetVariableString(VAR_COMMON_CONDITIONS));
+    printByComponent = GetConVarBool(VAR_PRINT_BY_COMPONENT);
+
+    DeserializeGroups(    GetConVarString(VAR_COMMON_GROUPS));
+    DeserializeModes(     GetConVarString(VAR_COMMON_MODES));
+    DeserializeConditions(GetConVarString(VAR_COMMON_CONDITIONS));
 }
 
 void SaveSettings()
@@ -91,7 +99,7 @@ void RenderSettings()
 
     isTargetGrouped = UI::CheckboxVar("Grouped Target?", VAR_TARGET_GROUPED);
     if (isTargetGrouped)
-        ComboHelper("Target (Group):", targetGroup, groupNames,
+        ComboHelper("Target (Group):", groupNames, targetGroup,
             function(index)
             {
                 targetGroup = GroupKind(index);
@@ -99,7 +107,7 @@ void RenderSettings()
             }
         );
     else
-        ComboHelper("Target (Mode):", targetMode, modeNames,
+        ComboHelper("Target (Mode):", modeNames, targetMode,
             function(index)
             {
                 targetMode = ModeKind(index);
@@ -133,13 +141,19 @@ void RenderSettings()
         if (isTargetGrouped)
         {
             if (UI::DragFloat3Var("Target Values", VAR_TARGET_3VALUES))
-                target3Values = Text::ParseVec3(GetVariableString(VAR_TARGET_3VALUES));
+                target3Values = GetConVarVec3(VAR_TARGET_3VALUES);
         }
         else
         {
             targetValue = UI::InputFloatVar("Target Value", VAR_TARGET_VALUE);
         }
         UI::EndDisabled();
+    }
+
+    if (isTargetGrouped)
+    {
+        printByComponent = UI::CheckboxVar("Print Group values by component?", VAR_PRINT_BY_COMPONENT);
+        TooltipOnHover("Whether the values of the target group are to be printed by component (e.g. x y z), or as one value.");
     }
 
     UI::Separator();

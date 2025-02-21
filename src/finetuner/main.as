@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1d";
+    info.Version = "v2.1.1e";
     return info;
 }
 
@@ -16,8 +16,6 @@ void Main()
     RegisterSettings();
     RegisterBruteforceEvaluation(ID, "Finetuner", OnEvaluate, RenderSettings);
 }
-
-const string ARROW = " => ";
 
 bool customTargetTowards;
 
@@ -162,12 +160,12 @@ void OnSimulationBegin(SimulationManager@)
         if (isTargetGrouped)
         {
             strTarget = "Group = " + groupNames[targetGroup];
-            strTargetValue = "Values = " + PreciseFormat(target3Values);
+            strTargetValue = "Values = " + FormatPrecise(target3Values);
         }
         else
         {
             strTarget = "Mode = " + modeNames[targetMode];
-            strTargetValue = "Value = " + PreciseFormat(targetValue);
+            strTargetValue = "Value = " + FormatPrecise(targetValue);
         }
         print(strTarget);
         if (customTargetTowards)
@@ -219,16 +217,16 @@ void OnSimulationBegin(SimulationManager@)
             {
                 const ModeKind kind = modeIndices[i];
                 const Mode@ const mode = modes[kind];
-                string builder = RightPad(modeNames[kind], maxModeNameLength) + ARROW;
+                string builder = PadRight(modeNames[kind], maxModeNameLength) + " => ";
 
                 if (mode.lower)
-                    builder += "Lower: " + PreciseFormat(mode.lowerValue);
+                    builder += "Lower: " + FormatPrecise(mode.lowerValue);
 
                 if (mode.lower && mode.upper)
                     builder += ", ";
 
                 if (mode.upper)
-                    builder += "Upper: " + PreciseFormat(mode.upperValue);
+                    builder += "Upper: " + FormatPrecise(mode.upperValue);
 
                 print(builder);
             }
@@ -257,7 +255,7 @@ void OnSimulationBegin(SimulationManager@)
             for (uint i = 0; i < conditionIndices.Length; i++)
             {
                 const ConditionKind kind = conditionIndices[i];
-                print(RightPad(conditionNames[kind], maxConditionNameLength) + ARROW + conditions[kind].value);
+                print(PadRight(conditionNames[kind], maxConditionNameLength) + " => " + conditions[kind].value);
             }
         }
         print(Repeat('-', maxConditionNameLength) + "\n");
@@ -300,9 +298,9 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
 
                 string builder;
                 if (isTargetGrouped)
-                    builder += groupNames[targetGroup] + ARROW + FormatVec3ByTargetGroup(best3, 6);
+                    builder += groupNames[targetGroup] + " | " + FormatVec3ByTargetGroup(best3, 6);
                 else
-                    builder += modeNames[targetMode] + ARROW + FormatFloatByTargetMode(best, 6);
+                    builder += modeNames[targetMode] + " | " + FormatFloatByTargetMode(best, 6);
 
                 builder += " | Time: " + Time::Format(impTime);
 

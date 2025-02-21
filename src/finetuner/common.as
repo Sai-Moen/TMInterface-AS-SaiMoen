@@ -428,11 +428,21 @@ double ConvertValueToDisplay(const GroupKind kind, const double value)
 
 string FormatVec3ByTargetGroup(const vec3 &in value, const uint precision = 12)
 {
-    const vec3 display = vec3(
-        ConvertValueToDisplay(targetGroup, value.x),
-        ConvertValueToDisplay(targetGroup, value.y),
-        ConvertValueToDisplay(targetGroup, value.z));
-    return PreciseFormat(display, precision);
+    string formatted;
+    if (printByComponent)
+    {
+        const vec3 display = vec3(
+            ConvertValueToDisplay(targetGroup, value.x),
+            ConvertValueToDisplay(targetGroup, value.y),
+            ConvertValueToDisplay(targetGroup, value.z));
+
+        formatted = FormatPrecise(display, precision);
+    }
+    else
+    {
+        formatted = FormatFloatByGroup(targetGroup, value.Length(), precision);
+    }
+    return formatted;
 }
 
 string FormatFloatByTargetMode(const double value, const uint precision = 12)
@@ -440,23 +450,23 @@ string FormatFloatByTargetMode(const double value, const uint precision = 12)
     GroupKind groupKind;
     // discard
     ModeKindToGroupKind(targetMode, groupKind);
-    return FormatFloatByGroup(value, groupKind, precision);
+    return FormatFloatByGroup(groupKind, value, precision);
 }
 
 string FormatFloatByTarget(const double value, const uint precision = 12)
 {
     string formatted;
     if (isTargetGrouped)
-        formatted = FormatFloatByGroup(value, targetGroup, precision);
+        formatted = FormatFloatByGroup(targetGroup, value, precision);
     else
         formatted = FormatFloatByTargetMode(value, precision);
     return formatted;
 }
 
-string FormatFloatByGroup(const double value, const GroupKind groupKind, const uint precision = 12)
+string FormatFloatByGroup(const GroupKind groupKind, const double value, const uint precision = 12)
 {
     const double display = ConvertValueToDisplay(groupKind, value);
-    return PreciseFormat(display, precision);
+    return FormatPrecise(display, precision);
 }
 
 bool GroupKindToModeKinds(const GroupKind groupKind, array<ModeKind> &out modeKinds)
