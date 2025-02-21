@@ -31,23 +31,48 @@ void print(const float value,  Severity severity = Severity::Info) { print("" + 
 void print(const double value, Severity severity = Severity::Info) { print("" + value, severity); }
 
 
-ms GetVariableTime(const string &in name)
+bool GetConVarBool(const string &in name)
 {
-    return ms(GetVariableDouble(name));
+    return GetVariableBool(name);
 }
 
-int GetVariableInt(const string &in name)
+uint GetConVarUInt(const string &in name)
+{
+    return uint(GetVariableDouble(name));
+}
+
+int GetConVarInt(const string &in name)
 {
     return int(GetVariableDouble(name));
 }
 
-vec3 GetVariableVec3(const string &in name)
+ms GetConVarTime(const string &in name)
+{
+    return ms(GetVariableDouble(name));
+}
+
+float GetConVarFloat(const string &in name)
+{
+    return GetVariableDouble(name);
+}
+
+double GetConVarDouble(const string &in name)
+{
+    return GetVariableDouble(name);
+}
+
+string GetConVarString(const string &in name)
+{
+    return GetVariableString(name);
+}
+
+vec3 GetConVarVec3(const string &in name)
 {
     return Text::ParseVec3(GetVariableString(name));
 }
 
 
-void SetVariableVec3(const string &in name, const vec3 value)
+void SetVariable(const string &in name, const vec3 value)
 {
     SetVariable(name, value.ToString());
 }
