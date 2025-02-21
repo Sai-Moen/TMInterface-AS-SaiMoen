@@ -41,6 +41,18 @@ int GetVariableInt(const string &in name)
     return int(GetVariableDouble(name));
 }
 
+vec3 GetVariableVec3(const string &in name)
+{
+    return Text::ParseVec3(GetVariableString(name));
+}
+
+
+void SetVariableVec3(const string &in name, const vec3 value)
+{
+    SetVariableString(name, value.ToString());
+}
+
+
 void DrawGame(const bool value)
 {
     SetVariable("draw_game", value);
