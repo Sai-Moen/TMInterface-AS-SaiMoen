@@ -6,21 +6,16 @@ from zipfile import ZipFile, ZIP_DEFLATED
 
 from utils import PROJECT_ROOT, find_plugin
 
-def main_args(args: list[str] = argv):
-    if len(args) < 2:
-        print("You should provide a filename as an argument to this script.")
-        return
-
-    main(args[1])
-
 ARCHIVE = PROJECT_ROOT / "lab" / "archive"
 """This is where the zip will be placed."""
 
-def main(arg: str):
-    p = find_plugin(arg)
+def main(args: list[str]):
+    assert len(args) >= 1, "Plugin name is required!"
+
+    p = find_plugin(args[0])
     out = ARCHIVE / p.stem
-    name = p.name
     with ZipFile(out.with_suffix(".zip"), 'w', ZIP_DEFLATED, compresslevel=9) as zf:
+        name = p.name
         if p.is_file():
             zf.write(p, name)
             return
@@ -33,4 +28,4 @@ def main(arg: str):
                     zf.write(absolute / file, relative / file)
 
 if __name__ == "__main__":
-    main_args()
+    main(argv[1:])
