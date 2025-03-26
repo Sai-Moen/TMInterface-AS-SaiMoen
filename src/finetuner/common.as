@@ -256,6 +256,8 @@ enum ConditionKind
     GEAR,
     REAR_GEAR,
 
+    GLITCHING,
+
     COUNT // amount of condition kinds
 }
 
@@ -270,7 +272,9 @@ const array<string> conditionNames =
     "Checkpoints",
 
     "Gear",
-    "Rear Gear"
+    "Rear Gear",
+
+    "Glitching"
 };
 
 class Condition

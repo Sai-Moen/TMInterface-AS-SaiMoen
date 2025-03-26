@@ -347,6 +347,11 @@ bool IsPastEvalTime(const ms time)
 
 bool IsBetter(SimulationManager@ simManager)
 {
+    const auto@ const dyna = simManager.Dyna;
+    const auto@ const currentState = dyna.RefStateCurrent;
+    const auto@ const previousState = dyna.RefStatePrevious;
+    const double velocity = currentState.LinearSpeed.Length();
+
     const auto@ const svc = simManager.SceneVehicleCar;
     const auto@ const engine = svc.CarEngine;
 
@@ -359,7 +364,7 @@ bool IsBetter(SimulationManager@ simManager)
         switch (kind)
         {
         case ConditionKind::MIN_REAL_SPEED:
-            if (simManager.Dyna.RefStateCurrent.LinearSpeed.Length() < condition.value)
+            if (velocity < condition.value)
                 return false;
 
             break;
@@ -388,7 +393,7 @@ bool IsBetter(SimulationManager@ simManager)
                         contacts++;
                 }
 
-                if (contacts != uint(condition.value))
+                if (contacts < uint(condition.value))
                     return false;
             }
             break;
@@ -406,6 +411,16 @@ bool IsBetter(SimulationManager@ simManager)
             if (engine.RearGear != int(condition.value))
                 return false;
 
+            break;
+        case ConditionKind::GLITCHING:
+            {
+                const double positionalDifference = Math::Distance(
+                    previousState.Location.Position,
+                    currentState.Location.Position);
+                bool isGlitching = positionalDifference > 0.1 && velocity / positionalDifference < 50.0;
+                if (isGlitching != (condition.value != 0))
+                    return false;
+            }
             break;
         default:
             print("Corrupted condition index: " + kind, Severity::Error);

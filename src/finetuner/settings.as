@@ -405,6 +405,19 @@ void RenderSettings()
                     " in the eval timeframe.");
             }
             break;
+        case ConditionKind::GLITCHING:
+            {
+                const bool tempValue = UI::Checkbox(
+                    "##glitching", condition.display != 0);
+                condition.display = tempValue ? 1 : 0;
+
+                condition.value = condition.display;
+                UI::TextDimmed(
+                    "The car MUST" +
+                    (tempValue ? " " : " NOT ") +
+                    "be glitching in the eval timeframe.");
+            }
+            break;
         default:
             UI::TextWrapped("Corrupted condition index: " + conditionInEditor);
             break;
