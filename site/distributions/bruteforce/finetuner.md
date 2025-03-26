@@ -12,6 +12,7 @@ and many more combinations with modes/conditions are possible.
 
 ### Finetuner
 
+- [v2.1.1f](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1f/finetuner.zip)
 - [v2.1.1e](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1e/finetuner.zip)
 - [v2.1.1d](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1d/finetuner.zip)
 - [v2.1.1c](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1c/finetuner.zip)
@@ -32,6 +33,11 @@ This plugin will register itself as a bruteforce mode.
 Therefore, it can be found as a mode in the built-in bruteforce controller, under Optimization.
 
 ## Patch Notes
+
+### v2.1.1f
+
+- Added 'Glitching' condition (requested by igntuL).
+- Fixed a bug where the wheel contact condition wouldn't accept runs with more wheel contact than specified.
 
 ### v2.1.1e
 
