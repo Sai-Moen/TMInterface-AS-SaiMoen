@@ -44,7 +44,7 @@ string PadRight(const string &in str, const uint targetLength, const uint8 char 
     return s;
 }
 
-string Repeat(const uint8 char, const uint times)
+string Repeat(const uint times, const uint8 char = ' ')
 {
     string builder;
     builder.Resize(times);
@@ -83,6 +83,8 @@ class StringBuilder
 
     StringBuilder@ Append(const string &in value) { AppendOne(value); return this; }
     StringBuilder@ Append(const array<string>@ strings) { AppendMany(strings); return this; }
+
+    StringBuilder@ AppendLine() { AppendOne("\n"); return this; }
 
     StringBuilder@ AppendLine(const bool value)   { AppendMany({value, "\n"}); return this; }
     StringBuilder@ AppendLine(const uint value)   { AppendMany({value, "\n"}); return this; }
