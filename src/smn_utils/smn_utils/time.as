@@ -23,3 +23,9 @@ int MsToTick(const ms time)
 {
     return time / TICK;
 }
+
+bool ParseTime(const string &in raceTime, int &out value)
+{
+    value = Time::Parse(raceTime);
+    return value != -1;
+}

@@ -53,68 +53,91 @@ string Repeat(const uint8 char, const uint times)
     return builder;
 }
 
-class StringBuilder
+// avoids a bunch of string copies, at least if you pass around handles to it
+// because string uses C++ std::string which is a value type that uses RAII and we don't have move semantics blablabla
+class StringWrapper
 {
-    protected array<string> buffer;
+    string str;
 
-    // if you want to have array<StringBuilder>
-    StringBuilder()
+    // this is to allow array<StringWrapper>, though you could also just choose to use indices into array<string>
+    StringWrapper()
     {}
 
-    StringBuilder(const string &in s)
+    StringWrapper(const string &in s)
     {
-        Append(s);
+        str = s;
+    }
+}
+
+class StringBuilder
+{
+    protected string buffer;
+
+    StringBuilder@ Append(const bool value)   { const string s = value; AppendOne(s); return this; }
+    StringBuilder@ Append(const uint value)   { const string s = value; AppendOne(s); return this; }
+    StringBuilder@ Append(const uint64 value) { const string s = value; AppendOne(s); return this; }
+    StringBuilder@ Append(const int value)    { const string s = value; AppendOne(s); return this; }
+    StringBuilder@ Append(const int64 value)  { const string s = value; AppendOne(s); return this; }
+    StringBuilder@ Append(const float value)  { const string s = value; AppendOne(s); return this; }
+    StringBuilder@ Append(const double value) { const string s = value; AppendOne(s); return this; }
+
+    StringBuilder@ Append(const string &in value) { AppendOne(value); return this; }
+    StringBuilder@ Append(const array<string>@ strings) { AppendMany(strings); return this; }
+
+    StringBuilder@ AppendLine(const bool value)   { AppendMany({value, "\n"}); return this; }
+    StringBuilder@ AppendLine(const uint value)   { AppendMany({value, "\n"}); return this; }
+    StringBuilder@ AppendLine(const uint64 value) { AppendMany({value, "\n"}); return this; }
+    StringBuilder@ AppendLine(const int value)    { AppendMany({value, "\n"}); return this; }
+    StringBuilder@ AppendLine(const int64 value)  { AppendMany({value, "\n"}); return this; }
+    StringBuilder@ AppendLine(const float value)  { AppendMany({value, "\n"}); return this; }
+    StringBuilder@ AppendLine(const double value) { AppendMany({value, "\n"}); return this; }
+
+    StringBuilder@ AppendLine(const string &in value) { AppendMany({value, "\n"}); return this; }
+    StringBuilder@ AppendLine(const array<string>@ strings)
+    {
+        AppendMany(strings, 1);
+        buffer[buffer.Length - 1] = '\n';
+        return this;
     }
 
-    StringBuilder(const array<string>@ strings)
+    protected void AppendOne(const string &in s)
     {
-        buffer = strings;
+        const uint offset = buffer.Length;
+        buffer.Resize(offset + s.Length);
+        for (uint i = 0; i < s.Length; i++)
+            buffer[offset + i] = s[i];
     }
 
-    void Append(const bool value)   { Append("" + value); }
-    void Append(const uint value)   { Append("" + value); }
-    void Append(const uint64 value) { Append("" + value); }
-    void Append(const int value)    { Append("" + value); }
-    void Append(const int64 value)  { Append("" + value); }
-    void Append(const float value)  { Append("" + value); }
-    void Append(const double value) { Append("" + value); }
-
-    void Append(const string &in s)
+    protected void AppendMany(const array<string>@ strings, const uint extraLength = 0)
     {
-        buffer.Add(s);
-    }
-
-    void Append(const array<string>@ strings)
-    {
-        const uint len = buffer.Length;
-        buffer.Resize(len + strings.Length);
-
-        uint index = len;
+        uint totalLength = extraLength;
         for (uint i = 0; i < strings.Length; i++)
-            buffer[index++] = strings[i];
-    }
+            totalLength += strings[i].Length;
 
-    // using an output reference to avoid potentially multiple copies of a big string
-    void ToString(string &out s) const
-    {
-        const uint len = buffer.Length;
-
-        uint stringLength = 0;
-        for (uint i = 0; i < len; i++)
-            stringLength += buffer[i].Length;
-
-        s.Resize(stringLength);
-        uint index = 0;
-        for (uint bufferIndex = 0; bufferIndex < len; bufferIndex++)
+        const uint offset = buffer.Length;
+        buffer.Resize(offset + totalLength);
+        uint bufferIndex = offset;
+        for (uint i = 0; i < strings.Length; i++)
         {
-            for (uint charIndex = 0; charIndex < buffer[bufferIndex].Length; charIndex++)
-                s[index++] = buffer[bufferIndex][charIndex];
+            for (uint j = 0; j < strings[i].Length; j++)
+                buffer[bufferIndex++] = strings[i][j];
         }
     }
 
-    void ToStringClear(string &out s)
+    void Clear()
     {
-        ToString(s);
-        buffer.Clear();
+        buffer.Resize(0);
+    }
+
+    StringWrapper@ ToString() const
+    {
+        return StringWrapper(buffer);
+    }
+
+    StringWrapper@ ToStringClear()
+    {
+        const auto@ const sr = ToString();
+        Clear();
+        return sr;
     }
 }
