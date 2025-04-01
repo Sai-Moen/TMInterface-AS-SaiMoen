@@ -43,7 +43,7 @@ void BufferReplaceInputEvents(TM::InputEventBuffer@ buffer, const array<TM::Inpu
 void BufferRemoveInTimerange(
     TM::InputEventBuffer@ buffer,
     const ms timeFrom, const ms timeTo,
-    const array<InputType> &in types) // expecting it to be a small array
+    const array<InputType>@ types)
 {
     if (timeFrom > timeTo)
         return;

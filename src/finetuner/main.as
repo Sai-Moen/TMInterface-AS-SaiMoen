@@ -44,10 +44,8 @@ void OnSimulationBegin(SimulationManager@)
     if (!(GetVariableString("controller") == "bruteforce" && ID == GetVariableString("bf_target")))
         return;
 
-    print("\n=========\nFinetuner\n=========\n");
-
+    //# setup
     customTargetTowards = targetTowards == 0;
-
     if (isTargetGrouped)
     {
         switch (targetTowards)
@@ -153,55 +151,59 @@ void OnSimulationBegin(SimulationManager@)
             conditionIndices.Add(kind);
     }
 
+    //# printing
+    StringBuilder builder;
+    builder
+        .AppendLine()
+        .AppendLine("=========")
+        .AppendLine("Finetuner")
+        .AppendLine("=========")
+        .AppendLine();
+
     {
-        print("Target:");
-        string strTarget;
-        string strTargetValue;
+        builder.AppendLine("Target:");
         if (isTargetGrouped)
         {
-            strTarget = "Group = " + groupNames[targetGroup];
-            strTargetValue = "Values = " + FormatPrecise(target3Values);
+            builder.AppendLine({ "Group = ", groupNames[targetGroup] });
+            if (customTargetTowards)
+                builder.AppendLine({ "Values = ", FormatPrecise(target3Values) });
         }
         else
         {
-            strTarget = "Mode = " + modeNames[targetMode];
-            strTargetValue = "Value = " + FormatPrecise(targetValue);
+            builder.AppendLine({ "Mode = ", modeNames[targetMode] });
+            if (customTargetTowards)
+                builder.AppendLine({ "Value = ", FormatPrecise(targetValue) });
         }
-        print(strTarget);
-        if (customTargetTowards)
-            print(strTargetValue);
 
-        string strTargetTowards = "Towards = ";
-        bool ok = true;
+        builder.Append("Towards = ");
         switch (targetTowards)
         {
         case -1:
-            strTargetTowards += "Lower value is better.";
+            builder.AppendLine("Lower value is better.");
             break;
         case 0:
-            strTargetTowards += "Custom.";
+            builder.AppendLine("Custom.");
             break;
         case 1:
-            strTargetTowards += "Higher value is better.";
+            builder.AppendLine("Higher value is better.");
             break;
         default:
-            ok = false;
+            builder.AppendLine(targetTowards);
             break;
         }
 
-        if (ok)
-            print(strTargetTowards);
-
-        print(Repeat('-', strTargetTowards.Length) + "\n");
+        builder
+            .AppendLine(Repeat(builder.GetLastLineLength(), '-'))
+            .AppendLine();
     }
 
     {
-        print("Bounds: (actual values, so angles in radians and speeds in m/s)");
+        builder.AppendLine("Bounds: (actual values, so angles in radians and speeds in m/s)");
         uint maxModeNameLength = 0;
         if (modeIndices.IsEmpty())
         {
             const string NO_MODES = "None.";
-            print(NO_MODES);
+            builder.AppendLine(NO_MODES);
             maxModeNameLength = NO_MODES.Length;
         }
         else
@@ -217,30 +219,33 @@ void OnSimulationBegin(SimulationManager@)
             {
                 const ModeKind kind = modeIndices[i];
                 const Mode@ const mode = modes[kind];
-                string builder = PadRight(modeNames[kind], maxModeNameLength) + " => ";
+                builder.Append({ PadRight(modeNames[kind], maxModeNameLength), " => " });
 
                 if (mode.lower)
-                    builder += "Lower: " + FormatPrecise(mode.lowerValue);
+                    builder.Append({ "Lower: ", FormatPrecise(mode.lowerValue) });
 
                 if (mode.lower && mode.upper)
-                    builder += ", ";
+                    builder.Append(", ");
 
                 if (mode.upper)
-                    builder += "Upper: " + FormatPrecise(mode.upperValue);
+                    builder.Append({ "Upper: ", FormatPrecise(mode.upperValue) });
 
-                print(builder);
+                builder.AppendLine();
             }
         }
-        print(Repeat('-', maxModeNameLength) + "\n");
+
+        builder
+            .AppendLine(Repeat(maxModeNameLength, '-'))
+            .AppendLine();
     }
 
     {
-        print("Conditions: (actual values)");
+        builder.AppendLine("Conditions: (actual values)");
         uint maxConditionNameLength = 0;
         if (conditionIndices.IsEmpty())
         {
             const string NO_CONDITIONS = "None.";
-            print(NO_CONDITIONS);
+            builder.AppendLine(NO_CONDITIONS);
             maxConditionNameLength = NO_CONDITIONS.Length;
         }
         else
@@ -255,11 +260,16 @@ void OnSimulationBegin(SimulationManager@)
             for (uint i = 0; i < conditionIndices.Length; i++)
             {
                 const ConditionKind kind = conditionIndices[i];
-                print(PadRight(conditionNames[kind], maxConditionNameLength) + " => " + conditions[kind].value);
+                builder.AppendLine({ PadRight(conditionNames[kind], maxConditionNameLength), " => ", conditions[kind].value });
             }
         }
-        print(Repeat('-', maxConditionNameLength) + "\n");
+
+        builder
+            .AppendLine(Repeat(maxConditionNameLength, '-'))
+            .AppendLine();
     }
+
+    print(builder.ToString().str);
 }
 
 void OnSimulationEnd(SimulationManager@, SimulationResult)
@@ -296,21 +306,21 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
                 const uint iterations = info.Iterations;
                 const bool isFirstIteration = iterations == 0;
 
-                string builder;
+                StringBuilder builder;
                 if (isTargetGrouped)
-                    builder += groupNames[targetGroup] + " | " + FormatVec3ByTargetGroup(best3, 6);
+                    builder.Append({ groupNames[targetGroup], " | ", FormatVec3ByTargetGroup(best3, 6) });
                 else
-                    builder += modeNames[targetMode] + " | " + FormatFloatByTargetMode(best, 6);
+                    builder.Append({ modeNames[targetMode], " | ", FormatFloatByTargetMode(best, 6) });
 
-                builder += " | Time: " + Time::Format(impTime);
+                builder.Append({ " | Time: ", Time::Format(impTime) });
 
                 if (customTargetTowards)
-                    builder += " | Diff: " + FormatFloatByTarget(diffBest);
+                    builder.Append({ " | Diff: ", FormatFloatByTarget(diffBest) });
 
                 if (!isFirstIteration)
-                    builder += " | Iterations: " + iterations;
+                    builder.Append({ " | Iterations: ", iterations });
 
-                print(builder, isFirstIteration ? Severity::Info : Severity::Success);
+                print(builder.ToString().str, isFirstIteration ? Severity::Info : Severity::Success);
             }
             else
             {

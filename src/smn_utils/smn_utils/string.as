@@ -1,4 +1,4 @@
-// smn_utils - v2.1.1a
+// smn_utils - v2.1.1b
 
 /*
 
@@ -124,6 +124,28 @@ class StringBuilder
             for (uint j = 0; j < strings[i].Length; j++)
                 buffer[bufferIndex++] = strings[i][j];
         }
+    }
+
+    // get the amount of characters between the last 2 newline characters
+    // returns 0 if the buffer contains less than 2 newlines
+    uint GetLastLineLength() const
+    {
+        int i = buffer.Length - 1;
+        while (i != -1)
+        {
+            if (buffer[i--] == '\n')
+                break;
+        }
+
+        uint count = 0;
+        for (; i != -1; i--)
+        {
+            if (buffer[i] == '\n')
+                break;
+
+            count++;
+        }
+        return count;
     }
 
     void Clear()
