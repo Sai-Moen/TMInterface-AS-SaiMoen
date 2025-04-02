@@ -34,8 +34,8 @@ class Mode : IncMode
 const string VAR = Settings::VAR + "simplify_inputs_";
 
 const string VAR_CONTEXT_TIMESPAN = VAR + "context_timespan";
-const ms MIN_CTX_TIMESPAN = utils::TickToMs(2);
-const ms DEF_CTX_TIMESPAN = utils::TickToMs(25);
+const ms MIN_CTX_TIMESPAN = TickToMs(2);
+const ms DEF_CTX_TIMESPAN = TickToMs(25);
 const string DEF_TIMESPAN_TEXT = "(default " + DEF_CTX_TIMESPAN + "ms)";
 ms varContextTimespan;
 
@@ -104,14 +104,14 @@ const string INFO_MINIMIZE_BRAKE =
 void RenderSettings()
 {
     varContextTimespan = UI::InputTimeVar("Context Timespan", VAR_CONTEXT_TIMESPAN, TICK);
-    utils::TooltipOnHover("ContextTimespan", INFO_CONTEXT_TIMESPAN);
+    TooltipOnHover(INFO_CONTEXT_TIMESPAN);
 
     varMagnitude = UI::InputIntVar("Magnitude", VAR_MAGNITUDE);
-    varMagnitude = utils::ClampSteer(varMagnitude);
-    utils::TooltipOnHover("Magnitude", INFO_MAGNITUDE);
+    varMagnitude = ClampSteer(varMagnitude);
+    TooltipOnHover(INFO_MAGNITUDE);
 
     varMinimizeBrake = UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
-    utils::TooltipOnHover("MinimizeBrake", INFO_MINIMIZE_BRAKE);
+    TooltipOnHover(INFO_MINIMIZE_BRAKE);
 
     UI::Separator();
 
@@ -238,7 +238,7 @@ array<OnSim@> strats(stratLen);
 void OnSimBegin()
 {
     contextTimespan = Math::Max(MIN_CTX_TIMESPAN, varContextTimespan);
-    contexts.Resize(utils::MsToTick(contextTimespan) - 1);
+    contexts.Resize(MsToTick(contextTimespan) - 1);
 
     // maybe the value got clamped but not updated in the UI
     SetVariable(VAR_MAGNITUDE, varMagnitude);
@@ -286,16 +286,16 @@ void OnStepScan(SimulationManager@ simManager)
 {
     const ms time = IncGetRelativeTime(simManager);
     const auto@ const svc = simManager.SceneVehicleCar;
-    switch (utils::MsToTick(time))
+    switch (MsToTick(time))
     {
     case 0:
         prevInputBrake = int(svc.InputBrake);
-        prevInputSteer = utils::ToSteer(svc.InputSteer);
+        prevInputSteer = ToSteer(svc.InputSteer);
         return;
     case 1:
         oldInputBrake = int(svc.InputBrake);
         oldInputGas   = int(svc.InputGas);
-        oldInputSteer = utils::ToSteer(svc.InputSteer);
+        oldInputSteer = ToSteer(svc.InputSteer);
         oldTurningRate = svc.TurningRate;
 
         // if the next tick does not have an input, we must add it to avoid overriding the intended inputSteer
@@ -342,7 +342,7 @@ void OnStepMinimizeBrake(SimulationManager@ simManager)
     }
 
     const ms time = IncGetRelativeTime(simManager);
-    switch (utils::MsToTick(time))
+    switch (MsToTick(time))
     {
     case 0:
         brake = 0;
@@ -388,10 +388,10 @@ int steer;
 void OnStepTurningRate(SimulationManager@ simManager)
 {
     const ms time = IncGetRelativeTime(simManager);
-    switch (utils::MsToTick(time))
+    switch (MsToTick(time))
     {
     case 0:
-        steer = utils::RoundAway(nextTurningRate * STEER::FULL, nextTurningRate - oldTurningRate);
+        steer = RoundAway(nextTurningRate * STEER_FULL, nextTurningRate - oldTurningRate);
         IncSetInput(simManager, InputType::Steer, steer);
         // fallthrough
     case 1:
@@ -411,10 +411,10 @@ void OnStepTurningRate(SimulationManager@ simManager)
 void OnStepAir(SimulationManager@ simManager)
 {
     const ms time = IncGetRelativeTime(simManager);
-    switch (utils::MsToTick(time))
+    switch (MsToTick(time))
     {
     case 0:
-        steer = utils::Sign(oldInputSteer) * varMagnitude;
+        steer = Sign(oldInputSteer) * varMagnitude;
         IncSetInput(simManager, InputType::Steer, steer);
         // fallthrough
     case 1:
@@ -434,7 +434,7 @@ void OnStepAir(SimulationManager@ simManager)
 void OnStepRemoval(SimulationManager@ simManager)
 {
     const ms time = IncGetRelativeTime(simManager);
-    switch (utils::MsToTick(time))
+    switch (MsToTick(time))
     {
     case 0:
         IncRemoveInputs(simManager, InputType::Steer);
@@ -474,7 +474,7 @@ bool Desynced(SimulationManager@ simManager, const ms time)
 
 uint TimeToContextIndex(const ms time)
 {
-    return utils::MsToTick(time) - 2;
+    return MsToTick(time) - 2;
 }
 
 void NextStrategy(SimulationManager@ simManager)

@@ -17,7 +17,7 @@ class Mode : IncMode
 
     void RenderSettings()
     {
-        utils::ComboHelper("Wallhug Mode", modeIndex, modeNames, OnModeIndex);
+        ComboHelper("Wallhug Mode", modeNames, modeIndex, OnModeIndex);
         UI::Separator();
 
         modeRenderSettings();

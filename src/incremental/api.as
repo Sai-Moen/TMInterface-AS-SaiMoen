@@ -1,7 +1,5 @@
 // API
 
-typedef int32 ms;
-
 interface IncMode
 {
     bool SupportsUnlockedTimerange { get; }
@@ -110,7 +108,7 @@ void IncCommit(SimulationManager@ simManager, const IncCommitContext ctx = IncCo
     {
         const InputType type = InputType::Down;
         IncSetInput(simManager, type, down);
-        commands.Add(utils::MakeInputCommand(time, type, down));
+        commands.Add(Eval::MakeInputCommand(time, type, down));
     }
 
     const int up = ctx.up;
@@ -118,7 +116,7 @@ void IncCommit(SimulationManager@ simManager, const IncCommitContext ctx = IncCo
     {
         const InputType type = InputType::Up;
         IncSetInput(simManager, type, up);
-        commands.Add(utils::MakeInputCommand(time, type, up));
+        commands.Add(Eval::MakeInputCommand(time, type, up));
     }
 
     const int steer = ctx.steer;
@@ -126,7 +124,7 @@ void IncCommit(SimulationManager@ simManager, const IncCommitContext ctx = IncCo
     {
         const InputType type = InputType::Steer;
         IncSetInput(simManager, type, steer);
-        commands.Add(utils::MakeInputCommand(time, type, steer));
+        commands.Add(Eval::MakeInputCommand(time, type, steer));
     }
 
     Settings::PrintInfo(commands);

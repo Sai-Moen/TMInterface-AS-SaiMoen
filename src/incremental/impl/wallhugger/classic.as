@@ -31,7 +31,7 @@ class Mode : IncMode
     void RenderSettings()
     {
         seek = UI::InputTimeVar("Seeking (lookahead) time", SEEK, TICK);
-        utils::ComboHelper("Direction", directionStr, directions, ChangeDirection);
+        ComboHelper("Direction", directions, directionStr, ChangeDirection);
     }
 
     void OnBegin(SimulationManager@)
@@ -112,8 +112,8 @@ void OnEval(SimulationManager@ simManager)
 
 void Reset()
 {
-    avoider = STEER::MIN * direction;
-    collider = STEER::MAX * direction;
+    avoider = STEER_MIN * direction;
+    collider = STEER_MAX * direction;
     steer = collider;
 }
 

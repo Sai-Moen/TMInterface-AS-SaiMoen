@@ -214,7 +214,7 @@ void OnRunStep(SimulationManager@ simManager)
     switch (soState)
     {
     case SimOnlyState::PRE_INIT:
-        utils::DrawGame(false);
+        DrawGame(false);
         simManager.GiveUp();
         soState = SimOnlyState::INIT;
         break;
@@ -248,7 +248,7 @@ void OnRunStep(SimulationManager@ simManager)
         OnSimulationEnd(simManager, SimulationResult::Valid);
         Eval::ResetInputStates();
         simManager.SimulationOnly = false;
-        utils::DrawGame(true);
+        DrawGame(true);
         soState = SimOnlyState::NONE;
         break;
     }

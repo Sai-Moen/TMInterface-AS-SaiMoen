@@ -68,7 +68,7 @@ void RenderSettings()
         UI::BeginDisabled(lockedTimerange);
         varLockTimerange = UI::CheckboxVar("Lock Timerange", VAR_LOCK_TIMERANGE);
         UI::EndDisabled();
-        utils::TooltipOnHover("LockTimeRange", INFO_LOCK_TIMERANGE);
+        TooltipOnHover(INFO_LOCK_TIMERANGE);
 
         if (UI::Button("Reset timestamps to 0"))
         {
@@ -100,7 +100,7 @@ void RenderSettings()
 
     if (UI::CollapsingHeader("Modes"))
     {
-        utils::ComboHelper("Mode", Eval::modeIndex, Eval::modeNames, Eval::OnModeIndex);
+        ComboHelper("Mode", Eval::modeNames, Eval::modeIndex, Eval::OnModeIndex);
         UI::Separator();
 
         Eval::modeRenderSettings();
@@ -109,7 +109,7 @@ void RenderSettings()
     if (UI::CollapsingHeader("Misc"))
     {
         varShowInfo = UI::CheckboxVar("Show Info", VAR_SHOW_INFO);
-        utils::TooltipOnHover("ShowInfo", INFO_SHOW_INFO);
+        TooltipOnHover(INFO_SHOW_INFO);
     }
 }
 
@@ -125,39 +125,26 @@ void RenderRunMode()
     UI::Separator();
 
     varReplayTime = UI::InputTimeVar("Replay Time", VAR_REPLAY_TIME);
-    utils::TooltipOnHover("ReplayTime", INFO_REPLAY_TIME);
+    TooltipOnHover(INFO_REPLAY_TIME);
     if (UI::Button("Start Run-Mode Bruteforce"))
         soState = SimOnlyState::PRE_INIT;
 }
 
 void PrintInfo(const array<InputCommand>@ const commands)
 {
-    string builder;
-    builder.Resize(128);
-    uint pos = 0;
-
-    const string t = Eval::tInput + ":\n";
-    builder.Insert(pos, t);
-    pos += t.Length;
+    StringBuilder builder;
+    builder.AppendLine({ Eval::tInput, ":" });
 
     if (varShowInfo)
     {
         const double kmph = Eval::speed.Length() * 3.6;
-        const string speed = "Speed (km/h):" + utils::PreciseFormat(kmph) + "\n";
-        builder.Insert(pos, speed);
-        pos += speed.Length;
+        builder.AppendLine({ "Speed (km/h): ", FormatPrecise(kmph) });
     }
 
-    const uint len = commands.Length;
-    for (uint i = 0; i < len; i++)
-    {
-        const string command = commands[i].ToString() + "\n";
-        builder.Insert(pos, command);
-        pos += command.Length;
-    }
+    for (uint i = 0; i < commands.Length; i++)
+        builder.AppendLine(commands[i].ToString());
 
-    builder.Erase(pos);
-    print(builder);
+    print(builder.ToString().str);
 }
 
 class Home : IncMode

@@ -18,8 +18,8 @@ ms timeout;
 
 void RegisterSettings()
 {
-    RegisterVariable(INITIAL_STEER, STEER::FULL);
-    RegisterVariable(SEEK_OFFSET, utils::TickToMs(20));
+    RegisterVariable(INITIAL_STEER, STEER_FULL);
+    RegisterVariable(SEEK_OFFSET, TickToMs(20));
     RegisterVariable(TIMEOUT, 2000);
 
     initialSteer = int(GetVariableDouble(INITIAL_STEER));
@@ -27,7 +27,7 @@ void RegisterSettings()
     timeout = ms(GetVariableDouble(TIMEOUT));
 }
 
-const string INFO_INITIAL_STEER = "Usually, you want to set this to " + STEER::MIN + " (left) or " + STEER::MAX + " (right).";
+const string INFO_INITIAL_STEER = "Usually, you want to set this to " + STEER_MIN + " (left) or " + STEER_MAX + " (right).";
 const string INFO_SEEK_OFFSET =
     "This adds a certain amount of time to the wall detection time, the wall is avoided at the new time.";
 const string INFO_TIMEOUT = "Timeout when looking for a wall (0 to disable).";
@@ -38,25 +38,25 @@ class Mode : IncMode
 
     void RenderSettings()
     {
-        initialSteer = UI::SliderInt("Initial Steer", initialSteer, STEER::MIN, STEER::MAX);
-        utils::TooltipOnHover("InitialSteer", INFO_INITIAL_STEER);
+        initialSteer = UI::SliderInt("Initial Steer", initialSteer, STEER_MIN, STEER_MAX);
+        TooltipOnHover(INFO_INITIAL_STEER);
 
         if (UI::Button("Left"))
-            initialSteer = STEER::MIN;
+            initialSteer = STEER_MIN;
         UI::SameLine();
         if (UI::Button("Right"))
-            initialSteer = STEER::MAX;
+            initialSteer = STEER_MAX;
 
-        initialSteer = utils::ClampSteer(initialSteer);
+        initialSteer = ClampSteer(initialSteer);
         if (initialSteer == 0)
             initialSteer = 1;
         SetVariable(INITIAL_STEER, initialSteer);
 
         seekOffset = UI::InputTimeVar("Seek Offset", SEEK_OFFSET);
-        utils::TooltipOnHover("SeekOffset", INFO_SEEK_OFFSET);
+        TooltipOnHover(INFO_SEEK_OFFSET);
 
         timeout = UI::InputTimeVar("Timeout", TIMEOUT);
-        utils::TooltipOnHover("Timeout", INFO_TIMEOUT);
+        TooltipOnHover(INFO_TIMEOUT);
     }
 
     void OnBegin(SimulationManager@)
@@ -84,18 +84,18 @@ void OnSimBegin()
 {
     hasTimeout = timeout != NO_TIMEOUT;
 
-    switch (utils::Sign(initialSteer))
+    switch (Sign(initialSteer))
     {
-    case utils::Signum::Negative:
-        bound = STEER::MAX;
+    case Sign::Negative:
+        bound = STEER_MAX;
         @oob = function(nextSteer) { return nextSteer > bound; };
         break;
-    case utils::Signum::Zero:
+    case Sign::Zero:
         print("Initial Steer should not be 0...", Severity::Error);
         @onStep = null; // bit of trolling
         return;
-    case utils::Signum::Positive:
-        bound = STEER::MIN;
+    case Sign::Positive:
+        bound = STEER_MIN;
         @oob = function(nextSteer) { return nextSteer < bound; };
         break;
     }

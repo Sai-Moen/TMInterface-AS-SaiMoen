@@ -1,10 +1,14 @@
-// Input Event Buffer
+// smn_utils - v2.1.1a
 
-namespace utils
-{
+/*
+
+TM
+- input event buffer helpers
+
+*/
 
 
-array<TM::InputEvent>@ CopyInputEvents(const TM::InputEventBuffer@ const buffer)
+array<TM::InputEvent>@ BufferCopyInputEvents(const TM::InputEventBuffer@ buffer)
 {
     const uint len = buffer.Length;
     array<TM::InputEvent> events(len);
@@ -13,11 +17,11 @@ array<TM::InputEvent>@ CopyInputEvents(const TM::InputEventBuffer@ const buffer)
     return events;
 }
 
-void ReplaceInputEvents(TM::InputEventBuffer@ const buffer, const array<TM::InputEvent>@ const events)
+void BufferReplaceInputEvents(TM::InputEventBuffer@ buffer, const array<TM::InputEvent>@ events)
 {
     const uint bufferLen = buffer.Length;
     const uint eventsLen = events.Length;
-    if (bufferLen >= eventsLen)
+    if (bufferLen > eventsLen)
     {
         uint i;
         for (i = 0; i < eventsLen; i++)
@@ -37,9 +41,9 @@ void ReplaceInputEvents(TM::InputEventBuffer@ const buffer, const array<TM::Inpu
 }
 
 void BufferRemoveInTimerange(
-    TM::InputEventBuffer@ const buffer,
+    TM::InputEventBuffer@ buffer,
     const ms timeFrom, const ms timeTo,
-    const array<InputType> &in types) // expecting it to be a small array
+    const array<InputType>@ types)
 {
     if (timeFrom > timeTo)
         return;
@@ -69,7 +73,7 @@ void BufferRemoveInTimerange(
     BufferRemoveIndices(buffer, indices);
 }
 
-void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ const indices)
+void BufferRemoveIndices(TM::InputEventBuffer@ buffer, const array<uint>@ indices)
 {
     if (indices.IsEmpty())
         return;
@@ -93,6 +97,3 @@ void BufferRemoveIndices(TM::InputEventBuffer@ const buffer, const array<uint>@ 
     }
     buffer.RemoveAt(old, contiguous);
 }
-
-
-} // namespace utils

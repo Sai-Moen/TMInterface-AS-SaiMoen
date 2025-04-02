@@ -17,7 +17,7 @@ class Mode : IncMode
 
     void RenderSettings()
     {
-        utils::ComboHelper("SD Mode", modeIndex, modeNames, OnModeIndex);
+        ComboHelper("SD Mode", modeNames, modeIndex, OnModeIndex);
         UI::Separator();
 
         modeRenderSettings();
@@ -95,7 +95,7 @@ void ModeDispatch()
 
 // reusable
 int steer;
-utils::RangeIncl range;
+int bound;
 
 array<int> triedSteers;
 

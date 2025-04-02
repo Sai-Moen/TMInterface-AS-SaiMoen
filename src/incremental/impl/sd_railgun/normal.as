@@ -48,20 +48,21 @@ void OnSimBegin()
 const OnSim@ onStep;
 
 const int RANGE_SIZE = 4;
-
-const int STEP_DONE = -1;
 const int STEP_LAST_DEVIATION = RANGE_SIZE / 2;
 
 int step;
+bool done;
 
 void OnStepInit(SimulationManager@ simManager)
 {
     const float prevTurningRate = IncGetTrailingState().SceneVehicleCar.TurningRate;
     const float turningRate = simManager.SceneVehicleCar.TurningRate;
-    bestSteer = utils::RoundAway(turningRate * STEER::FULL, turningRate - prevTurningRate);
+    bestSteer = RoundAway(turningRate * STEER_FULL, turningRate - prevTurningRate);
+    bestResult = -1;
 
     step = 0x8000 / RANGE_SIZE;
-    SetRangeAroundMidpoint(bestSteer);
+    SetSteerBounds();
+    done = false;
 
     @onStep = OnStepMain;
     onStep(simManager);
@@ -72,9 +73,9 @@ void OnStepMain(SimulationManager@ simManager)
     const ms time = IncGetRelativeTime(simManager);
     if (time == 0)
     {
-        while (!range.Done)
+        while (steer <= bound)
         {
-            steer = range.Iter();
+            steer += step;
             if (triedSteers.Find(steer) == -1)
             {
                 triedSteers.Add(steer);
@@ -99,43 +100,52 @@ void OnEval(SimulationManager@ simManager)
         bestSteer = steer;
     }
 
-    if (!range.Done)
+    if (steer <= bound)
         return;
+
+    if (done)
+    {
+        IncCommitContext ctx;
+        ctx.steer = bestSteer;
+        IncCommit(simManager, ctx);
+
+        Reset();
+        return;
+    }
 
     switch (step)
     {
-    case STEP_DONE:
-        {
-            IncCommitContext ctx;
-            ctx.steer = bestSteer;
-            IncCommit(simManager, ctx);
-        }
-        Reset();
-        break;
     case 0:
+        print("step == 0", Severity::Warning);
+        step = 1;
+        // fallthrough
     case 1:
-        step = STEP_DONE;
-        range = utils::RangeIncl(bestSteer - STEP_LAST_DEVIATION, bestSteer + STEP_LAST_DEVIATION, 1);
+        SetSteerBoundsWithOffset(STEP_LAST_DEVIATION);
+        done = true;
         break;
     default:
         step >>= 1;
-        SetRangeAroundMidpoint(bestSteer);
+        SetSteerBounds();
         break;
     }
+}
+
+// Note: relies on side-effect from step
+void SetSteerBounds()
+{
+    SetSteerBoundsWithOffset(step * (RANGE_SIZE - 1) / 2);
+}
+
+void SetSteerBoundsWithOffset(const int offset)
+{
+    steer = ClampSteer(bestSteer - offset);
+    bound = ClampSteer(bestSteer + offset);
 }
 
 void Reset()
 {
     triedSteers.Clear();
-    bestResult = -1;
-
     @onStep = OnStepInit;
-}
-
-void SetRangeAroundMidpoint(const int midpoint)
-{
-    const int offset = step * (RANGE_SIZE - 1) / 2;
-    range = utils::RangeIncl(midpoint - offset, midpoint + offset, step);
 }
 
 
