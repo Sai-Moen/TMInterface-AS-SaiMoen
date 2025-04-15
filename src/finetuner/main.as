@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1e";
+    info.Version = "v2.1.1f";
     return info;
 }
 
@@ -19,7 +19,7 @@ void Main()
 
 bool customTargetTowards;
 
-bool valid;
+bool valid = false;
 ms impTime;
 
 double diffCurrent;
@@ -36,8 +36,15 @@ const IsBetterTargeted@ isBetter;
 funcdef bool IsBetterTargetedTowards();
 const IsBetterTargetedTowards@ isBetterTowards;
 
-array<ModeKind> modeIndices;
+bool unmet = true;
+
+array<ScalarKind> scalarIndices;
+array<ScalarKind> unmetScalarIndices;
+array<ms>         unmetScalarTimes;
+
 array<ConditionKind> conditionIndices;
+array<ConditionKind> unmetConditionIndices;
+array<ms>            unmetConditionTimes;
 
 void OnSimulationBegin(SimulationManager@)
 {
@@ -120,7 +127,7 @@ void OnSimulationBegin(SimulationManager@)
         @isBetter =
             function(simManager)
             {
-                current = GetModeValue(simManager, targetMode);
+                current = GetScalarValue(simManager, targetScalar);
                 return isBetterTowards();
             };
     }
@@ -131,16 +138,16 @@ void OnSimulationBegin(SimulationManager@)
         if (!groups[groupKind].active)
             continue;
 
-        array<ModeKind> tempModeKinds;
-        if (!GroupKindToModeKinds(groupKind, tempModeKinds))
+        array<ScalarKind> tempScalarKinds;
+        if (!GroupKindToScalarKinds(groupKind, tempScalarKinds))
             continue;
 
-        for (uint k = 0; k < tempModeKinds.Length; k++)
+        for (uint k = 0; k < tempScalarKinds.Length; k++)
         {
-            const ModeKind modeKind = tempModeKinds[k];
-            const Mode@ const mode = modes[modeKind];
-            if (mode.lower || mode.upper)
-                modeIndices.Add(modeKind);
+            const ScalarKind scalarKind = tempScalarKinds[k];
+            const Scalar@ const scalar = scalars[scalarKind];
+            if (scalar.lower || scalar.upper)
+                scalarIndices.Add(scalarKind);
         }
     }
 
@@ -170,7 +177,7 @@ void OnSimulationBegin(SimulationManager@)
         }
         else
         {
-            builder.AppendLine({ "Mode = ", modeNames[targetMode] });
+            builder.AppendLine({ "Scalar = ", scalarNames[targetScalar] });
             if (customTargetTowards)
                 builder.AppendLine({ "Value = ", FormatPrecise(targetValue) });
         }
@@ -199,43 +206,43 @@ void OnSimulationBegin(SimulationManager@)
 
     {
         builder.AppendLine("Bounds: (actual values, so angles in radians and speeds in m/s)");
-        uint maxModeNameLength = 0;
-        if (modeIndices.IsEmpty())
+        uint maxScalarNameLength = 0;
+        if (scalarIndices.IsEmpty())
         {
-            const string NO_MODES = "None.";
-            builder.AppendLine(NO_MODES);
-            maxModeNameLength = NO_MODES.Length;
+            const string NO_SCALARS = "None.";
+            builder.AppendLine(NO_SCALARS);
+            maxScalarNameLength = NO_SCALARS.Length;
         }
         else
         {
-            for (uint i = 0; i < modeIndices.Length; i++)
+            for (uint i = 0; i < scalarIndices.Length; i++)
             {
-                const uint len = modeNames[modeIndices[i]].Length;
-                if (maxModeNameLength < len)
-                    maxModeNameLength = len;
+                const uint len = scalarNames[scalarIndices[i]].Length;
+                if (maxScalarNameLength < len)
+                    maxScalarNameLength = len;
             }
 
-            for (uint i = 0; i < modeIndices.Length; i++)
+            for (uint i = 0; i < scalarIndices.Length; i++)
             {
-                const ModeKind kind = modeIndices[i];
-                const Mode@ const mode = modes[kind];
-                builder.Append({ PadRight(modeNames[kind], maxModeNameLength), " => " });
+                const ScalarKind kind = scalarIndices[i];
+                const Scalar@ const scalar = scalars[kind];
+                builder.Append({ PadRight(scalarNames[kind], maxScalarNameLength), " => " });
 
-                if (mode.lower)
-                    builder.Append({ "Lower: ", FormatPrecise(mode.lowerValue) });
+                if (scalar.lower)
+                    builder.Append({ "Lower: ", FormatPrecise(scalar.lowerValue) });
 
-                if (mode.lower && mode.upper)
+                if (scalar.lower && scalar.upper)
                     builder.Append(", ");
 
-                if (mode.upper)
-                    builder.Append({ "Upper: ", FormatPrecise(mode.upperValue) });
+                if (scalar.upper)
+                    builder.Append({ "Upper: ", FormatPrecise(scalar.upperValue) });
 
                 builder.AppendLine();
             }
         }
 
         builder
-            .AppendLine(Repeat(maxModeNameLength, '-'))
+            .AppendLine(Repeat(maxScalarNameLength, '-'))
             .AppendLine();
     }
 
@@ -275,8 +282,15 @@ void OnSimulationBegin(SimulationManager@)
 void OnSimulationEnd(SimulationManager@, SimulationResult)
 {
     valid = false;
-    modeIndices.Clear();
+    unmet = true;
+
+    scalarIndices.Clear();
+    unmetScalarIndices.Clear();
+    unmetScalarTimes.Clear();
+
     conditionIndices.Clear();
+    unmetConditionIndices.Clear();
+    unmetConditionTimes.Clear();
 }
 
 BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluationInfo &in info)
@@ -301,31 +315,55 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
         }
         else if (IsPastEvalTime(time))
         {
+            StringBuilder builder;
+            Severity severity;
             if (valid)
             {
-                const uint iterations = info.Iterations;
-                const bool isFirstIteration = iterations == 0;
-
-                StringBuilder builder;
                 if (isTargetGrouped)
                     builder.Append({ groupNames[targetGroup], " | ", FormatVec3ByTargetGroup(best3, 6) });
                 else
-                    builder.Append({ modeNames[targetMode], " | ", FormatFloatByTargetMode(best, 6) });
+                    builder.Append({ scalarNames[targetScalar], " | ", FormatFloatByTargetScalar(best, 6) });
 
                 builder.Append({ " | Time: ", Time::Format(impTime) });
 
                 if (customTargetTowards)
                     builder.Append({ " | Diff: ", FormatFloatByTarget(diffBest) });
 
-                if (!isFirstIteration)
+                const uint iterations = info.Iterations;
+                if (iterations == 0)
+                {
+                    severity = Severity::Info;
+                }
+                else
+                {
                     builder.Append({ " | Iterations: ", iterations });
-
-                print(builder.ToString().str, isFirstIteration ? Severity::Info : Severity::Success);
+                    severity = Severity::Success;
+                }
             }
             else
             {
-                print("Base Run did not suffice...", Severity::Warning);
+                unmet = false; // prevent memory leak in unmet* arrays
+                builder.AppendLine("Base Run did not suffice...");
+
+                if (!unmetConditionIndices.IsEmpty())
+                {
+                    builder.AppendLine().AppendLine("Unmet conditions:");
+                    const uint len = unmetConditionIndices.Length;
+                    for (uint i = 0; i < len; i++)
+                        builder.AppendLine({ unmetConditionTimes[i], " ", conditionNames[unmetConditionIndices[i]] });
+                }
+
+                if (!unmetScalarIndices.IsEmpty())
+                {
+                    builder.AppendLine().AppendLine("Unmet scalars:");
+                    const uint len = unmetScalarIndices.Length;
+                    for (uint i = 0; i < len; i++)
+                        builder.AppendLine({ unmetScalarTimes[i], " ", scalarNames[unmetScalarIndices[i]] });
+                }
+
+                severity = Severity::Warning;
             }
+            print(builder.ToString().str, severity);
             response.Decision = BFEvaluationDecision::Accept;
         }
         break;
@@ -367,31 +405,25 @@ bool IsBetter(SimulationManager@ simManager)
 
     const auto@ const playerInfo = simManager.PlayerInfo;
 
+    const ms time = simManager.RaceTime;
     for (uint i = 0; i < conditionIndices.Length; i++)
     {
         const ConditionKind kind = conditionIndices[i];
         const Condition@ const condition = conditions[kind];
+        bool ok;
         switch (kind)
         {
         case ConditionKind::MIN_REAL_SPEED:
-            if (velocity < condition.value)
-                return false;
-
+            ok = velocity >= condition.value;
             break;
         case ConditionKind::FREEWHEELING:
-            if (svc.IsFreeWheeling != (condition.value != 0))
-                return false;
-
+            ok = svc.IsFreeWheeling == (condition.value != 0);
             break;
         case ConditionKind::SLIDING:
-            if (svc.IsSliding != (condition.value != 0))
-                return false;
-
+            ok = svc.IsSliding == (condition.value != 0);
             break;
         case ConditionKind::WHEEL_TOUCHING:
-            if (svc.HasAnyLateralContact != (condition.value != 0))
-                return false;
-
+            ok = svc.HasAnyLateralContact == (condition.value != 0);
             break;
         case ConditionKind::WHEEL_CONTACTS:
             {
@@ -403,49 +435,59 @@ bool IsBetter(SimulationManager@ simManager)
                         contacts++;
                 }
 
-                if (contacts < uint(condition.value))
-                    return false;
+                ok = contacts >= uint(condition.value);
             }
             break;
         case ConditionKind::CHECKPOINTS:
-            if (playerInfo.CurCheckpointCount != uint(condition.value))
-                return false;
-
+            ok = playerInfo.CurCheckpointCount == uint(condition.value);
             break;
         case ConditionKind::GEAR:
-            if (engine.Gear != int(condition.value))
-                return false;
-
+            ok = engine.Gear == int(condition.value);
             break;
         case ConditionKind::REAR_GEAR:
-            if (engine.RearGear != int(condition.value))
-                return false;
-
+            ok = engine.RearGear == int(condition.value);
             break;
         case ConditionKind::GLITCHING:
             {
                 const double positionalDifference = Math::Distance(
                     previousState.Location.Position,
                     currentState.Location.Position);
-                bool isGlitching = positionalDifference > 0.1 && velocity / positionalDifference < 50.0;
-                if (isGlitching != (condition.value != 0))
-                    return false;
+                const bool isGlitching = positionalDifference > 0.1 && velocity / positionalDifference < 50.0;
+                ok = isGlitching == (condition.value != 0);
             }
             break;
         default:
             print("Corrupted condition index: " + kind, Severity::Error);
+            ok = false;
+            break;
+        }
+
+        if (!ok)
+        {
+            if (unmet)
+            {
+                unmetConditionIndices.Add(kind);
+                unmetConditionTimes.Add(time);
+            }
             return false;
         }
     }
 
-    for (uint i = 0; i < modeIndices.Length; i++)
+    for (uint i = 0; i < scalarIndices.Length; i++)
     {
-        const ModeKind kind = modeIndices[i];
-        const double value = GetModeValue(simManager, kind);
+        const ScalarKind kind = scalarIndices[i];
+        const double value = GetScalarValue(simManager, kind);
 
-        const Mode@ const mode = modes[kind];
-        if ((mode.lower && value < mode.lowerValue) || (mode.upper && value > mode.upperValue))
+        const Scalar@ const scalar = scalars[kind];
+        if ((scalar.lower && value < scalar.lowerValue) || (scalar.upper && value > scalar.upperValue))
+        {
+            if (unmet)
+            {
+                unmetScalarIndices.Add(kind);
+                unmetScalarTimes.Add(time);
+            }
             return false;
+        }
     }
 
     return isBetter(simManager) || !valid;
@@ -497,7 +539,7 @@ vec3 GetGroupValue(SimulationManager@ simManager, const GroupKind kind)
     return value;
 }
 
-double GetModeValue(SimulationManager@ simManager, const ModeKind kind)
+double GetScalarValue(SimulationManager@ simManager, const ScalarKind kind)
 {
     double value = 0;
 
@@ -514,80 +556,80 @@ double GetModeValue(SimulationManager@ simManager, const ModeKind kind)
 
     switch (kind)
     {
-    case ModeKind::POSITION_X:
+    case ScalarKind::POSITION_X:
         value = position.x;
         break;
-    case ModeKind::POSITION_Y:
+    case ScalarKind::POSITION_Y:
         value = position.y;
         break;
-    case ModeKind::POSITION_Z:
+    case ScalarKind::POSITION_Z:
         value = position.z;
         break;
-    case ModeKind::ROTATION_YAW:
+    case ScalarKind::ROTATION_YAW:
         rotation.GetYawPitchRoll(value, void, void);
         break;
-    case ModeKind::ROTATION_PITCH:
+    case ScalarKind::ROTATION_PITCH:
         rotation.GetYawPitchRoll(void, value, void);
         break;
-    case ModeKind::ROTATION_ROLL:
+    case ScalarKind::ROTATION_ROLL:
         rotation.GetYawPitchRoll(void, void, value);
         break;
-    case ModeKind::SPEED_GLOBAL_X:
+    case ScalarKind::SPEED_GLOBAL_X:
         value = globalSpeed.x;
         break;
-    case ModeKind::SPEED_GLOBAL_Y:
+    case ScalarKind::SPEED_GLOBAL_Y:
         value = globalSpeed.y;
         break;
-    case ModeKind::SPEED_GLOBAL_Z:
+    case ScalarKind::SPEED_GLOBAL_Z:
         value = globalSpeed.z;
         break;
-    case ModeKind::SPEED_LOCAL_X:
+    case ScalarKind::SPEED_LOCAL_X:
         value = localSpeed.x;
         break;
-    case ModeKind::SPEED_LOCAL_Y:
+    case ScalarKind::SPEED_LOCAL_Y:
         value = localSpeed.y;
         break;
-    case ModeKind::SPEED_LOCAL_Z:
+    case ScalarKind::SPEED_LOCAL_Z:
         value = localSpeed.z;
         break;
-    case ModeKind::WHEEL_FL_X:
+    case ScalarKind::WHEEL_FL_X:
         value = AddOffsetToLocation(wheels.FrontLeft,  location).x;
         break;
-    case ModeKind::WHEEL_FL_Y:
+    case ScalarKind::WHEEL_FL_Y:
         value = AddOffsetToLocation(wheels.FrontLeft,  location).y;
         break;
-    case ModeKind::WHEEL_FL_Z:
+    case ScalarKind::WHEEL_FL_Z:
         value = AddOffsetToLocation(wheels.FrontLeft,  location).z;
         break;
-    case ModeKind::WHEEL_FR_X:
+    case ScalarKind::WHEEL_FR_X:
         value = AddOffsetToLocation(wheels.FrontRight, location).x;
         break;
-    case ModeKind::WHEEL_FR_Y:
+    case ScalarKind::WHEEL_FR_Y:
         value = AddOffsetToLocation(wheels.FrontRight, location).y;
         break;
-    case ModeKind::WHEEL_FR_Z:
+    case ScalarKind::WHEEL_FR_Z:
         value = AddOffsetToLocation(wheels.FrontRight, location).z;
         break;
-    case ModeKind::WHEEL_BR_X:
+    case ScalarKind::WHEEL_BR_X:
         value = AddOffsetToLocation(wheels.BackRight,  location).x;
         break;
-    case ModeKind::WHEEL_BR_Y:
+    case ScalarKind::WHEEL_BR_Y:
         value = AddOffsetToLocation(wheels.BackRight,  location).y;
         break;
-    case ModeKind::WHEEL_BR_Z:
+    case ScalarKind::WHEEL_BR_Z:
         value = AddOffsetToLocation(wheels.BackRight,  location).z;
         break;
-    case ModeKind::WHEEL_BL_X:
+    case ScalarKind::WHEEL_BL_X:
         value = AddOffsetToLocation(wheels.BackLeft,   location).x;
         break;
-    case ModeKind::WHEEL_BL_Y:
+    case ScalarKind::WHEEL_BL_Y:
         value = AddOffsetToLocation(wheels.BackLeft,   location).y;
         break;
-    case ModeKind::WHEEL_BL_Z:
+    case ScalarKind::WHEEL_BL_Z:
         value = AddOffsetToLocation(wheels.BackLeft,   location).z;
         break;
     default:
-        print("Corrupted mode index: " + kind, Severity::Error);
+        print("Corrupted scalar index: " + kind, Severity::Error);
         break;
     }
 

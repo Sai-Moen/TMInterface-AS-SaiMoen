@@ -4,7 +4,7 @@ const string VAR_EVAL_FROM = VAR + "eval_from";
 const string VAR_EVAL_TO   = VAR + "eval_to";
 
 const string VAR_TARGET_GROUPED = VAR + "target_grouped";
-const string VAR_TARGET_MODE    = VAR + "target_mode";
+const string VAR_TARGET_SCALAR  = VAR + "target_scalar";
 const string VAR_TARGET_GROUP   = VAR + "target_group";
 const string VAR_TARGET_VALUE   = VAR + "target_value";
 const string VAR_TARGET_3VALUES = VAR + "target_3values";
@@ -13,14 +13,16 @@ const string VAR_TARGET_TOWARDS = VAR + "target_towards";
 const string VAR_PRINT_BY_COMPONENT = VAR + "print_by_component";
 
 const string VAR_COMMON_GROUPS     = VAR + "common_groups";
-const string VAR_COMMON_MODES      = VAR + "common_modes";
+const string VAR_COMMON_SCALARS    = VAR + "common_scalars";
 const string VAR_COMMON_CONDITIONS = VAR + "common_conditions";
+
+const string VAR_DEPRECATED_MODES = VAR + "common_modes";
 
 ms evalFrom;
 ms evalTo;
 
 bool isTargetGrouped;
-ModeKind targetMode;
+ScalarKind targetScalar;
 GroupKind targetGroup;
 int targetTowards;
 double targetValue;
@@ -34,7 +36,7 @@ void RegisterSettings()
     RegisterVariable(VAR_EVAL_TO,   0);
 
     RegisterVariable(VAR_TARGET_GROUPED, true);
-    RegisterVariable(VAR_TARGET_MODE,    0);
+    RegisterVariable(VAR_TARGET_SCALAR,  0);
     RegisterVariable(VAR_TARGET_GROUP,   0);
     RegisterVariable(VAR_TARGET_TOWARDS, 0);
     RegisterVariable(VAR_TARGET_VALUE,   0);
@@ -43,14 +45,16 @@ void RegisterSettings()
     RegisterVariable(VAR_PRINT_BY_COMPONENT, false);
 
     RegisterVariable(VAR_COMMON_GROUPS,     "");
-    RegisterVariable(VAR_COMMON_MODES,      "");
+    RegisterVariable(VAR_COMMON_SCALARS,    "");
     RegisterVariable(VAR_COMMON_CONDITIONS, "");
+
+    RegisterVariable(VAR_DEPRECATED_MODES, "");
 
     evalFrom = GetConVarTime(VAR_EVAL_FROM);
     evalTo   = GetConVarTime(VAR_EVAL_TO);
 
     isTargetGrouped = GetConVarBool(VAR_TARGET_GROUPED);
-    targetMode      = ModeKind(GetVariableDouble(VAR_TARGET_MODE));
+    targetScalar    = ScalarKind(GetVariableDouble(VAR_TARGET_SCALAR));
     targetGroup     = GroupKind(GetVariableDouble(VAR_TARGET_GROUP));
     targetTowards   = GetConVarInt(VAR_TARGET_TOWARDS);
     targetValue     = GetConVarDouble(VAR_TARGET_VALUE);
@@ -58,15 +62,22 @@ void RegisterSettings()
 
     printByComponent = GetConVarBool(VAR_PRINT_BY_COMPONENT);
 
+    const string deprecatedModes = GetConVarString(VAR_DEPRECATED_MODES);
+    if (!deprecatedModes.IsEmpty())
+    {
+        SetVariable(VAR_COMMON_SCALARS, deprecatedModes);
+        SetVariable(VAR_DEPRECATED_MODES, "");
+    }
+
     DeserializeGroups(    GetConVarString(VAR_COMMON_GROUPS));
-    DeserializeModes(     GetConVarString(VAR_COMMON_MODES));
+    DeserializeScalars(   GetConVarString(VAR_COMMON_SCALARS));
     DeserializeConditions(GetConVarString(VAR_COMMON_CONDITIONS));
 }
 
 void SaveSettings()
 {
     SaveGroups();
-    SaveModes();
+    SaveScalars();
     SaveConditions();
 }
 
@@ -75,9 +86,9 @@ void SaveGroups()
     SetVariable(VAR_COMMON_GROUPS, SerializeGroups());
 }
 
-void SaveModes()
+void SaveScalars()
 {
-    SetVariable(VAR_COMMON_MODES, SerializeModes());
+    SetVariable(VAR_COMMON_SCALARS, SerializeScalars());
 }
 
 void SaveConditions()
@@ -107,11 +118,11 @@ void RenderSettings()
             }
         );
     else
-        ComboHelper("Target (Mode):", modeNames, targetMode,
+        ComboHelper("Target (Scalar):", scalarNames, targetScalar,
             function(index)
             {
-                targetMode = ModeKind(index);
-                SetVariable(VAR_TARGET_MODE, targetMode);
+                targetScalar = ScalarKind(index);
+                SetVariable(VAR_TARGET_SCALAR, targetScalar);
             }
         );
 
@@ -164,7 +175,7 @@ void RenderSettings()
             isHiddenGroupInEditor ?
                 HIDDEN_EDITOR_LABEL :
                 groupNames[groupInEditor];
-        if (UI::BeginCombo("Group/Mode Editor", currentGroup))
+        if (UI::BeginCombo("Group Editor", currentGroup))
         {
             UI::PushID("group_editor");
 
@@ -192,8 +203,8 @@ void RenderSettings()
     }
 
     {
-        array<ModeKind> modesToRender;
-        if (GroupKindToModeKinds(groupInEditor, modesToRender))
+        array<ScalarKind> scalarsToRender;
+        if (GroupKindToScalarKinds(groupInEditor, scalarsToRender))
         {
             UI::PushID("group_in_editor_" + groupInEditor);
 
@@ -203,43 +214,42 @@ void RenderSettings()
                 "Group: " + groupNames[groupInEditor] +
                 " = " + (groups[groupInEditor].active ? "ON" : "OFF"));
 
-            for (uint i = 0; i < modesToRender.Length; i++)
+            for (uint i = 0; i < scalarsToRender.Length; i++)
             {
                 UI::PushID("" + i);
 
                 UI::Separator();
 
-                const ModeKind modeKind = modesToRender[i];
-                Mode@ const mode = modes[modeKind];
-                // button has to be first or it will magically disappear for a frame if you Reset All
+                const ScalarKind scalarKind = scalarsToRender[i];
+                Scalar@ const scalar = scalars[scalarKind];
                 if (UI::Button("Reset") || resetAll)
-                    mode.Reset();
+                    scalar.Reset();
                 UI::SameLine();
-                UI::TextWrapped("Mode: " + modeNames[modeKind]);
+                UI::TextWrapped("Scalar: " + scalarNames[scalarKind]);
 
-                mode.lower = UI::Checkbox("Lower Bound", mode.lower);
+                scalar.lower = UI::Checkbox("Lower Bound", scalar.lower);
                 UI::SameLine();
-                mode.upper = UI::Checkbox("Upper Bound", mode.upper);
+                scalar.upper = UI::Checkbox("Upper Bound", scalar.upper);
 
                 GroupKind groupKind;
                 // discard
-                ModeKindToGroupKind(modeKind, groupKind);
+                ScalarKindToGroupKind(scalarKind, groupKind);
 
                 UI::PushItemWidth(192);
 
-                UI::BeginDisabled(!mode.lower);
+                UI::BeginDisabled(!scalar.lower);
 
-                mode.lowerDisplay = UI::InputFloat("##lower", mode.lowerDisplay);
-                if (mode.lower)
-                    mode.lowerValue = ConvertDisplayToValue(groupKind, mode.lowerDisplay);
+                scalar.lowerDisplay = UI::InputFloat("##lower", scalar.lowerDisplay);
+                if (scalar.lower)
+                    scalar.lowerValue = ConvertDisplayToValue(groupKind, scalar.lowerDisplay);
 
                 UI::EndDisabled();
                 UI::SameLine();
-                UI::BeginDisabled(!mode.upper);
+                UI::BeginDisabled(!scalar.upper);
 
-                mode.upperDisplay = UI::InputFloat("##upper", mode.upperDisplay);
-                if (mode.upper)
-                    mode.upperValue = ConvertDisplayToValue(groupKind, mode.upperDisplay);
+                scalar.upperDisplay = UI::InputFloat("##upper", scalar.upperDisplay);
+                if (scalar.upper)
+                    scalar.upperValue = ConvertDisplayToValue(groupKind, scalar.upperDisplay);
 
                 UI::EndDisabled();
 
@@ -315,43 +325,13 @@ void RenderSettings()
             }
             break;
         case ConditionKind::FREEWHEELING:
-            {
-                const bool tempValue = UI::Checkbox(
-                    "##freewheeling", condition.display != 0);
-                condition.display = tempValue ? 1 : 0;
-
-                condition.value = condition.display;
-                UI::TextDimmed(
-                    "The car MUST" +
-                    (tempValue ? " " : " NOT ") +
-                    "be free-wheeled in the eval timeframe.");
-            }
+            RenderConditionBool(condition, "##freewheeling", "be free-wheeled in the eval timeframe.");
             break;
         case ConditionKind::SLIDING:
-            {
-                const bool tempValue = UI::Checkbox(
-                    "##sliding", condition.display != 0);
-                condition.display = tempValue ? 1 : 0;
-
-                condition.value = condition.display;
-                UI::TextDimmed(
-                    "The car MUST" +
-                    (tempValue ? " " : " NOT ") +
-                    "be sliding in the eval timeframe.");
-            }
+            RenderConditionBool(condition, "##sliding", "be sliding in the eval timeframe.");
             break;
         case ConditionKind::WHEEL_TOUCHING:
-            {
-                const bool tempValue = UI::Checkbox(
-                    "##wheel_touching", condition.display != 0);
-                condition.display = tempValue ? 1 : 0;
-
-                condition.value = condition.display;
-                UI::TextDimmed(
-                    "The car MUST" +
-                    (tempValue ? " " : " NOT ") +
-                    "have wheel(s) crashing into a wall in the eval timeframe.");
-            }
+            RenderConditionBool(condition, "##wheel_touching", "have wheel(s) crashing into a wall in the eval timeframe.");
             break;
         case ConditionKind::WHEEL_CONTACTS:
             {
@@ -406,17 +386,7 @@ void RenderSettings()
             }
             break;
         case ConditionKind::GLITCHING:
-            {
-                const bool tempValue = UI::Checkbox(
-                    "##glitching", condition.display != 0);
-                condition.display = tempValue ? 1 : 0;
-
-                condition.value = condition.display;
-                UI::TextDimmed(
-                    "The car MUST" +
-                    (tempValue ? " " : " NOT ") +
-                    "be glitching in the eval timeframe.");
-            }
+            RenderConditionBool(condition, "##glitching", "be glitching in the eval timeframe.");
             break;
         default:
             UI::TextWrapped("Corrupted condition index: " + conditionInEditor);
@@ -427,4 +397,12 @@ void RenderSettings()
     }
 
     SaveSettings();
+}
+
+void RenderConditionBool(Condition@ condition, const string &in id, const string &in what)
+{
+    const bool tempValue = UI::Checkbox(id, condition.display != 0);
+    condition.display = tempValue ? 1 : 0;
+    condition.value = condition.display;
+    UI::TextDimmed("The car MUST" + (tempValue ? " " : " NOT ") + what);
 }
