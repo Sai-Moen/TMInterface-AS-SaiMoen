@@ -12,6 +12,7 @@ and many more combinations with modes/conditions are possible.
 
 ### Finetuner
 
+- [v2.1.1g](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1g/finetuner.zip)
 - [v2.1.1f](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1f/finetuner.zip)
 - [v2.1.1e](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1e/finetuner.zip)
 - [v2.1.1d](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1d/finetuner.zip)
@@ -33,6 +34,11 @@ This plugin will register itself as a bruteforce mode.
 Therefore, it can be found as a mode in the built-in bruteforce controller, under Optimization.
 
 ## Patch Notes
+
+### v2.1.1g
+
+- Unmet conditions are now collected and printed if the base run is not valid.
+- Renamed Mode to Scalar for increased clarity.
 
 ### v2.1.1f
 
