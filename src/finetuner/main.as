@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1g";
+    info.Version = "v2.1.1h";
     return info;
 }
 
@@ -19,7 +19,7 @@ void Main()
 
 bool customTargetTowards;
 
-bool valid = false;
+bool valid;
 ms impTime;
 
 double diffCurrent;
@@ -36,7 +36,7 @@ const IsBetterTargeted@ isBetter;
 funcdef bool IsBetterTargetedTowards();
 const IsBetterTargetedTowards@ isBetterTowards;
 
-bool unmet = true;
+bool met;
 
 array<ScalarKind> scalarIndices;
 array<ScalarKind> unmetScalarIndices;
@@ -48,10 +48,9 @@ array<ms>            unmetConditionTimes;
 
 void OnSimulationBegin(SimulationManager@)
 {
-    if (!(GetVariableString("controller") == "bruteforce" && ID == GetVariableString("bf_target")))
+    if (GetVariableString("controller") != "bruteforce" || ID != GetVariableString("bf_target"))
         return;
 
-    //# setup
     customTargetTowards = targetTowards == 0;
     if (isTargetGrouped)
     {
@@ -68,7 +67,15 @@ void OnSimulationBegin(SimulationManager@)
             @isBetterTowards =
                 function()
                 {
-                    diffCurrent = (target3Values - current3).Length();
+                    switch (targetGroup)
+                    {
+                    case GroupKind::ROTATION:
+                        diffCurrent = Math::Angle(current3, target3Values);
+                        break;
+                    default:
+                        diffCurrent = Math::Distance(current3, target3Values);
+                        break;
+                    }
                     return diffCurrent < diffBest;
                 };
             break;
@@ -107,7 +114,18 @@ void OnSimulationBegin(SimulationManager@)
             @isBetterTowards =
                 function()
                 {
-                    diffCurrent = Math::Abs(targetValue - current);
+                    const double diff = current - targetValue;
+                    switch (targetScalar)
+                    {
+                    case ScalarKind::ROTATION_YAW:
+                    case ScalarKind::ROTATION_PITCH:
+                    case ScalarKind::ROTATION_ROLL:
+                        diffCurrent = Math::Min(Math::Abs(diff), Math::Abs(diff + Math::PI * 2));
+                        break;
+                    default:
+                        diffCurrent = Math::Abs(diff);
+                        break;
+                    }
                     return diffCurrent < diffBest;
                 };
             break;
@@ -158,7 +176,6 @@ void OnSimulationBegin(SimulationManager@)
             conditionIndices.Add(kind);
     }
 
-    //# printing
     StringBuilder builder;
     builder
         .AppendLine()
@@ -282,7 +299,7 @@ void OnSimulationBegin(SimulationManager@)
 void OnSimulationEnd(SimulationManager@, SimulationResult)
 {
     valid = false;
-    unmet = true;
+    met = false;
 
     scalarIndices.Clear();
     unmetScalarIndices.Clear();
@@ -315,6 +332,8 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
         }
         else if (IsPastEvalTime(time))
         {
+            met = true; // prevent memory leak in unmet* arrays
+
             StringBuilder builder;
             Severity severity;
             if (valid)
@@ -342,7 +361,6 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
             }
             else
             {
-                unmet = false; // prevent memory leak in unmet* arrays
                 builder.AppendLine("Base Run did not suffice...");
 
                 if (!unmetConditionIndices.IsEmpty())
@@ -385,7 +403,7 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
 
 bool IsEvalTime(const ms time)
 {
-    return evalFrom <= time && time <= evalTo;
+    return time >= evalFrom && time <= evalTo;
 }
 
 bool IsPastEvalTime(const ms time)
@@ -427,7 +445,7 @@ bool IsBetter(SimulationManager@ simManager)
             break;
         case ConditionKind::WHEEL_CONTACTS:
             {
-                uint contacts = 0;
+                int contacts = 0;
                 const auto@ const wheels = simManager.Wheels;
                 for (uint w = 0; w < 4; w++)
                 {
@@ -435,17 +453,17 @@ bool IsBetter(SimulationManager@ simManager)
                         contacts++;
                 }
 
-                ok = contacts >= uint(condition.value);
+                ok = condition.CompareInt(contacts);
             }
             break;
         case ConditionKind::CHECKPOINTS:
             ok = playerInfo.CurCheckpointCount == uint(condition.value);
             break;
         case ConditionKind::GEAR:
-            ok = engine.Gear == int(condition.value);
+            ok = condition.CompareInt(engine.Gear);
             break;
         case ConditionKind::REAR_GEAR:
-            ok = engine.RearGear == int(condition.value);
+            ok = condition.CompareInt(engine.RearGear);
             break;
         case ConditionKind::GLITCHING:
             {
@@ -464,7 +482,7 @@ bool IsBetter(SimulationManager@ simManager)
 
         if (!ok)
         {
-            if (unmet)
+            if (!met)
             {
                 unmetConditionIndices.Add(kind);
                 unmetConditionTimes.Add(time);
@@ -481,7 +499,7 @@ bool IsBetter(SimulationManager@ simManager)
         const Scalar@ const scalar = scalars[kind];
         if ((scalar.lower && value < scalar.lowerValue) || (scalar.upper && value > scalar.upperValue))
         {
-            if (unmet)
+            if (!met)
             {
                 unmetScalarIndices.Add(kind);
                 unmetScalarTimes.Add(time);

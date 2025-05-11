@@ -16,8 +16,6 @@ const string VAR_COMMON_GROUPS     = VAR + "common_groups";
 const string VAR_COMMON_SCALARS    = VAR + "common_scalars";
 const string VAR_COMMON_CONDITIONS = VAR + "common_conditions";
 
-const string VAR_DEPRECATED_MODES = VAR + "common_modes";
-
 ms evalFrom;
 ms evalTo;
 
@@ -48,8 +46,6 @@ void RegisterSettings()
     RegisterVariable(VAR_COMMON_SCALARS,    "");
     RegisterVariable(VAR_COMMON_CONDITIONS, "");
 
-    RegisterVariable(VAR_DEPRECATED_MODES, "");
-
     evalFrom = GetConVarTime(VAR_EVAL_FROM);
     evalTo   = GetConVarTime(VAR_EVAL_TO);
 
@@ -61,13 +57,6 @@ void RegisterSettings()
     target3Values   = GetConVarVec3(VAR_TARGET_3VALUES);
 
     printByComponent = GetConVarBool(VAR_PRINT_BY_COMPONENT);
-
-    const string deprecatedModes = GetConVarString(VAR_DEPRECATED_MODES);
-    if (!deprecatedModes.IsEmpty())
-    {
-        SetVariable(VAR_COMMON_SCALARS, deprecatedModes);
-        SetVariable(VAR_DEPRECATED_MODES, "");
-    }
 
     DeserializeGroups(    GetConVarString(VAR_COMMON_GROUPS));
     DeserializeScalars(   GetConVarString(VAR_COMMON_SCALARS));
@@ -312,81 +301,43 @@ void RenderSettings()
         switch (conditionInEditor)
         {
         case ConditionKind::MIN_REAL_SPEED:
-            {
-                const float tempValue = UI::InputFloat(
-                    "##min_real_speed", condition.display);
-                condition.display = tempValue;
+            condition.display = UI::InputFloat("##min_real_speed", condition.display);
+            UI::TextDimmed(
+                "The car MUST have a real speed of at least " +
+                condition.display +
+                " km/h in the eval timeframe.");
 
-                condition.value = condition.display / 3.6;
-                UI::TextDimmed(
-                    "The car MUST have a real speed of at least " +
-                    tempValue +
-                    " km/h in the eval timeframe.");
-            }
+            condition.value = condition.display / 3.6;
             break;
         case ConditionKind::FREEWHEELING:
-            RenderConditionBool(condition, "##freewheeling", "be free-wheeled in the eval timeframe.");
+            RenderConditionBool(condition, "##freewheeling", "be free-wheeled");
             break;
         case ConditionKind::SLIDING:
-            RenderConditionBool(condition, "##sliding", "be sliding in the eval timeframe.");
+            RenderConditionBool(condition, "##sliding", "be sliding");
             break;
         case ConditionKind::WHEEL_TOUCHING:
-            RenderConditionBool(condition, "##wheel_touching", "have wheel(s) crashing into a wall in the eval timeframe.");
+            RenderConditionBool(condition, "##wheel_touching", "have wheel(s) crashing into a wall");
             break;
         case ConditionKind::WHEEL_CONTACTS:
-            {
-                const uint tempValue = UI::SliderInt(
-                    "##wheel_contacts", uint(condition.display), 0, 4);
-                condition.display = tempValue;
-
-                condition.value = condition.display;
-                UI::TextDimmed(
-                    "The car MUST have at least " +
-                    tempValue +
-                    " wheels contacting the ground in the eval timeframe.");
-            }
+            RenderConditionSliderInt(condition, "##wheel_contacts", 0, 4, "wheels contacting the ground");
             break;
         case ConditionKind::CHECKPOINTS:
-            {
-                const uint tempValue = UI::InputInt(
-                    "##checkpoints", uint(condition.display));
-                condition.display = tempValue;
+            condition.display = UI::InputInt("##checkpoints", int(condition.display));
+            UI::TextDimmed(
+                "The car MUST have collected exactly " +
+                condition.display +
+                " checkpoints in the eval timeframe.");
 
-                condition.value = condition.display;
-                UI::TextDimmed(
-                    "The car MUST have collected exactly " +
-                    tempValue +
-                    " checkpoints in the eval timeframe.");
-            }
+            condition.value = condition.display;
             break;
         case ConditionKind::GEAR:
-            {
-                const int tempValue = UI::SliderInt(
-                    "##gear", int(condition.display), 0, 5);
-                condition.display = tempValue;
-
-                condition.value = condition.display;
-                UI::TextDimmed(
-                    "The car MUST be in exactly gear " +
-                    tempValue +
-                    " in the eval timeframe.");
-            }
+            RenderConditionSliderInt(condition, "##gear", 0, 5, "gears");
             break;
         case ConditionKind::REAR_GEAR:
-            {
-                const int tempValue = UI::SliderInt(
-                    "##rear_gear", int(condition.display), 0, 1);
-                condition.display = tempValue;
-
-                condition.value = condition.display;
-                UI::TextDimmed(
-                    "The car MUST be in exactly rear gear " +
-                    tempValue +
-                    " in the eval timeframe.");
-            }
+            RenderConditionSliderInt(condition, "##rear_gear", 0, 1, "rear gears");
             break;
         case ConditionKind::GLITCHING:
-            RenderConditionBool(condition, "##glitching", "be glitching in the eval timeframe.");
+            RenderConditionBool(condition, "##glitching", "be glitching");
             break;
         default:
             UI::TextWrapped("Corrupted condition index: " + conditionInEditor);
@@ -403,6 +354,32 @@ void RenderConditionBool(Condition@ condition, const string &in id, const string
 {
     const bool tempValue = UI::Checkbox(id, condition.display != 0);
     condition.display = tempValue ? 1 : 0;
+    UI::TextDimmed("The car MUST" + (tempValue ? " " : " NOT ") + what + " in the eval timeframe.");
+
     condition.value = condition.display;
-    UI::TextDimmed("The car MUST" + (tempValue ? " " : " NOT ") + what);
+}
+
+void RenderConditionSliderInt(Condition@ condition, const string &in id, const int min, const int max, const string &in what)
+{
+    string msg;
+
+    const int sliderMin = UI::SliderInt(id + "_min", int(condition.displayMin), min, max);
+    const int sliderMax = UI::SliderInt(id + "_max", int(condition.displayMax), min, max);
+    if (sliderMin == min && sliderMax == max)
+    {
+        condition.display = UI::SliderInt(id, int(condition.display), min, max);
+        msg = "exactly " + condition.display;
+    }
+    else
+    {
+        // the assumption here is that we neither negative overflow on the subtract, nor underflow on the float conversion
+        condition.display = min - 1;
+        msg = "between " + condition.displayMin + " and " + condition.displayMax;
+    }
+    condition.displayMin = Math::Min(sliderMin, sliderMax);
+    condition.displayMax = Math::Max(sliderMin, sliderMax);
+
+    UI::TextDimmed("The car MUST have " + msg + " " + what + " in the eval timeframe.");
+
+    condition.CopyDisplayToValues();
 }

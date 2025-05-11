@@ -1,11 +1,12 @@
 const string ITEM_SEP = ",";
 const string PAIR_SEP = ":";
-const string KIND_SEP = "|";
+const string KIND_SEP = ";";
+const string VERSION_SEP = "|";
 
 void LogIfWrongCount()
 {
     if (groupNames.Length != GroupKind::COUNT)         log("groupNames has wrong Length!",     Severity::Error);
-    if (scalarNames.Length != ScalarKind::COUNT)       log("scalarNames has wrong Length!",      Severity::Error);
+    if (scalarNames.Length != ScalarKind::COUNT)       log("scalarNames has wrong Length!",    Severity::Error);
     if (conditionNames.Length != ConditionKind::COUNT) log("conditionNames has wrong Length!", Severity::Error);
 }
 
@@ -53,25 +54,47 @@ array<Group> groups(GroupKind::COUNT);
 
 string SerializeGroups()
 {
-    array<string> kinds;
+    array<string> kinds(GroupKind::COUNT);
     for (uint i = 0; i < GroupKind::COUNT; i++)
     {
         const GroupKind groupKind = GroupKind(i);
-        kinds.Add(groupNames[groupKind] + PAIR_SEP + SerializeBool(groups[groupKind].active));
+        kinds[i] = groupNames[groupKind] + PAIR_SEP + SerializeBool(groups[groupKind].active);
     }
-    return Text::Join(kinds, KIND_SEP);
+    return Text::Join({ "v2.0.0", Text::Join(kinds, KIND_SEP) }, VERSION_SEP);
 }
 
 void DeserializeGroups(const string &in s)
 {
-    array<string>@ const kinds = s.Split(KIND_SEP);
-    if (kinds[0].IsEmpty())
+    array<string>@ const versioned = s.Split(VERSION_SEP);
     {
-        log("Generating groups...", Severity::Success);
-        SaveGroups();
-        return;
+        string error;
+        if (versioned.Length != 2)
+        {
+            error = "No version field detected";
+        }
+        else
+        {
+            const string version = versioned[0];
+            if (version.IsEmpty() || version[0] != 'v')
+            {
+                error = "No version detected";
+            }
+            else
+            {
+                if (version != "v2.0.0")
+                    error = "Unsupported version detected: " + version;
+            }
+        }
+
+        if (!error.IsEmpty())
+        {
+            log(error + ", generating groups...");
+            SaveGroups();
+            return;
+        }
     }
 
+    array<string>@ const kinds = versioned[1].Split(KIND_SEP);
     for (uint i = 0; i < kinds.Length; i++)
     {
         array<string>@ const kv = kinds[i].Split(PAIR_SEP);
@@ -160,7 +183,7 @@ array<Scalar> scalars(ScalarKind::COUNT);
 
 string SerializeScalars()
 {
-    array<string> kinds;
+    array<string> kinds(ScalarKind::COUNT);
     for (uint i = 0; i < ScalarKind::COUNT; i++)
     {
         const ScalarKind scalarKind = ScalarKind(i);
@@ -174,21 +197,43 @@ string SerializeScalars()
             scalar.lowerDisplay,
             scalar.upperDisplay
         };
-        kinds.Add(scalarNames[scalarKind] + PAIR_SEP + Text::Join(kind, ITEM_SEP));
+        kinds[i] = scalarNames[scalarKind] + PAIR_SEP + Text::Join(kind, ITEM_SEP);
     }
-    return Text::Join(kinds, KIND_SEP);
+    return Text::Join({ "v2.0.0", Text::Join(kinds, KIND_SEP) }, VERSION_SEP);
 }
 
 void DeserializeScalars(const string &in s)
 {
-    array<string>@ const kinds = s.Split(KIND_SEP);
-    if (kinds[0].IsEmpty())
+    array<string>@ const versioned = s.Split(VERSION_SEP);
     {
-        log("Generating scalars...", Severity::Success);
-        SaveScalars();
-        return;
+        string error;
+        if (versioned.Length != 2)
+        {
+            error = "No version field detected";
+        }
+        else
+        {
+            const string version = versioned[0];
+            if (version.IsEmpty() || version[0] != 'v')
+            {
+                error = "No version detected";
+            }
+            else
+            {
+                if (version != "v2.0.0")
+                    error = "Unsupported version detected: " + version;
+            }
+        }
+
+        if (!error.IsEmpty())
+        {
+            log(error + ", generating scalars...");
+            SaveScalars();
+            return;
+        }
     }
 
+    array<string>@ const kinds = versioned[1].Split(KIND_SEP);
     for (uint i = 0; i < kinds.Length; i++)
     {
         array<string>@ const kv = kinds[i].Split(PAIR_SEP);
@@ -280,14 +325,48 @@ const array<string> conditionNames =
 class Condition
 {
     bool active;
+
     double value;
+    double valueMin;
+    double valueMax;
+
     float display;
+    float displayMin;
+    float displayMax;
+
+    bool Inexact() const
+    {
+        return value < valueMin;
+    }
+
+    bool CompareInt(const int otherValue) const
+    {
+        bool ok;
+        if (Inexact())
+            ok = otherValue >= int(valueMin) && otherValue <= int(valueMax);
+        else
+            ok = otherValue == int(value);
+        return ok;
+    }
+
+    void CopyDisplayToValues()
+    {
+        value = display;
+        valueMin = displayMin;
+        valueMax = displayMax;
+    }
 
     void Reset()
     {
         //active = false; // unintuitive?
+
         value = 0;
+        valueMin = 0;
+        valueMax = 0;
+
         display = 0;
+        displayMin = 0;
+        displayMax = 0;
     }
 }
 
@@ -295,7 +374,7 @@ array<Condition> conditions(ConditionKind::COUNT);
 
 string SerializeConditions()
 {
-    array<string> kinds;
+    array<string> kinds(ConditionKind::COUNT);
     for (uint i = 0; i < ConditionKind::COUNT; i++)
     {
         const ConditionKind conditionKind = ConditionKind(i);
@@ -303,24 +382,52 @@ string SerializeConditions()
         const array<string> kind =
         {
             SerializeBool(condition.active),
+
             condition.value,
-            condition.display
+            condition.valueMin,
+            condition.valueMax,
+
+            condition.display,
+            condition.displayMin,
+            condition.displayMax
         };
-        kinds.Add(conditionNames[conditionKind] + PAIR_SEP + Text::Join(kind, ITEM_SEP));
+        kinds[i] = conditionNames[conditionKind] + PAIR_SEP + Text::Join(kind, ITEM_SEP);
     }
-    return Text::Join(kinds, KIND_SEP);
+    return Text::Join({ "v2.0.0", Text::Join(kinds, KIND_SEP) }, VERSION_SEP);
 }
 
 void DeserializeConditions(const string &in s)
 {
-    array<string>@ const kinds = s.Split(KIND_SEP);
-    if (kinds[0].IsEmpty())
+    array<string>@ const versioned = s.Split(VERSION_SEP);
     {
-        log("Generating conditions...", Severity::Success);
-        SaveConditions();
-        return;
+        string error;
+        if (versioned.Length != 2)
+        {
+            error = "No version field detected";
+        }
+        else
+        {
+            const string version = versioned[0];
+            if (version.IsEmpty() || version[0] != 'v')
+            {
+                error = "No version detected";
+            }
+            else
+            {
+                if (version != "v2.0.0")
+                    error = "Unsupported version detected: " + version;
+            }
+        }
+
+        if (!error.IsEmpty())
+        {
+            log(error + ", generating conditions...");
+            SaveConditions();
+            return;
+        }
     }
 
+    array<string>@ const kinds = versioned[1].Split(KIND_SEP);
     for (uint i = 0; i < kinds.Length; i++)
     {
         array<string>@ const kv = kinds[i].Split(PAIR_SEP);
@@ -340,7 +447,7 @@ void DeserializeConditions(const string &in s)
 
         const string valueString = kv[1];
         array<string>@ const values = valueString.Split(ITEM_SEP);
-        if (values.Length != 3)
+        if (values.Length != 7)
         {
             log("Could not deserialize this condition's values! String: " + valueString, Severity::Error);
             continue;
@@ -354,12 +461,23 @@ void DeserializeConditions(const string &in s)
         }
 
         const double value = Text::ParseFloat(values[1]);
-        const float display = Text::ParseFloat(values[2]);
+        const double valueMin = Text::ParseFloat(values[2]);
+        const double valueMax = Text::ParseFloat(values[3]);
+
+        const float display = Text::ParseFloat(values[4]);
+        const float displayMin = Text::ParseFloat(values[5]);
+        const float displayMax = Text::ParseFloat(values[6]);
 
         Condition@ const condition = conditions[kind];
         condition.active = active;
+
         condition.value = value;
+        condition.valueMin = valueMin;
+        condition.valueMax = valueMax;
+
         condition.display = display;
+        condition.displayMin = displayMin;
+        condition.displayMax = displayMax;
     }
 }
 
