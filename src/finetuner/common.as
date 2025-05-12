@@ -161,21 +161,18 @@ const array<string> scalarNames =
 
 class Scalar
 {
-    bool lower;
-    bool upper;
-    double lowerValue;
-    double upperValue;
-    float lowerDisplay;
-    float upperDisplay;
+    bool lower, upper;
+    double valueLower, valueUpper;
+    float displayLower, displayUpper;
 
     void Reset()
     {
         lower = false;
         upper = false;
-        lowerValue = 0;
-        upperValue = 0;
-        lowerDisplay = 0;
-        upperDisplay = 0;
+        valueLower = 0;
+        valueUpper = 0;
+        displayLower = 0;
+        displayUpper = 0;
     }
 }
 
@@ -192,10 +189,10 @@ string SerializeScalars()
         {
             SerializeBool(scalar.lower),
             SerializeBool(scalar.upper),
-            scalar.lowerValue,
-            scalar.upperValue,
-            scalar.lowerDisplay,
-            scalar.upperDisplay
+            scalar.valueLower,
+            scalar.valueUpper,
+            scalar.displayLower,
+            scalar.displayUpper
         };
         kinds[i] = scalarNames[scalarKind] + PAIR_SEP + Text::Join(kind, ITEM_SEP);
     }
@@ -267,19 +264,19 @@ void DeserializeScalars(const string &in s)
             continue;
         }
 
-        const double lowerValue = Text::ParseFloat(values[2]);
-        const double upperValue = Text::ParseFloat(values[3]);
+        const double valueLower = Text::ParseFloat(values[2]);
+        const double valueUpper = Text::ParseFloat(values[3]);
 
-        const double lowerDisplay = Text::ParseFloat(values[4]);
-        const double upperDisplay = Text::ParseFloat(values[5]);
+        const double displayLower = Text::ParseFloat(values[4]);
+        const double displayUpper = Text::ParseFloat(values[5]);
 
         Scalar@ const scalar = scalars[kind];
         scalar.lower = lower;
         scalar.upper = upper;
-        scalar.lowerValue = lowerValue;
-        scalar.upperValue = upperValue;
-        scalar.lowerDisplay = lowerDisplay;
-        scalar.upperDisplay = upperDisplay;
+        scalar.valueLower = valueLower;
+        scalar.valueUpper = valueUpper;
+        scalar.displayLower = displayLower;
+        scalar.displayUpper = displayUpper;
     }
 }
 
@@ -325,14 +322,8 @@ const array<string> conditionNames =
 class Condition
 {
     bool active;
-
-    double value;
-    double valueMin;
-    double valueMax;
-
-    float display;
-    float displayMin;
-    float displayMax;
+    double value, valueMin, valueMax;
+    float display, displayMin, displayMax;
 
     bool Inexact() const
     {
@@ -510,7 +501,12 @@ bool DeserializeBool(const string &in s, bool &out b)
     return ok;
 }
 
-double ConvertDisplayToValue(const GroupKind kind, const double display)
+double ConvertDisplayToValue(const ScalarKind kind, const float display)
+{
+    return ConvertDisplayToValue(ScalarKindToGroupKind(kind), display);
+}
+
+double ConvertDisplayToValue(const GroupKind kind, const float display)
 {
     double value;
     switch (kind)
@@ -529,9 +525,28 @@ double ConvertDisplayToValue(const GroupKind kind, const double display)
     return value;
 }
 
-double ConvertValueToDisplay(const GroupKind kind, const double value)
+vec3 ConvertDisplayToValue3(const ScalarKind kind, const vec3 &in display)
 {
-    double display;
+    return ConvertDisplayToValue3(ScalarKindToGroupKind(kind), display);
+}
+
+vec3 ConvertDisplayToValue3(const GroupKind kind, const vec3 &in display)
+{
+    vec3 value;
+    value.x = ConvertDisplayToValue(kind, display.x);
+    value.y = ConvertDisplayToValue(kind, display.y);
+    value.z = ConvertDisplayToValue(kind, display.z);
+    return value;
+}
+
+float ConvertValueToDisplay(const ScalarKind kind, const double value)
+{
+    return ConvertValueToDisplay(ScalarKindToGroupKind(kind), value);
+}
+
+float ConvertValueToDisplay(const GroupKind kind, const double value)
+{
+    float display;
     switch (kind)
     {
     case GroupKind::ROTATION:
@@ -548,52 +563,54 @@ double ConvertValueToDisplay(const GroupKind kind, const double value)
     return display;
 }
 
+vec3 ConvertValueToDisplay3(const ScalarKind kind, const vec3 &in value)
+{
+    return ConvertValueToDisplay3(ScalarKindToGroupKind(kind), value);
+}
+
+vec3 ConvertValueToDisplay3(const GroupKind kind, const vec3 &in value)
+{
+    vec3 display;
+    display.x = ConvertValueToDisplay(kind, value.x);
+    display.y = ConvertValueToDisplay(kind, value.y);
+    display.z = ConvertValueToDisplay(kind, value.z);
+    return display;
+}
+
 string FormatVec3ByTargetGroup(const vec3 &in value, const uint precision = 12)
 {
     string formatted;
     if (printByComponent)
     {
-        const vec3 display = vec3(
-            ConvertValueToDisplay(targetGroup, value.x),
-            ConvertValueToDisplay(targetGroup, value.y),
-            ConvertValueToDisplay(targetGroup, value.z));
-
+        const vec3 display = ConvertValueToDisplay3(targetGroup, value);
         formatted = FormatPrecise(display, precision);
     }
     else
     {
-        formatted = FormatFloatByGroup(targetGroup, value.Length(), precision);
+        formatted = FormatValueByGroup(targetGroup, value.Length(), precision);
     }
     return formatted;
 }
 
-string FormatFloatByTargetScalar(const double value, const uint precision = 12)
+string FormatValueByTarget(const double value, const uint precision = 12)
 {
-    GroupKind groupKind;
-    // discard
-    ScalarKindToGroupKind(targetScalar, groupKind);
-    return FormatFloatByGroup(groupKind, value, precision);
+    const GroupKind groupKind = isTargetGrouped ? targetGroup : ScalarKindToGroupKind(targetScalar);
+    return FormatValueByGroup(groupKind, value, precision);
 }
 
-string FormatFloatByTarget(const double value, const uint precision = 12)
+string FormatValueByGroup(const GroupKind groupKind, const double value, const uint precision = 12)
 {
-    string formatted;
-    if (isTargetGrouped)
-        formatted = FormatFloatByGroup(targetGroup, value, precision);
-    else
-        formatted = FormatFloatByTargetScalar(value, precision);
-    return formatted;
+    return FormatPrecise(ConvertValueToDisplay(groupKind, value), precision);
 }
 
-string FormatFloatByGroup(const GroupKind groupKind, const double value, const uint precision = 12)
+string FormatValueByScalar(const ScalarKind scalarKind, const double value, const uint precision = 12)
 {
-    const double display = ConvertValueToDisplay(groupKind, value);
-    return FormatPrecise(display, precision);
+    return FormatPrecise(ConvertValueToDisplay(scalarKind, value), precision);
 }
 
-bool GroupKindToScalarKinds(const GroupKind groupKind, array<ScalarKind> &out scalarKinds)
+array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
 {
-    bool ok = true;
+    array<ScalarKind> scalarKinds;
     switch (groupKind)
     {
     case POSITION:
@@ -660,17 +677,13 @@ bool GroupKindToScalarKinds(const GroupKind groupKind, array<ScalarKind> &out sc
             ScalarKind::WHEEL_BL_Z
         };
         break;
-    default:
-        scalarKinds = {};
-        ok = false;
-        break;
     }
-    return ok;
+    return scalarKinds;
 }
 
-bool ScalarKindToGroupKind(const ScalarKind scalarKind, GroupKind &out groupKind)
+GroupKind ScalarKindToGroupKind(const ScalarKind scalarKind)
 {
-    bool ok = true;
+    GroupKind groupKind;
     switch (scalarKind)
     {
     case POSITION_X:
@@ -715,8 +728,7 @@ bool ScalarKindToGroupKind(const ScalarKind scalarKind, GroupKind &out groupKind
         break;
     default:
         groupKind = GroupKind::NONE;
-        ok = false;
         break;
     }
-    return ok;
+    return groupKind;
 }

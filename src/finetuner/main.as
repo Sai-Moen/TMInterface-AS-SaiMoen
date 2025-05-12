@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1h";
+    info.Version = "v2.1.1i";
     return info;
 }
 
@@ -67,15 +67,7 @@ void OnSimulationBegin(SimulationManager@)
             @isBetterTowards =
                 function()
                 {
-                    switch (targetGroup)
-                    {
-                    case GroupKind::ROTATION:
-                        diffCurrent = Math::Angle(current3, target3Values);
-                        break;
-                    default:
-                        diffCurrent = Math::Distance(current3, target3Values);
-                        break;
-                    }
+                    diffCurrent = Math::Distance(current3, targetVec3);
                     return diffCurrent < diffBest;
                 };
             break;
@@ -156,10 +148,7 @@ void OnSimulationBegin(SimulationManager@)
         if (!groups[groupKind].active)
             continue;
 
-        array<ScalarKind> tempScalarKinds;
-        if (!GroupKindToScalarKinds(groupKind, tempScalarKinds))
-            continue;
-
+        array<ScalarKind>@ tempScalarKinds = GroupKindToScalarKinds(groupKind);
         for (uint k = 0; k < tempScalarKinds.Length; k++)
         {
             const ScalarKind scalarKind = tempScalarKinds[k];
@@ -190,7 +179,7 @@ void OnSimulationBegin(SimulationManager@)
         {
             builder.AppendLine({ "Group = ", groupNames[targetGroup] });
             if (customTargetTowards)
-                builder.AppendLine({ "Values = ", FormatPrecise(target3Values) });
+                builder.AppendLine({ "Values = ", FormatPrecise(targetVec3) });
         }
         else
         {
@@ -246,13 +235,13 @@ void OnSimulationBegin(SimulationManager@)
                 builder.Append({ PadRight(scalarNames[kind], maxScalarNameLength), " => " });
 
                 if (scalar.lower)
-                    builder.Append({ "Lower: ", FormatPrecise(scalar.lowerValue) });
+                    builder.Append({ "Lower: ", FormatPrecise(scalar.valueLower) });
 
                 if (scalar.lower && scalar.upper)
                     builder.Append(", ");
 
                 if (scalar.upper)
-                    builder.Append({ "Upper: ", FormatPrecise(scalar.upperValue) });
+                    builder.Append({ "Upper: ", FormatPrecise(scalar.valueUpper) });
 
                 builder.AppendLine();
             }
@@ -341,12 +330,12 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
                 if (isTargetGrouped)
                     builder.Append({ groupNames[targetGroup], " | ", FormatVec3ByTargetGroup(best3, 6) });
                 else
-                    builder.Append({ scalarNames[targetScalar], " | ", FormatFloatByTargetScalar(best, 6) });
+                    builder.Append({ scalarNames[targetScalar], " | ", FormatValueByScalar(targetScalar, best, 6) });
 
                 builder.Append({ " | Time: ", Time::Format(impTime) });
 
                 if (customTargetTowards)
-                    builder.Append({ " | Diff: ", FormatFloatByTarget(diffBest) });
+                    builder.Append({ " | Diff: ", FormatValueByTarget(diffBest) });
 
                 const uint iterations = info.Iterations;
                 if (iterations == 0)
@@ -497,7 +486,7 @@ bool IsBetter(SimulationManager@ simManager)
         const double value = GetScalarValue(simManager, kind);
 
         const Scalar@ const scalar = scalars[kind];
-        if ((scalar.lower && value < scalar.lowerValue) || (scalar.upper && value > scalar.upperValue))
+        if ((scalar.lower && value < scalar.valueLower) || (scalar.upper && value > scalar.valueUpper))
         {
             if (!met)
             {

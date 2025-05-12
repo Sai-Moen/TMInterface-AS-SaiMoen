@@ -6,9 +6,13 @@ const string VAR_EVAL_TO   = VAR + "eval_to";
 const string VAR_TARGET_GROUPED = VAR + "target_grouped";
 const string VAR_TARGET_SCALAR  = VAR + "target_scalar";
 const string VAR_TARGET_GROUP   = VAR + "target_group";
-const string VAR_TARGET_VALUE   = VAR + "target_value";
-const string VAR_TARGET_3VALUES = VAR + "target_3values";
 const string VAR_TARGET_TOWARDS = VAR + "target_towards";
+
+const string VAR_TARGET_VALUE         = VAR + "target_value";
+const string VAR_TARGET_VALUE_DISPLAY = VAR + "target_value_display";
+
+const string VAR_TARGET_VEC3         = VAR + "target_vec3";
+const string VAR_TARGET_VEC3_DISPLAY = VAR + "target_vec3_display";
 
 const string VAR_PRINT_BY_COMPONENT = VAR + "print_by_component";
 
@@ -20,11 +24,15 @@ ms evalFrom;
 ms evalTo;
 
 bool isTargetGrouped;
-ScalarKind targetScalar;
 GroupKind targetGroup;
+ScalarKind targetScalar;
 int targetTowards;
+
 double targetValue;
-vec3 target3Values;
+float targetValueDisplay;
+
+vec3 targetVec3;
+vec3 targetVec3Display;
 
 bool printByComponent;
 
@@ -37,8 +45,12 @@ void RegisterSettings()
     RegisterVariable(VAR_TARGET_SCALAR,  0);
     RegisterVariable(VAR_TARGET_GROUP,   0);
     RegisterVariable(VAR_TARGET_TOWARDS, 0);
-    RegisterVariable(VAR_TARGET_VALUE,   0);
-    RegisterVariable(VAR_TARGET_3VALUES, vec3().ToString());
+
+    RegisterVariable(VAR_TARGET_VALUE,           0);
+    RegisterVariable(VAR_TARGET_VALUE_DISPLAY,   0);
+
+    RegisterVariable(VAR_TARGET_VEC3,         vec3().ToString());
+    RegisterVariable(VAR_TARGET_VEC3_DISPLAY, vec3().ToString());
 
     RegisterVariable(VAR_PRINT_BY_COMPONENT, false);
 
@@ -53,8 +65,12 @@ void RegisterSettings()
     targetScalar    = ScalarKind(GetVariableDouble(VAR_TARGET_SCALAR));
     targetGroup     = GroupKind(GetVariableDouble(VAR_TARGET_GROUP));
     targetTowards   = GetConVarInt(VAR_TARGET_TOWARDS);
-    targetValue     = GetConVarDouble(VAR_TARGET_VALUE);
-    target3Values   = GetConVarVec3(VAR_TARGET_3VALUES);
+
+    targetValue        = GetConVarDouble(VAR_TARGET_VALUE);
+    targetValueDisplay = GetConVarDouble(VAR_TARGET_VALUE_DISPLAY);
+
+    targetVec3        = GetConVarVec3(VAR_TARGET_VEC3);
+    targetVec3Display = GetConVarVec3(VAR_TARGET_VEC3_DISPLAY);
 
     printByComponent = GetConVarBool(VAR_PRINT_BY_COMPONENT);
 
@@ -99,6 +115,7 @@ void RenderSettings()
 
     isTargetGrouped = UI::CheckboxVar("Grouped Target?", VAR_TARGET_GROUPED);
     if (isTargetGrouped)
+    {
         ComboHelper("Target (Group):", groupNames, targetGroup,
             function(index)
             {
@@ -106,7 +123,12 @@ void RenderSettings()
                 SetVariable(VAR_TARGET_GROUP, targetGroup);
             }
         );
+
+        if (targetGroup == GroupKind::ROTATION)
+            UI::TextDimmed("WARNING: using grouped rotation is not recommended.");
+    }
     else
+    {
         ComboHelper("Target (Scalar):", scalarNames, targetScalar,
             function(index)
             {
@@ -114,6 +136,7 @@ void RenderSettings()
                 SetVariable(VAR_TARGET_SCALAR, targetScalar);
             }
         );
+    }
 
     targetTowards = UI::SliderIntVar("Target Towards", VAR_TARGET_TOWARDS, -1, 1);
 
@@ -140,12 +163,18 @@ void RenderSettings()
         UI::BeginDisabled(disableTarget);
         if (isTargetGrouped)
         {
-            if (UI::DragFloat3Var("Target Values", VAR_TARGET_3VALUES))
-                target3Values = GetConVarVec3(VAR_TARGET_3VALUES);
+            if (UI::DragFloat3Var("Target Values", VAR_TARGET_VEC3_DISPLAY))
+            {
+                targetVec3Display = GetConVarVec3(VAR_TARGET_VEC3_DISPLAY);
+                targetVec3 = ConvertDisplayToValue3(targetGroup, targetVec3Display);
+                SetVariable(VAR_TARGET_VEC3, targetVec3);
+            }
         }
         else
         {
-            targetValue = UI::InputFloatVar("Target Value", VAR_TARGET_VALUE);
+            targetValueDisplay = UI::InputFloatVar("Target Value", VAR_TARGET_VALUE_DISPLAY);
+            targetValue = ConvertDisplayToValue(targetScalar, targetValueDisplay);
+            SetVariable(VAR_TARGET_VALUE, targetValue);
         }
         UI::EndDisabled();
     }
@@ -192,8 +221,8 @@ void RenderSettings()
     }
 
     {
-        array<ScalarKind> scalarsToRender;
-        if (GroupKindToScalarKinds(groupInEditor, scalarsToRender))
+        array<ScalarKind>@ scalarsToRender = GroupKindToScalarKinds(groupInEditor);
+        if (!scalarsToRender.IsEmpty())
         {
             UI::PushID("group_in_editor_" + groupInEditor);
 
@@ -220,25 +249,23 @@ void RenderSettings()
                 UI::SameLine();
                 scalar.upper = UI::Checkbox("Upper Bound", scalar.upper);
 
-                GroupKind groupKind;
-                // discard
-                ScalarKindToGroupKind(scalarKind, groupKind);
-
                 UI::PushItemWidth(192);
+
+                const GroupKind groupKind = ScalarKindToGroupKind(scalarKind);
 
                 UI::BeginDisabled(!scalar.lower);
 
-                scalar.lowerDisplay = UI::InputFloat("##lower", scalar.lowerDisplay);
+                scalar.displayLower = UI::InputFloat("##lower", scalar.displayLower);
                 if (scalar.lower)
-                    scalar.lowerValue = ConvertDisplayToValue(groupKind, scalar.lowerDisplay);
+                    scalar.valueLower = ConvertDisplayToValue(groupKind, scalar.displayLower);
 
                 UI::EndDisabled();
                 UI::SameLine();
                 UI::BeginDisabled(!scalar.upper);
 
-                scalar.upperDisplay = UI::InputFloat("##upper", scalar.upperDisplay);
+                scalar.displayUpper = UI::InputFloat("##upper", scalar.displayUpper);
                 if (scalar.upper)
-                    scalar.upperValue = ConvertDisplayToValue(groupKind, scalar.upperDisplay);
+                    scalar.valueUpper = ConvertDisplayToValue(groupKind, scalar.displayUpper);
 
                 UI::EndDisabled();
 
