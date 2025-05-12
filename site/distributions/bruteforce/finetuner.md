@@ -12,6 +12,7 @@ and many more combinations with modes/conditions are possible.
 
 ### Finetuner
 
+- [v2.1.1i](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1i/finetuner.zip)
 - [v2.1.1h](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1h/finetuner.zip)
 - [v2.1.1g](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1g/finetuner.zip)
 - [v2.1.1f](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1f/finetuner.zip)
@@ -36,13 +37,19 @@ Therefore, it can be found as a mode in the built-in bruteforce controller, unde
 
 ## Patch Notes
 
+### v2.1.1i
+
+- Fixed target value not using display values (and thus not converting e.g. degrees to radians).
+- Added warning for grouped rotation target.
+- Did some cleanup.
+
 ### v2.1.1h
 
-- Fix potential memory leak relating to unmet conditions collection.
+- Fixed potential memory leak relating to unmet conditions collection.
 - Make yaw/pitch/roll use angle difference rather than vector distance
 (note: grouped rotation is still broken).
-- Add minimum value and maximum value to wheel contacts, gear and rear gear.
-- Add a version field to serialization of groups/scalars/conditions
+- Added minimum value and maximum value to wheel contacts, gear and rear gear.
+- Added a version field to serialization of groups/scalars/conditions
 (note: this update will wipe the settings of the two editors).
 
 ### v2.1.1g
