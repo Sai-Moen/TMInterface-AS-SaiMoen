@@ -102,8 +102,10 @@ void SaveConditions()
 }
 
 const string HIDDEN_EDITOR_LABEL = "<Hide>";
+const int TRIGGER_NONE = -1;
 
 GroupKind groupInEditor = GroupKind::NONE;
+int triggerID = TRIGGER_NONE;
 ConditionKind conditionInEditor = ConditionKind::NONE;
 
 void RenderSettings()
@@ -190,9 +192,7 @@ void RenderSettings()
     {
         const bool isHiddenGroupInEditor = groupInEditor == GroupKind::NONE;
         const string currentGroup =
-            isHiddenGroupInEditor ?
-                HIDDEN_EDITOR_LABEL :
-                groupNames[groupInEditor];
+            isHiddenGroupInEditor ? HIDDEN_EDITOR_LABEL : groupNames[groupInEditor];
         if (UI::BeginCombo("Group Editor", currentGroup))
         {
             UI::PushID("group_editor");
@@ -202,9 +202,9 @@ void RenderSettings()
 
             for (uint i = 0; i < GroupKind::COUNT; i++)
             {
+                const GroupKind kind = GroupKind(i);
                 UI::PushID("" + i);
 
-                const GroupKind kind = GroupKind(i);
                 Group@ const group = groups[kind];
 
                 group.active = UI::Checkbox("##active", group.active);
@@ -220,62 +220,121 @@ void RenderSettings()
         }
     }
 
+    if (groupInEditor != GroupKind::NONE)
     {
-        array<ScalarKind>@ scalarsToRender = GroupKindToScalarKinds(groupInEditor);
-        if (!scalarsToRender.IsEmpty())
+        UI::PushID("group_in_editor_" + groupInEditor);
+
+        UI::TextWrapped(
+            "Group: " + groupNames[groupInEditor] +
+            " = " + (groups[groupInEditor].active ? "ON" : "OFF"));
+
+        const bool resetAll = UI::Button("Reset All");
+        UI::SameLine();
+        const bool toggleAll = UI::Button("Toggle All");
+        UI::SameLine();
+        const bool activateAll = UI::Button("Activate All");
+
+        const auto@ const scalarsToRender = GroupKindToScalarKinds(groupInEditor);
+        if (groupInEditor == GroupKind::POSITION)
         {
-            UI::PushID("group_in_editor_" + groupInEditor);
-
-            const bool resetAll = UI::Button("Reset All");
-            UI::SameLine();
-            UI::TextWrapped(
-                "Group: " + groupNames[groupInEditor] +
-                " = " + (groups[groupInEditor].active ? "ON" : "OFF"));
-
-            for (uint i = 0; i < scalarsToRender.Length; i++)
+            if (UI::BeginCombo("Triggers", "id: " + triggerID))
             {
-                UI::PushID("" + i);
+                if (UI::Selectable("None", triggerID == TRIGGER_NONE))
+                    triggerID = TRIGGER_NONE;
 
-                UI::Separator();
+                const auto@ const ids = GetTriggerIds();
+                for (uint i = 0; i < ids.Length; i++)
+                {
+                    const int id = ids[i];
+                    if (UI::Selectable(i + ": " + id, triggerID == id))
+                        triggerID = id;
+                }
 
-                const ScalarKind scalarKind = scalarsToRender[i];
-                Scalar@ const scalar = scalars[scalarKind];
-                if (UI::Button("Reset") || resetAll)
-                    scalar.Reset();
-                UI::SameLine();
-                UI::TextWrapped("Scalar: " + scalarNames[scalarKind]);
-
-                scalar.lower = UI::Checkbox("Lower Bound", scalar.lower);
-                UI::SameLine();
-                scalar.upper = UI::Checkbox("Upper Bound", scalar.upper);
-
-                UI::PushItemWidth(192);
-
-                const GroupKind groupKind = ScalarKindToGroupKind(scalarKind);
-
-                UI::BeginDisabled(!scalar.lower);
-
-                scalar.displayLower = UI::InputFloat("##lower", scalar.displayLower);
-                if (scalar.lower)
-                    scalar.valueLower = ConvertDisplayToValue(groupKind, scalar.displayLower);
-
-                UI::EndDisabled();
-                UI::SameLine();
-                UI::BeginDisabled(!scalar.upper);
-
-                scalar.displayUpper = UI::InputFloat("##upper", scalar.displayUpper);
-                if (scalar.upper)
-                    scalar.valueUpper = ConvertDisplayToValue(groupKind, scalar.displayUpper);
-
-                UI::EndDisabled();
-
-                UI::PopItemWidth();
-
-                UI::PopID();
+                UI::EndCombo();
             }
+
+            if (triggerID != TRIGGER_NONE)
+            {
+                const Trigger3D trigger = GetTrigger(triggerID);
+                if (trigger)
+                {
+                    const vec3 position = trigger.Position;
+                    const vec3 size = trigger.Size;
+                    for (uint i = 0; i < 3; i++)
+                    {
+                        Scalar@ const scalar = scalars[scalarsToRender[i]];
+                        scalar.valueLower = position[i];
+                        scalar.valueUpper = position[i] + size[i];
+                        scalar.displayLower = scalar.valueLower;
+                        scalar.displayUpper = scalar.valueUpper;
+                    }
+                }
+                else
+                {
+                    triggerID = TRIGGER_NONE;
+                }
+            }
+
+            if (UI::Button("Use Cam Position"))
+            {
+                const auto@ const camera = GetCurrentCamera();
+                if (camera !is null)
+                    BoundScalarsByVec3(scalarsToRender, camera.Location.Position);
+            }
+            UI::SameLine();
+            if (UI::Button("Use Car Position"))
+            {
+                const auto@ const dyna = GetSimulationManager().Dyna;
+                if (dyna !is null)
+                    BoundScalarsByVec3(scalarsToRender, dyna.RefStateCurrent.Location.Position);
+            }
+        }
+
+        for (uint i = 0; i < scalarsToRender.Length; i++)
+        {
+            const ScalarKind scalarKind = scalarsToRender[i];
+            UI::PushID("" + i);
+
+            UI::Separator();
+
+            Scalar@ const scalar = scalars[scalarKind];
+            if (UI::Button("Reset") || resetAll)
+                scalar.Reset();
+            UI::SameLine();
+            UI::TextWrapped("Scalar: " + scalarNames[scalarKind]);
+
+            scalar.lower = UI::Checkbox("Lower Bound", scalar.lower) || activateAll;
+            UI::SameLine();
+            scalar.upper = UI::Checkbox("Upper Bound", scalar.upper) || activateAll;
+
+            if (toggleAll)
+            {
+                scalar.lower = !scalar.lower;
+                scalar.upper = !scalar.upper;
+            }
+
+            UI::PushItemWidth(192);
+            UI::BeginDisabled(!scalar.lower);
+
+            scalar.displayLower = UI::InputFloat("##lower", scalar.displayLower);
+            if (scalar.lower)
+                scalar.valueLower = ConvertDisplayToValue(groupInEditor, scalar.displayLower);
+
+            UI::EndDisabled();
+            UI::SameLine();
+            UI::BeginDisabled(!scalar.upper);
+
+            scalar.displayUpper = UI::InputFloat("##upper", scalar.displayUpper);
+            if (scalar.upper)
+                scalar.valueUpper = ConvertDisplayToValue(groupInEditor, scalar.displayUpper);
+
+            UI::EndDisabled();
+            UI::PopItemWidth();
 
             UI::PopID();
         }
+
+        UI::PopID();
     }
 
     UI::Separator();
@@ -283,9 +342,7 @@ void RenderSettings()
     {
         const bool isHiddenConditionInEditor = conditionInEditor == ConditionKind::NONE;
         const string currentCondition =
-            isHiddenConditionInEditor ?
-                HIDDEN_EDITOR_LABEL :
-                conditionNames[conditionInEditor];
+            isHiddenConditionInEditor ? HIDDEN_EDITOR_LABEL : conditionNames[conditionInEditor];
         if (UI::BeginCombo("Condition Editor", currentCondition))
         {
             UI::PushID("condition_editor");
@@ -295,9 +352,9 @@ void RenderSettings()
 
             for (uint i = 0; i < ConditionKind::COUNT; i++)
             {
+                const ConditionKind kind = ConditionKind(i);
                 UI::PushID("" + i);
 
-                const ConditionKind kind = ConditionKind(i);
                 Condition@ const condition = conditions[kind];
 
                 condition.active = UI::Checkbox("##active", condition.active);
@@ -318,12 +375,12 @@ void RenderSettings()
         UI::PushID("condition_in_editor_" + conditionInEditor);
 
         Condition@ const condition = conditions[conditionInEditor];
-        if (UI::Button("Reset"))
-            condition.Reset();
-        UI::SameLine();
         UI::TextWrapped(
             "Condition: " + conditionNames[conditionInEditor] +
             " = " + (condition.active ? "ON" : "OFF"));
+
+        if (UI::Button("Reset"))
+            condition.Reset();
 
         switch (conditionInEditor)
         {
@@ -375,6 +432,27 @@ void RenderSettings()
     }
 
     SaveSettings();
+}
+
+void BoundScalarsByVec3(const array<ScalarKind>@ scalarKinds, const vec3 &in v, const double offset = 2)
+{
+    if (scalarKinds.Length != 3)
+    {
+        UI::TextWrapped("ERROR: cannot bound scalars by vec3.");
+        return;
+    }
+
+    for (uint i = 0; i < 3; i++)
+    {
+        const ScalarKind kind = scalarKinds[i];
+        Scalar@ const scalar = scalars[kind];
+        scalar.lower = true;
+        scalar.upper = true;
+        scalar.valueLower = v[i] - offset;
+        scalar.valueUpper = v[i] + offset;
+        scalar.displayLower = ConvertValueToDisplay(kind, scalar.valueLower);
+        scalar.displayUpper = ConvertValueToDisplay(kind, scalar.valueUpper);
+    }
 }
 
 void RenderConditionBool(Condition@ condition, const string &in id, const string &in what)

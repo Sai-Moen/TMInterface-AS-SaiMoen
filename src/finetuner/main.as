@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1i";
+    info.Version = "v2.1.1j";
     return info;
 }
 
@@ -148,7 +148,7 @@ void OnSimulationBegin(SimulationManager@)
         if (!groups[groupKind].active)
             continue;
 
-        array<ScalarKind>@ tempScalarKinds = GroupKindToScalarKinds(groupKind);
+        const auto@ const tempScalarKinds = GroupKindToScalarKinds(groupKind);
         for (uint k = 0; k < tempScalarKinds.Length; k++)
         {
             const ScalarKind scalarKind = tempScalarKinds[k];
