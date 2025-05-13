@@ -12,6 +12,7 @@ and many more combinations with modes/conditions are possible.
 
 ### Finetuner
 
+- [v2.1.1j](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1j/finetuner.zip)
 - [v2.1.1i](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1i/finetuner.zip)
 - [v2.1.1h](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1h/finetuner.zip)
 - [v2.1.1g](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1g/finetuner.zip)
@@ -36,6 +37,12 @@ This plugin will register itself as a bruteforce mode.
 Therefore, it can be found as a mode in the built-in bruteforce controller, under Optimization.
 
 ## Patch Notes
+
+### v2.1.1j
+
+- Added copy position from camera/car to the group editor for position.
+- Added trigger tracking to the group editor for position.
+- Added "Toggle All" and "Activate All" to the group editor.
 
 ### v2.1.1i
 
