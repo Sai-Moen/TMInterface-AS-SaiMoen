@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1j";
+    info.Version = "v2.1.1k";
     return info;
 }
 

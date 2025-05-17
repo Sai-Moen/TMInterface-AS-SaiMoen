@@ -102,10 +102,11 @@ void SaveConditions()
 }
 
 const string HIDDEN_EDITOR_LABEL = "<Hide>";
-const int TRIGGER_NONE = -1;
+
+int triggerPosEditorID = -1;
+int triggerPosEditorIndex = -1;
 
 GroupKind groupInEditor = GroupKind::NONE;
-int triggerID = TRIGGER_NONE;
 ConditionKind conditionInEditor = ConditionKind::NONE;
 
 void RenderSettings()
@@ -185,8 +186,20 @@ void RenderSettings()
     {
         printByComponent = UI::CheckboxVar("Print Group values by component?", VAR_PRINT_BY_COMPONENT);
         TooltipOnHover("Whether the values of the target group are to be printed by component (e.g. x y z), or as one value.");
+
+        if (targetGroup == GroupKind::POSITION)
+        {
+            vec3 cameraPosition;
+            if (CameraPosOnClick("Use Cam Position", cameraPosition))
+                SetTargetVec3(cameraPosition);
+            UI::SameLine();
+            vec3 carPosition;
+            if (CarPosOnClick("Use Car Position", carPosition))
+                SetTargetVec3(carPosition);
+        }
     }
 
+    UI::Separator();
     UI::Separator();
 
     {
@@ -206,7 +219,6 @@ void RenderSettings()
                 UI::PushID("" + i);
 
                 Group@ const group = groups[kind];
-
                 group.active = UI::Checkbox("##active", group.active);
                 UI::SameLine();
                 if (UI::Selectable(groupNames[kind], groupInEditor == kind))
@@ -224,9 +236,8 @@ void RenderSettings()
     {
         UI::PushID("group_in_editor_" + groupInEditor);
 
-        UI::TextWrapped(
-            "Group: " + groupNames[groupInEditor] +
-            " = " + (groups[groupInEditor].active ? "ON" : "OFF"));
+        Group@ const group = groups[groupInEditor];
+        group.active = UI::Checkbox("Active", group.active);
 
         const bool resetAll = UI::Button("Reset All");
         UI::SameLine();
@@ -237,56 +248,35 @@ void RenderSettings()
         const auto@ const scalarsToRender = GroupKindToScalarKinds(groupInEditor);
         if (groupInEditor == GroupKind::POSITION)
         {
-            if (UI::BeginCombo("Triggers", "id: " + triggerID))
+            TriggerCombo(triggerPosEditorID, triggerPosEditorIndex);
+
+            Trigger3D trigger;
+            if (GetTriggerOrReset(triggerPosEditorID, triggerPosEditorIndex, trigger))
             {
-                if (UI::Selectable("None", triggerID == TRIGGER_NONE))
-                    triggerID = TRIGGER_NONE;
-
-                const auto@ const ids = GetTriggerIds();
-                for (uint i = 0; i < ids.Length; i++)
+                const vec3 position = trigger.Position;
+                const vec3 size = trigger.Size;
+                for (uint i = 0; i < 3; i++)
                 {
-                    const int id = ids[i];
-                    if (UI::Selectable(i + ": " + id, triggerID == id))
-                        triggerID = id;
-                }
-
-                UI::EndCombo();
-            }
-
-            if (triggerID != TRIGGER_NONE)
-            {
-                const Trigger3D trigger = GetTrigger(triggerID);
-                if (trigger)
-                {
-                    const vec3 position = trigger.Position;
-                    const vec3 size = trigger.Size;
-                    for (uint i = 0; i < 3; i++)
-                    {
-                        Scalar@ const scalar = scalars[scalarsToRender[i]];
-                        scalar.valueLower = position[i];
-                        scalar.valueUpper = position[i] + size[i];
-                        scalar.displayLower = scalar.valueLower;
-                        scalar.displayUpper = scalar.valueUpper;
-                    }
-                }
-                else
-                {
-                    triggerID = TRIGGER_NONE;
+                    Scalar@ const scalar = scalars[scalarsToRender[i]];
+                    scalar.valueLower = position[i];
+                    scalar.valueUpper = position[i] + size[i];
+                    scalar.displayLower = scalar.valueLower;
+                    scalar.displayUpper = scalar.valueUpper;
                 }
             }
 
-            if (UI::Button("Use Cam Position"))
+            vec3 cameraPosition;
+            if (CameraPosOnClick("Use Cam Position", cameraPosition))
             {
-                const auto@ const camera = GetCurrentCamera();
-                if (camera !is null)
-                    BoundScalarsByVec3(scalarsToRender, camera.Location.Position);
+                ResetTriggerID(triggerPosEditorID, triggerPosEditorIndex);
+                BoundScalarsByVec3(scalarsToRender, cameraPosition);
             }
             UI::SameLine();
-            if (UI::Button("Use Car Position"))
+            vec3 carPosition;
+            if (CarPosOnClick("Use Car Position", carPosition))
             {
-                const auto@ const dyna = GetSimulationManager().Dyna;
-                if (dyna !is null)
-                    BoundScalarsByVec3(scalarsToRender, dyna.RefStateCurrent.Location.Position);
+                ResetTriggerID(triggerPosEditorID, triggerPosEditorIndex);
+                BoundScalarsByVec3(scalarsToRender, carPosition);
             }
         }
 
@@ -338,6 +328,7 @@ void RenderSettings()
     }
 
     UI::Separator();
+    UI::Separator();
 
     {
         const bool isHiddenConditionInEditor = conditionInEditor == ConditionKind::NONE;
@@ -356,7 +347,6 @@ void RenderSettings()
                 UI::PushID("" + i);
 
                 Condition@ const condition = conditions[kind];
-
                 condition.active = UI::Checkbox("##active", condition.active);
                 UI::SameLine();
                 if (UI::Selectable(conditionNames[kind], conditionInEditor == kind))
@@ -375,9 +365,7 @@ void RenderSettings()
         UI::PushID("condition_in_editor_" + conditionInEditor);
 
         Condition@ const condition = conditions[conditionInEditor];
-        UI::TextWrapped(
-            "Condition: " + conditionNames[conditionInEditor] +
-            " = " + (condition.active ? "ON" : "OFF"));
+        condition.active = UI::Checkbox("Active", condition.active);
 
         if (UI::Button("Reset"))
             condition.Reset();
@@ -432,6 +420,88 @@ void RenderSettings()
     }
 
     SaveSettings();
+}
+
+bool CameraPosOnClick(const string &in label, vec3 &out position)
+{
+    if (UI::Button(label))
+    {
+        const auto@ const camera = GetCurrentCamera();
+        if (camera !is null)
+        {
+            position = camera.Location.Position;
+            return true;
+        }
+    }
+
+    position = vec3();
+    return false;
+}
+
+bool CarPosOnClick(const string &in label, vec3 &out position)
+{
+    if (UI::Button(label))
+    {
+        const auto@ const dyna = GetSimulationManager().Dyna;
+        if (dyna !is null)
+        {
+            position = dyna.RefStateCurrent.Location.Position;
+            return true;
+        }
+    }
+
+    position = vec3();
+    return false;
+}
+
+void SetTargetVec3(const vec3 &in value)
+{
+    SetVariable(VAR_TARGET_VEC3, targetVec3 = value);
+    SetVariable(VAR_TARGET_VEC3_DISPLAY, targetVec3Display = value);
+}
+
+void TriggerCombo(int& id, int& index)
+{
+    if (UI::BeginCombo("Triggers", (index + 1) + "."))
+    {
+        if (UI::Selectable("0.", id == -1))
+            ResetTriggerID(id, index);
+
+        const auto@ const ids = GetTriggerIds();
+        for (uint i = 0; i < ids.Length; i++)
+        {
+            const int triggerID = ids[i];
+            const Trigger3D trigger = GetTrigger(triggerID);
+            if (UI::Selectable((i + 1) + ". " + TriggerToString(trigger), id == triggerID))
+            {
+                id = triggerID;
+                index = i;
+            }
+        }
+
+        UI::EndCombo();
+    }
+}
+
+string TriggerToString(const Trigger3D &in trigger)
+{
+    return "[ " + trigger.Position.ToString() + " | " + trigger.Size.ToString() + " ]";
+}
+
+bool GetTriggerOrReset(int& id, int& index, Trigger3D &out trigger)
+{
+    trigger = GetTrigger(id);
+    if (trigger)
+        return true;
+
+    ResetTriggerID(id, index);
+    return false;
+}
+
+void ResetTriggerID(int& id, int& index)
+{
+    id = -1;
+    index = -1;
 }
 
 void BoundScalarsByVec3(const array<ScalarKind>@ scalarKinds, const vec3 &in v, const double offset = 2)
