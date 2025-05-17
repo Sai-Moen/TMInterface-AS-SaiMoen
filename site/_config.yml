@@ -4,3 +4,6 @@ plugins:
 
 header: |-
   [<<<<](..)
+
+header2: |-
+  [<<](.)

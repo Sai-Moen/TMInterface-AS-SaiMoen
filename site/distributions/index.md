@@ -20,9 +20,9 @@ Similarly, an older plugin has a decent chance of still working on newer version
 
 Run mode plugins.
 
-- [Dynamic Keyboard](run/dynamic_kb.md)
-- [HyperSpeed](run/hyperspeed.md)
-- [Sim Bug](run/sim_bug.md)
+- [Dynamic Keyboard](dynamic_kb.md)
+- [HyperSpeed](hyperspeed.md)
+- [Sim Bug](sim_bug.md)
 
 #### Bruteforce
 
@@ -30,9 +30,9 @@ Bruteforce plugins.
 These will show up as modes under the built-in bruteforce controller
 (Bruteforce page -> Optimization tab, where e.g. trigger and point are).
 
-- [Finetuner](bruteforce/finetuner.md)
-- [SD Entry](bruteforce/sd_entry.md)
-- [Speed Ladder](bruteforce/speed_ladder.md)
+- [Finetuner](finetuner.md)
+- [SD Entry](sd_entry.md)
+- [Speed Ladder](speed_ladder.md)
 
 #### Controller
 
@@ -40,21 +40,21 @@ Bruteforce controllers, also known as Validation Handlers.
 You can select them to replace the built-in bruteforce controller
 (Top of the Bruteforce page).
 
-- [Incremental](controller/incremental.md)
+- [Incremental](incremental.md)
 
 #### Utility
 
 Anything that is not specific to run mode or simulation.
 
-- [Bruteforce Diagnosis](utility/bf_diagnosis.md)
-- [Calculator](utility/calculator.md)
-- [Introspect](utility/introspect.md)
-- [Point View](utility/point_view.md)
-- [PreSettings](utility/pre_settings.md)
+- [Bruteforce Diagnosis](bf_diagnosis.md)
+- [Calculator](calculator.md)
+- [Introspect](introspect.md)
+- [Point View](point_view.md)
+- [PreSettings](pre_settings.md)
 
 ### Archived
 
 #### Active up to 2.1
 
-- [RammFinder](archived/rammfinder.md)
-- [RunEditor](archived/run_editor.md)
+- [RammFinder](rammfinder.md)
+- [RunEditor](run_editor.md)
