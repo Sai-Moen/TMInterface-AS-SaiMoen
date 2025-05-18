@@ -536,25 +536,19 @@ void RenderConditionBool(Condition@ condition, const string &in id, const string
 
 void RenderConditionSliderInt(Condition@ condition, const string &in id, const int min, const int max, const string &in what)
 {
-    string msg;
-
     const int sliderMin = UI::SliderInt(id + "_min", int(condition.displayMin), min, max);
     const int sliderMax = UI::SliderInt(id + "_max", int(condition.displayMax), min, max);
-    if (sliderMin == min && sliderMax == max)
-    {
-        condition.display = UI::SliderInt(id, int(condition.display), min, max);
-        msg = "exactly " + condition.display;
-    }
-    else
-    {
-        // the assumption here is that we neither negative overflow on the subtract, nor underflow on the float conversion
-        condition.display = min - 1;
-        msg = "between " + condition.displayMin + " and " + condition.displayMax;
-    }
     condition.displayMin = Math::Min(sliderMin, sliderMax);
     condition.displayMax = Math::Max(sliderMin, sliderMax);
 
+    string msg;
+    if (condition.displayMin == condition.displayMax)
+        msg = "exactly " + condition.displayMin;
+    else
+        msg = "between " + condition.displayMin + " and " + condition.displayMax;
+
     UI::TextDimmed("The car MUST have " + msg + " " + what + " in the eval timeframe.");
 
-    condition.CopyDisplayToValues();
+    condition.valueMin = condition.displayMin;
+    condition.valueMax = condition.displayMax;
 }

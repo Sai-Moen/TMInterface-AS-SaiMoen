@@ -325,32 +325,23 @@ class Condition
     double value, valueMin, valueMax;
     float display, displayMin, displayMax;
 
-    bool Inexact() const
+    bool MatchBool(const bool otherValue) const
     {
-        return value < valueMin;
+        return otherValue == (value != 0);
+    }
+
+    bool MatchUInt(const uint otherValue) const
+    {
+        return otherValue == uint(value);
     }
 
     bool CompareInt(const int otherValue) const
     {
-        bool ok;
-        if (Inexact())
-            ok = otherValue >= int(valueMin) && otherValue <= int(valueMax);
-        else
-            ok = otherValue == int(value);
-        return ok;
-    }
-
-    void CopyDisplayToValues()
-    {
-        value = display;
-        valueMin = displayMin;
-        valueMax = displayMax;
+        return otherValue >= int(valueMin) && otherValue <= int(valueMax);
     }
 
     void Reset()
     {
-        //active = false; // unintuitive?
-
         value = 0;
         valueMin = 0;
         valueMax = 0;

@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1k";
+    info.Version = "v2.1.1l";
     return info;
 }
 
@@ -273,7 +273,22 @@ void OnSimulationBegin(SimulationManager@)
             for (uint i = 0; i < conditionIndices.Length; i++)
             {
                 const ConditionKind kind = conditionIndices[i];
-                builder.AppendLine({ PadRight(conditionNames[kind], maxConditionNameLength), " => ", conditions[kind].value });
+                const Condition@ const condition = conditions[kind];
+                builder.Append({ PadRight(conditionNames[kind], maxConditionNameLength), " => " });
+                switch (kind)
+                {
+                case ConditionKind::WHEEL_CONTACTS:
+                case ConditionKind::GEAR:
+                case ConditionKind::REAR_GEAR:
+                    if (condition.valueMin == condition.valueMax)
+                        builder.AppendLine(condition.valueMin);
+                    else
+                        builder.AppendLine({ "[", condition.valueMin, ", ", condition.valueMax, "]" });
+                    break;
+                default:
+                    builder.AppendLine(condition.value);
+                    break;
+                }
             }
         }
 
@@ -424,13 +439,13 @@ bool IsBetter(SimulationManager@ simManager)
             ok = velocity >= condition.value;
             break;
         case ConditionKind::FREEWHEELING:
-            ok = svc.IsFreeWheeling == (condition.value != 0);
+            ok = condition.MatchBool(svc.IsFreeWheeling);
             break;
         case ConditionKind::SLIDING:
-            ok = svc.IsSliding == (condition.value != 0);
+            ok = condition.MatchBool(svc.IsSliding);
             break;
         case ConditionKind::WHEEL_TOUCHING:
-            ok = svc.HasAnyLateralContact == (condition.value != 0);
+            ok = condition.MatchBool(svc.HasAnyLateralContact);
             break;
         case ConditionKind::WHEEL_CONTACTS:
             {
@@ -446,7 +461,7 @@ bool IsBetter(SimulationManager@ simManager)
             }
             break;
         case ConditionKind::CHECKPOINTS:
-            ok = playerInfo.CurCheckpointCount == uint(condition.value);
+            ok = condition.MatchUInt(playerInfo.CurCheckpointCount);
             break;
         case ConditionKind::GEAR:
             ok = condition.CompareInt(engine.Gear);
@@ -460,7 +475,7 @@ bool IsBetter(SimulationManager@ simManager)
                     previousState.Location.Position,
                     currentState.Location.Position);
                 const bool isGlitching = positionalDifference > 0.1 && velocity / positionalDifference < 50.0;
-                ok = isGlitching == (condition.value != 0);
+                ok = condition.MatchBool(isGlitching);
             }
             break;
         default:
