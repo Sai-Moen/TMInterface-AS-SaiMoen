@@ -12,6 +12,7 @@ and many more combinations with modes/conditions are possible.
 
 ### Finetuner
 
+- [v2.1.1l](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1l/finetuner.zip)
 - [v2.1.1k](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1k/finetuner.zip)
 - [v2.1.1j](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1j/finetuner.zip)
 - [v2.1.1i](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1i/finetuner.zip)
@@ -38,6 +39,11 @@ This plugin will register itself as a bruteforce mode.
 Therefore, it can be found as a mode in the built-in bruteforce controller, under Optimization.
 
 ## Patch Notes
+
+### v2.1.1l
+
+- Changed slider conditions to only use min and max, even if they are equal.
+- Changed condition printing to print min and max instead of value, if applicable.
 
 ### v2.1.1k
 
