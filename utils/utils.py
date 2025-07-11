@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).parents[1].resolve(True)
+PROJECT_ROOT = Path.cwd()
 """This is where the project's root directory is."""
 
 
