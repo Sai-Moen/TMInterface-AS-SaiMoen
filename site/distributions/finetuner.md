@@ -12,6 +12,7 @@ and many more combinations with modes/conditions are possible.
 
 ### Finetuner
 
+- [v2.1.1m](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1m/finetuner.zip)
 - [v2.1.1l](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1l/finetuner.zip)
 - [v2.1.1k](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1k/finetuner.zip)
 - [v2.1.1j](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/finetuner_v2.1.1j/finetuner.zip)
@@ -39,6 +40,12 @@ This plugin will register itself as a bruteforce mode.
 Therefore, it can be found as a mode in the built-in bruteforce controller, under Optimization.
 
 ## Patch Notes
+
+### v2.1.1m
+
+- Added RPM condition.
+- Updated smn_utils.
+- Cleaned up some code.
 
 ### v2.1.1l
 
