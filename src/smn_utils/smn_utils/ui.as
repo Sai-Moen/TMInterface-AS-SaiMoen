@@ -1,9 +1,7 @@
-// smn_utils - v2.1.1a
-
 /*
 
-User Interface
-- widget helpers
+smn_utils | User Interface | v2.1.1a
+- Widget helpers
 
 */
 

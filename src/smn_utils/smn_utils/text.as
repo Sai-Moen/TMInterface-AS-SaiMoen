@@ -1,10 +1,10 @@
-// smn_utils - v2.1.1a
-
 /*
 
-Text
-- parse wrappers
-- precise format
+smn_utils | Text | v2.1.1a
+
+Features:
+- Parse wrappers
+- Precise format
 
 */
 

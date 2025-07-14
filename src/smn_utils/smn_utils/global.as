@@ -1,10 +1,10 @@
-// smn_utils - v2.1.1a
-
 /*
 
-Global namespace
-- extra log/print overloads
-- var wrappers
+smn_utils | Global namespace | v2.1.1a
+
+Features:
+- Extra log/print overloads
+- Var wrappers
 
 */
 

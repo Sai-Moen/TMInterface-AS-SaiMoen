@@ -1,11 +1,11 @@
-// smn_utils - v2.1.1a
-
 /*
 
-Time
-- milliseconds alias
-- constants
-- functions
+smn_utils | Time | v2.1.1a
+
+Features:
+- Milliseconds alias
+- Constants
+- Functions
 
 */
 
