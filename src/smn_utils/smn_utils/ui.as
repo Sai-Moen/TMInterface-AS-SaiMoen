@@ -1,6 +1,8 @@
 /*
 
 smn_utils | User Interface | v2.1.1a
+
+Features:
 - Widget helpers
 
 */
