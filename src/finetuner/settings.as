@@ -374,42 +374,41 @@ void RenderSettings()
         {
         case ConditionKind::MIN_REAL_SPEED:
             condition.display = UI::InputFloat("##min_real_speed", condition.display);
-            UI::TextDimmed(
-                "The car MUST have a real speed of at least " +
-                condition.display +
-                " km/h in the eval timeframe.");
-
+            {
+                StringBuilder builder;
+                builder.Append("The car MUST have a real speed of at least ");
+                builder.Append(condition.display);
+                builder.Append(" km/h in the eval timeframe.");
+                UI::TextDimmed(builder.ToString());
+            }
             condition.value = condition.display / 3.6;
             break;
         case ConditionKind::FREEWHEELING:
-            RenderConditionBool(condition, "##freewheeling", "be free-wheeled");
+            RenderConditionCheckbox(condition, "##freewheeling", "be free-wheeled");
             break;
         case ConditionKind::SLIDING:
-            RenderConditionBool(condition, "##sliding", "be sliding");
+            RenderConditionCheckbox(condition, "##sliding", "be sliding");
             break;
         case ConditionKind::WHEEL_TOUCHING:
-            RenderConditionBool(condition, "##wheel_touching", "have wheel(s) crashing into a wall");
+            RenderConditionCheckbox(condition, "##wheel_touching", "have wheel(s) crashing into a wall");
             break;
         case ConditionKind::WHEEL_CONTACTS:
-            RenderConditionSliderInt(condition, "##wheel_contacts", 0, 4, "wheels contacting the ground");
+            RenderConditionSliderInts(condition, "##wheel_contacts", 0, 4, "wheels contacting the ground");
             break;
         case ConditionKind::CHECKPOINTS:
-            condition.display = UI::InputInt("##checkpoints", int(condition.display));
-            UI::TextDimmed(
-                "The car MUST have collected exactly " +
-                condition.display +
-                " checkpoints in the eval timeframe.");
-
-            condition.value = condition.display;
+            RenderConditionInputInt(condition, "##checkpoints", "checkpoints");
             break;
+        case ConditionKind::RPM:
+        	RenderConditionInputFloats(condition, "##rpm", "RPM");
+        	break;
         case ConditionKind::GEAR:
-            RenderConditionSliderInt(condition, "##gear", 0, 5, "gears");
+            RenderConditionSliderInts(condition, "##gear", 0, 5, "gears");
             break;
         case ConditionKind::REAR_GEAR:
-            RenderConditionSliderInt(condition, "##rear_gear", 0, 1, "rear gears");
+            RenderConditionSliderInts(condition, "##rear_gear", 0, 1, "rear gears");
             break;
         case ConditionKind::GLITCHING:
-            RenderConditionBool(condition, "##glitching", "be glitching");
+            RenderConditionCheckbox(condition, "##glitching", "be glitching");
             break;
         default:
             UI::TextWrapped("Corrupted condition index: " + conditionInEditor);
@@ -525,30 +524,76 @@ void BoundScalarsByVec3(const array<ScalarKind>@ scalarKinds, const vec3 &in v, 
     }
 }
 
-void RenderConditionBool(Condition@ condition, const string &in id, const string &in what)
+void RenderConditionCheckbox(Condition@ condition, const string &in id, const string &in what)
 {
     const bool tempValue = UI::Checkbox(id, condition.display != 0);
     condition.display = tempValue ? 1 : 0;
-    UI::TextDimmed("The car MUST" + (tempValue ? " " : " NOT ") + what + " in the eval timeframe.");
 
-    condition.value = condition.display;
+    StringBuilder builder;
+    builder.Append("The car MUST");
+    builder.Append(tempValue ? " " : " NOT ");
+    builder.Append(what);
+    builder.Append(" in the eval timeframe.");
+    UI::TextDimmed(builder.ToString());
+
+    condition.Transfer();
 }
 
-void RenderConditionSliderInt(Condition@ condition, const string &in id, const int min, const int max, const string &in what)
+void RenderConditionInputInt(Condition@ condition, const string &in id, const string &in what)
+{
+    condition.display = UI::InputInt(id, int(condition.display));
+
+    StringBuilder builder;
+    builder.Append("The car MUST have exactly ");
+    builder.Append(condition.display);
+    builder.Append(" ");
+    builder.Append(what);
+    builder.Append(" in the eval timeframe.");
+    UI::TextDimmed(builder.ToString());
+
+    condition.Transfer();
+}
+
+void RenderConditionInputFloats(Condition@ condition, const string &in id, const string &in what)
+{
+	const float inputMin = UI::InputFloat(id + "_min", condition.displayMin);
+	const float inputMax = UI::InputFloat(id + "_max", condition.displayMax);
+	condition.displayMin = Math::Min(inputMin, inputMax);
+	condition.displayMax = Math::Max(inputMin, inputMax);
+
+	StringBuilder builder;
+	BuildRangeText(builder, condition, what);
+	UI::TextDimmed(builder.ToString());
+
+	condition.TransferRange();
+}
+
+void RenderConditionSliderInts(Condition@ condition, const string &in id, const int min, const int max, const string &in what)
 {
     const int sliderMin = UI::SliderInt(id + "_min", int(condition.displayMin), min, max);
     const int sliderMax = UI::SliderInt(id + "_max", int(condition.displayMax), min, max);
     condition.displayMin = Math::Min(sliderMin, sliderMax);
     condition.displayMax = Math::Max(sliderMin, sliderMax);
 
-    string msg;
-    if (condition.displayMin == condition.displayMax)
-        msg = "exactly " + condition.displayMin;
-    else
-        msg = "between " + condition.displayMin + " and " + condition.displayMax;
+    StringBuilder builder;
+    BuildRangeText(builder, condition, what);
+    UI::TextDimmed(builder.ToString());
 
-    UI::TextDimmed("The car MUST have " + msg + " " + what + " in the eval timeframe.");
+    condition.TransferRange();
+}
 
-    condition.valueMin = condition.displayMin;
-    condition.valueMax = condition.displayMax;
+void BuildRangeText(StringBuilder@ builder, const Condition@ condition, const string &in what)
+{
+	const bool inexact = condition.displayMin != condition.displayMax;
+	builder.Append("The car MUST have ");
+	builder.Append(inexact ? "between " : "exactly ");
+	builder.Append(condition.displayMin);
+	if (inexact)
+	{
+		builder.Append(" and ");
+		builder.Append(condition.displayMax);
+	}
+	builder.Append(" ");
+	builder.Append(what);
+	builder.Append(" in the eval timeframe.");
 }

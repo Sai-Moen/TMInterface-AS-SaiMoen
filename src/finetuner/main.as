@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1l";
+    info.Version = "v2.1.1m";
     return info;
 }
 
@@ -297,7 +297,7 @@ void OnSimulationBegin(SimulationManager@)
             .AppendLine();
     }
 
-    print(builder.ToString().str);
+    print(builder.ToString());
 }
 
 void OnSimulationEnd(SimulationManager@, SimulationResult)
@@ -367,25 +367,26 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
             {
                 builder.AppendLine("Base Run did not suffice...");
 
-                if (!unmetConditionIndices.IsEmpty())
+				const uint unmetConditionLength = unmetConditionIndices.Length;
+                if (unmetConditionLength != 0)
                 {
                     builder.AppendLine().AppendLine("Unmet conditions:");
-                    const uint len = unmetConditionIndices.Length;
-                    for (uint i = 0; i < len; i++)
+                    for (uint i = 0; i < unmetConditionLength; i++)
                         builder.AppendLine({ unmetConditionTimes[i], " ", conditionNames[unmetConditionIndices[i]] });
                 }
 
-                if (!unmetScalarIndices.IsEmpty())
+				const uint unmetScalarLength = unmetScalarIndices.Length;
+                if (unmetScalarLength != 0)
                 {
                     builder.AppendLine().AppendLine("Unmet scalars:");
-                    const uint len = unmetScalarIndices.Length;
-                    for (uint i = 0; i < len; i++)
+                    for (uint i = 0; i < unmetScalarLength; i++)
                         builder.AppendLine({ unmetScalarTimes[i], " ", scalarNames[unmetScalarIndices[i]] });
                 }
 
                 severity = Severity::Warning;
             }
-            print(builder.ToString().str, severity);
+
+            print(builder.ToString(), severity);
             response.Decision = BFEvaluationDecision::Accept;
         }
         break;
@@ -463,6 +464,9 @@ bool IsBetter(SimulationManager@ simManager)
         case ConditionKind::CHECKPOINTS:
             ok = condition.MatchUInt(playerInfo.CurCheckpointCount);
             break;
+        case ConditionKind::RPM:
+        	ok = condition.CompareDouble(engine.ActualRPM);
+        	break;
         case ConditionKind::GEAR:
             ok = condition.CompareInt(engine.Gear);
             break;
@@ -501,7 +505,7 @@ bool IsBetter(SimulationManager@ simManager)
         const double value = GetScalarValue(simManager, kind);
 
         const Scalar@ const scalar = scalars[kind];
-        if ((scalar.lower && value < scalar.valueLower) || (scalar.upper && value > scalar.valueUpper))
+        if (scalar.lower && value < scalar.valueLower || scalar.upper && value > scalar.valueUpper)
         {
             if (!met)
             {

@@ -1,10 +1,10 @@
-// smn_utils - v2.1.1b
-
 /*
 
-String
-- padding
-- string builder
+smn_utils | String | v2.1.1c
+
+Features:
+- Padding
+- StringBuilder
 
 */
 
@@ -126,42 +126,39 @@ class StringBuilder
         }
     }
 
-    // get the amount of characters between the last 2 newline characters
-    // returns 0 if the buffer contains less than 2 newlines
-    uint GetLastLineLength() const
-    {
-        int i = buffer.Length - 1;
-        while (i != -1)
-        {
-            if (buffer[i--] == '\n')
-                break;
-        }
-
-        uint count = 0;
-        for (; i != -1; i--)
-        {
-            if (buffer[i] == '\n')
-                break;
-
-            count++;
-        }
-        return count;
-    }
-
     void Clear()
     {
         buffer.Resize(0);
     }
 
-    StringWrapper@ ToString() const
+    const string& ToString() const
+    {
+    	return buffer;
+    }
+
+    StringWrapper@ ToStringWrapper() const
     {
         return StringWrapper(buffer);
     }
 
-    StringWrapper@ ToStringClear()
+    uint GetLastLineLength() const
     {
-        const auto@ const sr = ToString();
-        Clear();
-        return sr;
+        int right = buffer.Length - 1;
+        while (right != -1)
+        {
+            if (buffer[right--] == '\n')
+                break;
+        }
+
+        int left = right;
+        while (left != -1)
+        {
+            if (buffer[left] == '\n')
+                break;
+
+            left--;
+        }
+
+        return right - left;
     }
 }

@@ -1,9 +1,9 @@
-// smn_utils - v2.1.1a
-
 /*
 
-TM
-- input event buffer helpers
+smn_utils | TM | v2.1.1a
+
+Features:
+- TM::InputEventBuffer helpers
 
 */
 

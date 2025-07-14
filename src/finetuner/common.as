@@ -295,6 +295,7 @@ enum ConditionKind
 
     CHECKPOINTS,
 
+	RPM,
     GEAR,
     REAR_GEAR,
 
@@ -313,6 +314,7 @@ const array<string> conditionNames =
 
     "Checkpoints",
 
+	"RPM",
     "Gear",
     "Rear Gear",
 
@@ -338,6 +340,22 @@ class Condition
     bool CompareInt(const int otherValue) const
     {
         return otherValue >= int(valueMin) && otherValue <= int(valueMax);
+    }
+
+    bool CompareDouble(const double otherValue) const
+    {
+    	return otherValue >= valueMin && otherValue <= valueMax;
+    }
+
+    void Transfer()
+    {
+        value = display;
+    }
+
+    void TransferRange()
+    {
+        valueMin = displayMin;
+        valueMax = displayMax;
     }
 
     void Reset()
