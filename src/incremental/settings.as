@@ -68,7 +68,7 @@ void RenderSettings()
         UI::BeginDisabled(lockedTimerange);
         varLockTimerange = UI::CheckboxVar("Lock Timerange", VAR_LOCK_TIMERANGE);
         UI::EndDisabled();
-        TooltipOnHover(INFO_LOCK_TIMERANGE);
+        SameLineTooltipOnHover(INFO_LOCK_TIMERANGE);
 
         if (UI::Button("Reset timestamps to 0"))
         {
@@ -109,7 +109,7 @@ void RenderSettings()
     if (UI::CollapsingHeader("Misc"))
     {
         varShowInfo = UI::CheckboxVar("Show Info", VAR_SHOW_INFO);
-        TooltipOnHover(INFO_SHOW_INFO);
+        SameLineTooltipOnHover(INFO_SHOW_INFO);
     }
 }
 
@@ -125,7 +125,7 @@ void RenderRunMode()
     UI::Separator();
 
     varReplayTime = UI::InputTimeVar("Replay Time", VAR_REPLAY_TIME);
-    TooltipOnHover(INFO_REPLAY_TIME);
+    SameLineTooltipOnHover(INFO_REPLAY_TIME);
     if (UI::Button("Start Run-Mode Bruteforce"))
         soState = SimOnlyState::PRE_INIT;
 }

@@ -19,12 +19,30 @@ class Mode : IncMode
 
     void RenderSettings()
     {
-        varUseQuality = UI::CheckboxVar("Use Quality?", VAR_USE_QUALITY);
-        varSeek = UI::InputTimeVar("Seeking (lookahead) time", VAR_SEEK, TICK);
-        if (varSeek < MINIMUM_SEEK)
+        varQualityThreshold = UI::SliderFloatVar("Quality Threshold", VAR_QUALITY_THRESHOLD, 0, 1);
+        TooltipOnHover(
+            "Represents the maximum allowed deviation from a perfect SD, 0.25 by default.\n"
+            "0: Never use SD Quality\n"
+            "1: Always use SD Quality\n"
+            "For anything in between, use Quality first.\n"
+            "If the quality deviation exceeds the given threshold, use velocity instead.");
+
+        varSeekQuality = UI::InputTimeVar("Quality seeking (lookahead) time", VAR_SEEK_QUALITY, TICK);
+        TooltipOnHover("Can be set as low as 20ms, but it's a bit shaky, 60ms by default.");
+        if (varSeekQuality < MINIMUM_SEEK)
         {
-            varSeek = MINIMUM_SEEK;
-            SetVariable(VAR_SEEK, varSeek);
+            varSeekQuality = MINIMUM_SEEK;
+            SetVariable(VAR_SEEK_QUALITY, varSeekQuality);
+        }
+
+        varSeekNormal = UI::InputTimeVar("Normal seeking (lookahead) time", VAR_SEEK_NORMAL, TICK);
+        TooltipOnHover(
+            "Can be set as low as 20ms, but depending on speed you might want up to 130ms-140ms "
+            "(lowest working in a test was 50ms-60ms at close to speed cap), 120ms by default.");
+        if (varSeekNormal < MINIMUM_SEEK)
+        {
+            varSeekNormal = MINIMUM_SEEK;
+            SetVariable(VAR_SEEK_NORMAL, varSeekNormal);
         }
     }
 
@@ -32,11 +50,7 @@ class Mode : IncMode
     {
         IncRemoveSteeringAhead(simManager);
 
-        if (fallback)
-        {
-            fallback = false;
-            print("Unexpected fallback flag...", Severity::Warning);
-        }
+        fallback = false;
         Reset();
     }
 
@@ -53,19 +67,23 @@ class Mode : IncMode
 
 const string VAR = Settings::VAR + "sd_";
 
-const string VAR_USE_QUALITY = VAR + "use_quality";
-const string VAR_SEEK = VAR + "seek";
+const string VAR_QUALITY_THRESHOLD = VAR + "quality_threshold";
+const string VAR_SEEK_QUALITY      = VAR + "seek_quality";
+const string VAR_SEEK_NORMAL       = VAR + "seek_normal";
 
-bool varUseQuality;
-ms varSeek;
+float varQualityThreshold;
+ms varSeekQuality;
+ms varSeekNormal;
 
 void RegisterSettings()
 {
-    RegisterVariable(VAR_USE_QUALITY, true);
-    RegisterVariable(VAR_SEEK, 120);
+    RegisterVariable(VAR_QUALITY_THRESHOLD, 0.25);
+    RegisterVariable(VAR_SEEK_QUALITY, 60);
+    RegisterVariable(VAR_SEEK_NORMAL, 120);
 
-    varUseQuality = GetVariableBool(VAR_USE_QUALITY);
-    seek = GetConVarTime(VAR_SEEK);
+    varQualityThreshold = GetConVarFloat(VAR_QUALITY_THRESHOLD);
+    varSeekQuality = GetConVarTime(VAR_SEEK_QUALITY);
+    varSeekNormal  = GetConVarTime(VAR_SEEK_NORMAL);
 }
 
 const int RANGE_SIZE = 4;
@@ -92,9 +110,9 @@ OnSim@ onStep;
 void OnStepInit(SimulationManager@ simManager)
 {
     if (!fallback)
-        useQuality = varUseQuality;
+        useQuality = varQualityThreshold != 0; // gonna assume UI sets it to exactly 0, no epsilon needed surely...
 
-    seek = useQuality ? MINIMUM_SEEK : varSeek;
+    seek = useQuality ? varSeekQuality : varSeekNormal;
 
     const float prevTurningRate = IncGetTrailingState().SceneVehicleCar.TurningRate;
     const float turningRate = simManager.SceneVehicleCar.TurningRate;
@@ -145,7 +163,7 @@ void OnEval(SimulationManager@ simManager)
 
     if (done)
     {
-        fallback = useQuality && bestResult == 1; // shouldn't need epsilon here (1 - 0 == 1)
+        fallback = useQuality && bestResult > 0.005;
         if (fallback)
         {
             useQuality = false;

@@ -1,17 +1,22 @@
-// smn_utils - v2.1.1a
-
 /*
 
-User Interface
-- widget helpers
+smn_utils | User Interface | v3.0.0
+
+Features:
+- Widget helpers
 
 */
 
 
-// puts a (i) on the same line and draws a tooltip with the given text if it is being hovered
-void TooltipOnHover(const string &in text)
+void SameLineTooltipOnHover(const string &in text)
 {
     UI::SameLine();
+    TooltipOnHover(text);
+}
+
+// places a '(i)' and draws a tooltip with the given text if it is being hovered
+void TooltipOnHover(const string &in text)
+{
     UI::TextDimmed("(i)");
     if (UI::IsItemHovered())
     {
