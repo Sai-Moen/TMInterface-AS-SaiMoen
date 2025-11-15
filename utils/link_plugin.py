@@ -22,7 +22,7 @@ def main(args: list[str]):
                 link.unlink()
                 print(f"{link} unlinked successfully")
             else:
-                print("Cannot find symlink for this plugin...")
+                print(f"Cannot find symlink for this plugin: {link}")
         case _:
             if cmd != "help":
                 print("Unknown command!")
