@@ -27,7 +27,6 @@ void Main()
     InputSimplifier::Main();
 
     RegisterValidationHandler(ID, TITLE, Settings::RenderSettings);
-    RegisterSettingsPage("Incremental Run-Mode", Settings::RenderRunMode);
 }
 
 void OnSimulationBegin(SimulationManager@ simManager)

@@ -8,16 +8,8 @@ Features:
 */
 
 
-void SameLineTooltipOnHover(const string &in text)
-{
-    UI::SameLine();
-    TooltipOnHover(text);
-}
-
-// places a '(i)' and draws a tooltip with the given text if it is being hovered
 void TooltipOnHover(const string &in text)
 {
-    UI::TextDimmed("(i)");
     if (UI::IsItemHovered())
     {
         if (UI::BeginTooltip())

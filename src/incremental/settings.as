@@ -57,9 +57,6 @@ void RegisterSettings()
     varReplayTime = ms(GetVariableDouble(VAR_REPLAY_TIME));
 }
 
-const string INFO_LOCK_TIMERANGE = "Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.";
-const string INFO_SHOW_INFO = "Show additional information about the simulation.";
-
 void RenderSettings()
 {
     if (UI::CollapsingHeader("General"))
@@ -68,7 +65,7 @@ void RenderSettings()
         UI::BeginDisabled(lockedTimerange);
         varLockTimerange = UI::CheckboxVar("Lock Timerange", VAR_LOCK_TIMERANGE);
         UI::EndDisabled();
-        SameLineTooltipOnHover(INFO_LOCK_TIMERANGE);
+        TooltipOnHover("Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.");
 
         if (UI::Button("Reset timestamps to 0"))
         {
@@ -106,28 +103,25 @@ void RenderSettings()
         Eval::modeRenderSettings();
     }
 
+    if (UI::CollapsingHeader("Run-Mode"))
+    {
+        UI::TextWrapped(
+            "Run-Mode Bruteforce is an alternative to Simulation,"
+            " where the plugin runs during a race rather than on a replay file");
+
+        UI::Separator();
+
+        varReplayTime = UI::InputTimeVar("Replay Time", VAR_REPLAY_TIME);
+        TooltipOnHover("This is the equivalent to the replay time when using simulation mode.");
+        if (UI::Button("Start Run-Mode Bruteforce"))
+            soState = SimOnlyState::PRE_INIT;
+    }
+
     if (UI::CollapsingHeader("Misc"))
     {
         varShowInfo = UI::CheckboxVar("Show Info", VAR_SHOW_INFO);
-        SameLineTooltipOnHover(INFO_SHOW_INFO);
+        TooltipOnHover("Show additional information about the simulation.");
     }
-}
-
-const string INFO_RUN_MODE_NOTE =
-    "Note: this is the run-mode settings page for Incremental.\n"
-    "For the actual settings, select the Incremental validation handler.";
-const string INFO_REPLAY_TIME = "This is the equivalent to the replay time when using simulation mode.";
-
-void RenderRunMode()
-{
-    UI::TextWrapped(INFO_RUN_MODE_NOTE);
-
-    UI::Separator();
-
-    varReplayTime = UI::InputTimeVar("Replay Time", VAR_REPLAY_TIME);
-    SameLineTooltipOnHover(INFO_REPLAY_TIME);
-    if (UI::Button("Start Run-Mode Bruteforce"))
-        soState = SimOnlyState::PRE_INIT;
 }
 
 void PrintInfo(const array<InputCommand>@ const commands)
