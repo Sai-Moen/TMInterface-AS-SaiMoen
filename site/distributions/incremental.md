@@ -7,6 +7,8 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v3.0.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.0.0/incremental.zip)
+
 - [v2.1.1j](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1j/incremental.zip)
 - [v2.1.1i](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1i/incremental.zip)
 - [v2.1.1h](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1h/incremental.zip)
@@ -32,94 +34,13 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 - [v1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
-## Guide
-
-### Modes
-
-#### SD Railgun
-
-This is the SD mode.
-
-##### Classic
-
-There used to be a classic sub-mode for this mode, but it was removed (in case you were wondering).
-
-##### Normal
-
-The normal sub-mode will automatically determine direction, and you just need to set a certain lookahead time.
-The default lookahead time is 120ms, which should always work given a decent enough setup.
-
-#### Wallhugger
-
-This is the wall-hugging mode.
-
-##### Classic
-
-The classic sub-mode is what the python version more or less did.
-
-##### Normal
-
-The normal sub-mode is an experiment,
-that tries to automatically determine how far to look ahead based on how long it takes to reach the wall.
-
-#### Simplify Inputs
-
-This is an input simplifier/smoother.
-Note: you most likely want to set the evaluation timeframe to 0.0-0.0 (Eval Min = 0 and Eval Max = 0),
-to simplify all inputs.
-
-### Understanding the timeranges
-
-Note: this section may be a bit outdated...
-
-#### Starting Timerange
-
-For each time in this range, the plugin will run the script as if the simulation just started,
-with the exact time parameters slightly changed.
-
-#### Evaluation Timerange
-
-This is the timerange where the script is allowed to modify inputs and check the state of the game.
-This is also where the script can eventually decide to advance to the next iteration by selecting a steering value,
-that will be printed to the external console.
-
-#### Example
-
-Let's say this is a timerange representing a certain simulation from the start to the end of a replay (time goes left to right).
-
-----------------|----|--------|-
-
-The first vertical bar would be the start of the starting timerange,
-the second would be the end of the starting timerange,
-the third would be the end of the evaluation timerange.
-
-The plugin would then go to the starting timerange and pick a time that falls within it.
-For technical reasons the plugin will always go from the last time to the first.
-
-For each time in the starting timerange,
-it will then run the script as if we were doing a simulation without a starting timerange.
-The time that was picked will be the start of the evaluation timerange,
-and the end of the evaluation timerange will be the "Maximum evaluation time" setting.
-
-This process is repeated until either we run out of starting timerange times to test,
-or if the simulation is cancelled by pressing Escape with the external console in focus.
-
-### Main Parameters
-
-- Evaluate Timerange?
-  - Determines whether to evaluate a multitude of starting times.
-- (If Evaluate Timerange)
-  - Minimum starting time
-    - Determines the start of the starting timerange.
-  - Maximum starting time
-    - Determines the end of the starting timerange.
-- (Else)
-  - Minimum evaluation time
-    - Determines the start of the evaluation timerange.
-- Maximum evaluation time
-  - Determines the end of the evaluation timerange.
-
 ## Patch Notes
+
+### v3.0.0
+
+- Added quality SD.
+- Moved run-mode bruteforce to the settings page itself.
+- Removed the '(i)' tooltips in favor of just a tooltip on hover of the setting itself.
 
 ### v2.1.1j
 
