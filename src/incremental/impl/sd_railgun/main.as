@@ -51,6 +51,7 @@ class Mode : IncMode
         IncRemoveSteeringAhead(simManager);
 
         fallback = false;
+        threshold = Math::Clamp(varQualityThreshold, 0.f, 1.f);
         Reset();
     }
 
@@ -91,6 +92,7 @@ const int STEP_LAST_DEVIATION = RANGE_SIZE / 2;
 
 bool fallback;
 bool useQuality;
+float threshold;
 ms seek;
 
 double bestResult;
@@ -110,7 +112,7 @@ OnSim@ onStep;
 void OnStepInit(SimulationManager@ simManager)
 {
     if (!fallback)
-        useQuality = varQualityThreshold != 0; // gonna assume UI sets it to exactly 0, no epsilon needed surely...
+        useQuality = threshold != 0;
 
     seek = useQuality ? varSeekQuality : varSeekNormal;
 
@@ -163,7 +165,7 @@ void OnEval(SimulationManager@ simManager)
 
     if (done)
     {
-        fallback = useQuality && bestResult > 0.005;
+        fallback = useQuality && bestResult > threshold;
         if (fallback)
         {
             useQuality = false;
