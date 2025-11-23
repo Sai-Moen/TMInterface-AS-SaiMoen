@@ -7,6 +7,7 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v3.0.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.0.1/incremental.zip)
 - [v3.0.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.0.0/incremental.zip)
 
 - [v2.1.1j](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v2.1.1j/incremental.zip)
@@ -35,6 +36,10 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 - [v1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
 ## Patch Notes
+
+### v3.0.1
+
+- Fixed SD quality threshold bug.
 
 ### v3.0.0
 
