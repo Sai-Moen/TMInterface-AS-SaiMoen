@@ -1,11 +1,11 @@
-# if you want to build the site locally
-site_local/
-
-# for experimenting locally with a plugin, also a utils dumping ground
-lab/
+# ignore dotfiles by default
+**/.*
 
 # ignores utils pycache
 **/__pycache__
 
-# ignores syntax highlighting stuff that I'm not even using but whatever
-src/as.predefined
+# for experimenting locally with a plugin, also a utils dumping ground
+lab/
+
+# if you want to build the site locally
+site_local/
