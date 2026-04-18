@@ -61,7 +61,7 @@ void RenderSettings()
 {
     if (UI::CollapsingHeader("General"))
     {
-        const bool lockedTimerange = !Eval::supportsUnlockedTimerange;
+        const bool lockedTimerange = !Core::supportsUnlockedTimerange;
         UI::BeginDisabled(lockedTimerange);
         varLockTimerange = UI::CheckboxVar("Lock Timerange", VAR_LOCK_TIMERANGE);
         UI::EndDisabled();
@@ -97,10 +97,10 @@ void RenderSettings()
 
     if (UI::CollapsingHeader("Modes"))
     {
-        ComboHelper("Mode", Eval::modeNames, Eval::modeIndex, Eval::OnModeIndex);
+        ComboHelper("Mode", Core::modeNames, Core::modeIndex, Core::OnModeIndex);
         UI::Separator();
 
-        Eval::modeRenderSettings();
+        Core::modeRenderSettings();
     }
 
     if (UI::CollapsingHeader("Run-Mode"))
@@ -127,18 +127,18 @@ void RenderSettings()
 void PrintInfo(const array<InputCommand>@ const commands)
 {
     StringBuilder builder;
-    builder.AppendLine({ Eval::tInput, ":" });
+    builder.AppendLine({ Core::tInput, ":" });
 
     if (varShowInfo)
     {
-        const double kmph = Eval::speed.Length() * 3.6;
+        const double kmph = Core::speed.Length() * 3.6;
         builder.AppendLine({ "Speed (km/h): ", FormatPrecise(kmph) });
     }
 
     for (uint i = 0; i < commands.Length; i++)
         builder.AppendLine(commands[i].ToString());
 
-    print(builder.ToString().str);
+    print(builder.ToString());
 }
 
 class Home : IncMode
@@ -149,9 +149,9 @@ class Home : IncMode
     {
         UI::TextWrapped("Hello!");
 
-        const uint index = Eval::GetCurrentModeIndex();
+        const uint index = Core::GetCurrentModeIndex();
         if (index != 0)
-            Eval::SetModeIndex(index);
+            Core::SetModeIndex(index);
     }
 
     void OnBegin(SimulationManager@) {}

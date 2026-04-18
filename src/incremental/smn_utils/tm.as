@@ -1,9 +1,9 @@
-// smn_utils - v2.1.1a
-
 /*
 
-TM
-- input event buffer helpers
+smn_utils | TM | v3.0.0
+
+Features:
+- TM::InputEventBuffer helpers
 
 */
 
@@ -73,27 +73,22 @@ void BufferRemoveInTimerange(
     BufferRemoveIndices(buffer, indices);
 }
 
-void BufferRemoveIndices(TM::InputEventBuffer@ buffer, const array<uint>@ indices)
+// NOTE: indices must be sorted in ascending order (getting indices from a linear search i.e. Find does this automatically).
+void BufferRemoveIndices(TM::InputEventBuffer@ buffer, const array<uint>@ indices, const uint indicesBase = 0)
 {
-    if (indices.IsEmpty())
+    const uint indicesLen = indices.Length;
+    if (indicesLen <= indicesBase)
         return;
 
-    uint contiguous = 1;
-    const uint len = indices.Length;
-    uint old = indices[len - 1];
-    for (int i = len - 2; i != -1; i--)
+    uint indicesIndex = indicesBase;
+    uint index = indices[indicesIndex++];
+    const uint bufferLen = buffer.Length;
+    for (uint i = index + 1; i < bufferLen; ++i)
     {
-        const uint new = indices[i];
-        if (new == old - 1)
-        {
-            contiguous++;
-        }
+        if (indicesIndex < indicesLen && i == indices[indicesIndex])
+            ++indicesIndex;
         else
-        {
-            buffer.RemoveAt(old, contiguous);
-            contiguous = 1;
-        }
-        old = new;
+            buffer[index++] = buffer[i];
     }
-    buffer.RemoveAt(old, contiguous);
+    buffer.RemoveAt(index, indicesLen - indicesBase);
 }

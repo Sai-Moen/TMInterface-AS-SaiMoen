@@ -13,55 +13,65 @@ PluginInfo@ GetPluginInfo()
     return info;
 }
 
-bool IsOtherController { get { return ID != GetVariableString("controller"); } }
-
 void Main()
 {
     Settings::RegisterSettings();
 
     IncRegisterMode("Home", Settings::Home());
-    Eval::ModeDispatch();
+    Core::ModeDispatch();
 
-    SpeedDrift::Main();
-    Wallhugger::Main();
     InputSimplifier::Main();
+    SpeedDrift::Main();
+    SteerMax::Main();
+    Wallhugger::Main();
 
     RegisterValidationHandler(ID, TITLE, Settings::RenderSettings);
 }
 
-void OnSimulationBegin(SimulationManager@ simManager)
+void OnSimulationBegin(SimulationManager@ sim)
 {
-    if (IsRunSimOnly)
+    switch (contextMode)
     {
-        Eval::Initialize(null);
+    case ContextMode::Simulation:
+        if (ID != GetVariableString("controller"))
+            return;
+
+        sim.RemoveStateValidation();
+        Core::Initialize(sim);
+    break;
+    case ContextMode::Run:
+        Core::Initialize(null);
+    break;
+    default:
+        Panic("Undefined ContextMode in OnSimulationBegin");
+    break;
+    }
+
+    handleCancel = true;
+    preventSimulationFinish = true;
+    handleEnd = true;
+
+    if (Core::ShouldTryLoadingSaveState())
+    {
+        saveStateName = Settings::varSaveStateName;
+        onStep = OnStepState::SAVE_STATE;
     }
     else
     {
-        if (IsOtherController)
-            return;
-
-        simManager.RemoveStateValidation();
-        Eval::Initialize(simManager);
+        onStep = OnStepState::INIT;
     }
 
-    needToHandleCancel = true;
-    onStep = Eval::IsUnlockedTimerange() ? OnStepState::RANGE_INIT : OnStepState::SINGLE;
-    preventSimulationFinish = true;
-    ignoreEnd = false;
+    Core::ResolveModeIndex();
 
-    if (Eval::ShouldTryLoadingSaveState())
-    {
-        stateFilename = Settings::varSaveStateName;
+    StringBuilder sb; sb
+        .AppendLine()
+        .Append(TITLE)
+        .Append(" w/ ")
+        .AppendLine(Core::GetCurrentModeName())
+        .AppendLine();
+    print(sb.ToString());
 
-        onStepTemp = onStep;
-        onStep = OnStepState::SAVE_STATE;
-    }
-
-    Eval::ResolveModeIndex();
-    print();
-    print(TITLE + " w/ " + Eval::GetCurrentModeName());
-    print();
-    Eval::modeOnBegin(simManager);
+    Core::modeOnBegin(sim);
 }
 
 enum OnStepState
@@ -69,41 +79,38 @@ enum OnStepState
     NONE,
 
     SAVE_STATE,
-    SINGLE,
-    RANGE_INIT, RANGE,
-
-    COUNT
+    INIT,
+    MAIN,
 }
 
-bool needToHandleCancel = false;
+bool handleCancel;
 
-OnStepState onStep = OnStepState::NONE;
-OnStepState onStepTemp = OnStepState::NONE;
+OnStepState onStep;
 
-string stateFilename;
+string saveStateName;
 
-void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
+void OnSimulationStep(SimulationManager@ sim, bool userCancelled)
 {
     if (userCancelled)
     {
-        if (needToHandleCancel)
+        if (handleCancel)
         {
-            Eval::SaveResult(simManager);
-            Eval::Finish(simManager);
+            Core::SaveResult(sim);
+            Core::Finish(sim);
         }
         return;
     }
 
-    const ms time = simManager.TickTime;
+    const ms time = sim.TickTime;
     switch (onStep)
     {
     case OnStepState::NONE:
-        return;
+        // We are not the controller.
+    break;
     case OnStepState::SAVE_STATE:
-        onStep = onStepTemp;
         {
             SimulationStateFile startStateFile;
-            if (!startStateFile.CaptureCurrentState(simManager, true))
+            if (!startStateFile.CaptureCurrentState(sim, true))
             {
                 print("Could not capture current state while preparing recovery save state!", Severity::Error);
                 break;
@@ -111,144 +118,150 @@ void OnSimulationStep(SimulationManager@ simManager, bool userCancelled)
 
             SimulationStateFile userStateFile;
             string error;
-            if (!userStateFile.Load(stateFilename, error))
+            if (!userStateFile.Load(saveStateName, error))
             {
                 print("There was an error with the savestate:", Severity::Error);
                 print(error, Severity::Error);
                 break;
             }
 
-            simManager.RewindToState(userStateFile);
-            if (simManager.TickTime >= Eval::tInit) // TickTime here is not the same as 'time'
+            sim.RewindToState(userStateFile);
+            if (sim.TickTime >= Core::tInit) // TickTime here is not the same as 'time'
             {
                 print("Attempted to load state that occurs too late! Reverting to start...", Severity::Warning);
-                simManager.RewindToState(startStateFile);
+                sim.RewindToState(startStateFile);
                 break;
             }
         }
-        break;
-    case OnStepState::SINGLE:
-        if (Eval::tInput <= Eval::tLimit)
+    break;
+    case OnStepState::INIT:
+        if (time < Core::tInit)
+            break;
+
+        Assert(time == Core::tInit);
+        @Core::initState = sim.SaveState();
+        onStep = OnStepState::MAIN;
+    break;
+    case OnStepState::MAIN:
+        if (Core::tInput <= Core::tLimit)
         {
-            if (Eval::IsAtLeastInputTime(simManager))
-                Eval::modeOnStep(simManager);
-        }
-        else
-        {
-            Eval::SaveResult(simManager);
-            Eval::Finish(simManager);
-        }
-        break;
-    case OnStepState::RANGE_INIT:
-        if (Eval::IsInitTime(simManager))
-            onStep = OnStepState::RANGE;
-        break;
-    case OnStepState::RANGE:
-        if (Eval::tInput <= Eval::tLimit)
-        {
-            if (Eval::IsAtLeastInputTime(simManager))
-                Eval::modeOnStep(simManager);
+            if (time == Core::tTrail)
+            {
+                @Core::trailingState = sim.SaveState();
+                break;
+            }
+
+            if (time < Core::tInput)
+                break;
+
+            if (speed == NO_SPEED && time == Core::tInput)
+                speed = sim.Dyna.RefStateCurrent.LinearSpeed;
+
+            Core::modeOnStep(sim);
         }
         else
         {
             print(); // bit of spacing
 
-            Eval::SaveResult(simManager);
-            if (Eval::NextResult())
-                Eval::PrepareResult(simManager);
+            Core::SaveResult(sim);
+            if (Core::NextResult())
+                Core::PrepareResult(sim);
             else
-                Eval::Finish(simManager);
+                Core::Finish(sim);
         }
-        break;
+    break;
+    default:
+        Panic("Undefined OnStepState in OnSimulationStep");
+    break;
     }
 }
 
-bool preventSimulationFinish = false;
+bool preventSimulationFinish;
 
-void OnCheckpointCountChanged(SimulationManager@ simManager, int, int)
+void OnCheckpointCountChanged(SimulationManager@ sim, int, int)
 {
     if (preventSimulationFinish)
-        simManager.PreventSimulationFinish();
+        sim.PreventSimulationFinish();
 }
 
-bool ignoreEnd = true;
+bool handleEnd;
 
-void OnSimulationEnd(SimulationManager@ simManager, SimulationResult)
+void OnSimulationEnd(SimulationManager@ sim, SimulationResult)
 {
-    if (ignoreEnd)
+    if (!handleEnd)
         return;
 
     preventSimulationFinish = false;
-    ignoreEnd = true;
+    handleEnd = false;
 
-    Eval::modeOnEnd(simManager);
+    Core::modeOnEnd(sim);
 
     const string filename = GetVariableString("bf_result_filename");
     CommandList script;
-    script.Content = Eval::GetBestInputs();
+    script.Content = Core::GetBestInputs();
     if (script.Save(filename))
         print("Inputs saved! Filename: " + filename, Severity::Success);
     else
         print("Inputs not saved! Filename: " + filename, Severity::Error);
 
-    Eval::Reset();
+    Core::Reset();
 }
 
-bool IsRunSimOnly { get { return soState != SimOnlyState::NONE; } }
+ContextMode contextMode;
 
 enum SimOnlyState
 {
     NONE,
 
     PRE_INIT, INIT, COLLECT,
-    BEGIN, STEP, END,
-
-    COUNT
+    BEGIN, STEP, END
 }
 
-SimOnlyState soState = SimOnlyState::NONE;
+SimOnlyState soState;
 
-void OnRunStep(SimulationManager@ simManager)
+void OnRunStep(SimulationManager@ sim)
 {
     switch (soState)
     {
     case SimOnlyState::PRE_INIT:
+        contextMode = ContextMode::Run;
         DrawGame(false);
-        simManager.GiveUp();
+        sim.GiveUp();
         soState = SimOnlyState::INIT;
-        break;
+    break;
     case SimOnlyState::INIT:
-        simManager.SimulationOnly = true;
-        Eval::InitInputStates();
+        sim.SimulationOnly = true;
+        Core::InitInputStates();
         preventSimulationFinish = true;
         soState = SimOnlyState::COLLECT;
-        break;
+    break;
     case SimOnlyState::COLLECT:
-        Eval::CollectInputStates(simManager);
-        if (simManager.TickTime > Eval::runReplayTime)
+        Core::CollectInputStates(sim);
+        if (sim.TickTime > Core::runReplayTime)
         {
             SetCurrentCommandList(null);
-            simManager.SimulationOnly = false;
-            simManager.GiveUp();
+            sim.SimulationOnly = false;
+            sim.GiveUp();
             soState = SimOnlyState::BEGIN;
         }
-        break;
+    break;
     case SimOnlyState::BEGIN:
-        simManager.SimulationOnly = true;
-        OnSimulationBegin(simManager);
+        sim.SimulationOnly = true;
+        OnSimulationBegin(sim);
         soState = SimOnlyState::STEP;
-        break;
+    break;
     case SimOnlyState::STEP:
-        OnSimulationStep(simManager, false);
-        Eval::ApplyInputStates(simManager);
-        // state changes when Eval::Finish is called
-        break;
+        OnSimulationStep(sim, false);
+        Core::ApplyInputStates(sim);
+        // state changes when Core::Finish is called
+    break;
     case SimOnlyState::END:
-        OnSimulationEnd(simManager, SimulationResult::Valid);
-        Eval::ResetInputStates();
-        simManager.SimulationOnly = false;
+        OnSimulationEnd(sim, SimulationResult::Valid);
+        Core::ResetInputStates();
+        sim.SimulationOnly = false;
         DrawGame(true);
+        contextMode = ContextMode::Simulation;
         soState = SimOnlyState::NONE;
-        break;
+    break;
     }
 }

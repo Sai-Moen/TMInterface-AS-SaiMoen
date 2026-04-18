@@ -1,10 +1,10 @@
-// smn_utils - v2.1.1a
-
 /*
 
-Steering
-- constants
-- functions
+smn_utils | Steering | v2.1.1a
+
+Features:
+- Constants
+- Functions
 
 */
 
