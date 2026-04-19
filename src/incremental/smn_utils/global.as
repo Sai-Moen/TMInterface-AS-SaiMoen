@@ -1,10 +1,10 @@
 /*
 
-smn_utils | Global namespace | v2.1.1a
+smn_utils | Global namespace | v3.0.0
 
 Features:
 - Extra log/print overloads
-- Var wrappers
+- Things that have to be set through vars for some reason
 
 */
 
@@ -19,6 +19,9 @@ void log(const int64 value,  Severity severity = Severity::Info) { log("" + valu
 void log(const float value,  Severity severity = Severity::Info) { log("" + value, severity); }
 void log(const double value, Severity severity = Severity::Info) { log("" + value, severity); }
 
+void log(const vec2 value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
+void log(const vec3 value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
+
 
 void print() { print(""); }
 
@@ -30,52 +33,8 @@ void print(const int64 value,  Severity severity = Severity::Info) { print("" + 
 void print(const float value,  Severity severity = Severity::Info) { print("" + value, severity); }
 void print(const double value, Severity severity = Severity::Info) { print("" + value, severity); }
 
-
-bool GetConVarBool(const string &in name)
-{
-    return GetVariableBool(name);
-}
-
-uint GetConVarUInt(const string &in name)
-{
-    return uint(GetVariableDouble(name));
-}
-
-int GetConVarInt(const string &in name)
-{
-    return int(GetVariableDouble(name));
-}
-
-ms GetConVarTime(const string &in name)
-{
-    return ms(GetVariableDouble(name));
-}
-
-float GetConVarFloat(const string &in name)
-{
-    return GetVariableDouble(name);
-}
-
-double GetConVarDouble(const string &in name)
-{
-    return GetVariableDouble(name);
-}
-
-string GetConVarString(const string &in name)
-{
-    return GetVariableString(name);
-}
-
-vec3 GetConVarVec3(const string &in name)
-{
-    return Text::ParseVec3(GetVariableString(name));
-}
-
-
-void SetVariable(const string &in name, const vec3 value)
-{
-    SetVariable(name, value.ToString());
-}
+void print(const vec2 value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
+void print(const vec3 value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
 
 
 void DrawGame(const bool value)

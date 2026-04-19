@@ -1,6 +1,6 @@
 /*
 
-smn_utils | Text | v2.1.1a
+smn_utils | Text | v3.0.0
 
 Features:
 - Parse wrappers
@@ -9,10 +9,10 @@ Features:
 */
 
 
-bool ParseFloat(const string &in s, double &out value)
+bool ParseUInt(const string &in s, uint64 &out value, const uint base = 10)
 {
     uint byteCount;
-    value = Text::ParseFloat(s, byteCount);
+    value = Text::ParseUInt(s, base, byteCount);
     return byteCount != 0;
 }
 
@@ -23,20 +23,20 @@ bool ParseInt(const string &in s, int64 &out value, const uint base = 10)
     return byteCount != 0;
 }
 
-bool ParseUInt(const string &in s, uint64 &out value, const uint base = 10)
+bool ParseFloat(const string &in s, double &out value)
 {
     uint byteCount;
-    value = Text::ParseUInt(s, base, byteCount);
+    value = Text::ParseFloat(s, byteCount);
     return byteCount != 0;
 }
 
 
-string FormatPrecise(const double value, const uint precision = 12)
+String@ FormatPrecise(const double value, const uint precision = 12)
 {
     return Text::FormatFloat(value, " ", 0, precision);
 }
 
-string FormatPrecise(const vec2 &in value, const uint precision = 12)
+String@ FormatPrecise(const vec2 &in value, const uint precision = 12)
 {
     const string x = FormatPrecise(value.x, precision);
     const string y = FormatPrecise(value.y, precision);
@@ -54,7 +54,7 @@ string FormatPrecise(const vec2 &in value, const uint precision = 12)
     return s;
 }
 
-string FormatPrecise(const vec3 &in value, const uint precision = 12)
+String@ FormatPrecise(const vec3 &in value, const uint precision = 12)
 {
     const string x = FormatPrecise(value.x, precision);
     const string y = FormatPrecise(value.y, precision);

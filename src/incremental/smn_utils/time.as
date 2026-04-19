@@ -1,27 +1,28 @@
 /*
 
-smn_utils | Time | v2.1.1a
+smn_utils | Time | v3.0.0
 
 Features:
-- Milliseconds alias
+- Milliseconds aliases
 - Constants
 - Functions
 
 */
 
 
-typedef int32 ms;
+typedef uint32 ums; // Input Event Buffer timestamps
+typedef int32 ms; // TMInterface-adjusted time
 
 const ms TICK = 10;
 
 ms TickToMs(const int tick)
 {
-    return tick * TICK;
+    return tick * 10;
 }
 
 int MsToTick(const ms time)
 {
-    return time / TICK;
+    return time / 10;
 }
 
 bool ParseTime(const string &in raceTime, int &out value)

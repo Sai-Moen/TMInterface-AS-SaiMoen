@@ -121,15 +121,15 @@ array<uint>@ BufferFindInTimerange(
     const ums timestampTo   = timeTo   + 100010;
 
     const uint len = buffer.Length;
-    array<uint> indices(len / 8);
+    array<uint> indices((timeTo - timeFrom + 1) * 10);
     const uint index = BufferSearchForTimestamp(buffer, timestampFrom, -1);
     for (uint i = index; i < len; ++i)
     {
-        const auto@ const inputEvent = buffer[i];
+        const auto inputEvent = buffer[i];
         if (inputEvent.Time > timestampTo)
             break;
 
-        const uint masked = (1 << inputEvent.EventIndex) & mask;
+        const uint masked = (1 << inputEvent.Value.EventIndex) & mask;
         if (masked != 0)
             indices.Add(i);
     }
