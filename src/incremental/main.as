@@ -43,7 +43,7 @@ void OnSimulationBegin(SimulationManager@ sim)
         Core::Initialize(null);
     break;
     default:
-        Panic("Undefined ContextMode in OnSimulationBegin");
+        PanicLog("Undefined ContextMode in OnSimulationBegin");
     break;
     }
 
@@ -63,13 +63,13 @@ void OnSimulationBegin(SimulationManager@ sim)
 
     Core::ResolveModeIndex();
 
-    StringBuilder sb; sb
-        .AppendLine()
-        .Append(TITLE)
-        .Append(" w/ ")
-        .AppendLine(Core::GetCurrentModeName())
-        .AppendLine();
-    print(sb.ToString());
+    string s;
+    s += "\n";
+    s += TITLE;
+    s += " w/ ";
+    s += Core::GetCurrentModeName();
+    s += "\n\n";
+    print(s);
 
     Core::modeOnBegin(sim);
 }
@@ -83,7 +83,8 @@ enum OnStepState
     MAIN,
 }
 
-bool handleCancel;
+bool finish;
+bool handleFinish;
 
 OnStepState onStep;
 
@@ -92,12 +93,15 @@ string saveStateName;
 void OnSimulationStep(SimulationManager@ sim, bool userCancelled)
 {
     if (userCancelled)
+        finish = true;
+
+    if (finish)
     {
-        if (handleCancel)
-        {
-            Core::SaveResult(sim);
+        if (handleFinish)
             Core::Finish(sim);
-        }
+
+        if (contextMode == ContextMode::Simulation)
+            sim.ForceFinish();
         return;
     }
 
@@ -105,7 +109,7 @@ void OnSimulationStep(SimulationManager@ sim, bool userCancelled)
     switch (onStep)
     {
     case OnStepState::NONE:
-        // We are not the controller.
+        // Not active.
     break;
     case OnStepState::SAVE_STATE:
         {
@@ -126,7 +130,8 @@ void OnSimulationStep(SimulationManager@ sim, bool userCancelled)
             }
 
             sim.RewindToState(userStateFile);
-            if (sim.TickTime >= Core::tInit) // TickTime here is not the same as 'time'
+            // TickTime here is not the same as 'time', due to the rewind.
+            if (sim.TickTime >= Core::tInit)
             {
                 print("Attempted to load state that occurs too late! Reverting to start...", Severity::Warning);
                 sim.RewindToState(startStateFile);
@@ -171,7 +176,7 @@ void OnSimulationStep(SimulationManager@ sim, bool userCancelled)
         }
     break;
     default:
-        Panic("Undefined OnStepState in OnSimulationStep");
+        PanicLog("Undefined OnStepState in OnSimulationStep");
     break;
     }
 }
@@ -191,6 +196,8 @@ void OnSimulationEnd(SimulationManager@ sim, SimulationResult)
     if (!handleEnd)
         return;
 
+    finish = false;
+    handleFinish = false;
     preventSimulationFinish = false;
     handleEnd = false;
 
@@ -223,6 +230,9 @@ void OnRunStep(SimulationManager@ sim)
 {
     switch (soState)
     {
+    case SimOnlyState::NONE:
+        // Not active.
+    break;
     case SimOnlyState::PRE_INIT:
         contextMode = ContextMode::Run;
         DrawGame(false);
@@ -262,6 +272,9 @@ void OnRunStep(SimulationManager@ sim)
         DrawGame(true);
         contextMode = ContextMode::Simulation;
         soState = SimOnlyState::NONE;
+    break;
+    default:
+        PanicLog("Undefined SimOnlyState in OnRunStep");
     break;
     }
 }

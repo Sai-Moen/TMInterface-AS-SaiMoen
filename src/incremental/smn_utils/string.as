@@ -13,8 +13,8 @@ Features:
 
 // A reference type containing a 'string', which can be passed around by handle,
 // in cases where return references do not suffice.
-// Implicit conversions are defined to go to/from 'string' more easily,
-// though with the risk of not helping compared to e.g. just returning the string directly.
+// There is an implicit conversion from string to String (constructor not marked with 'explicit'),
+// and there is an implicit conversion from String to string (opImplConv with a return reference).
 class String
 {
     string str;

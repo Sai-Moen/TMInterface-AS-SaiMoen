@@ -13,59 +13,88 @@ ums timestamp = time + 100010.
 */
 
 
-// Binary search for time, adjusts to the IEB difference between time and timestamp.
-uint BufferSearchForTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
+const ums IEB_TIME_OFFSET = 100010;
+
+// Binary search for time.
+// Returns -1 if not found.
+int BufferFindTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
 {
-    return BufferSearchForTimestamp(buffer, time + 100010, direction);
+    return BufferFindTimestamp(buffer, time + IEB_TIME_OFFSET, direction);
 }
 
 // Binary search for timestamp, then go left or right depending on direction (or just return), to find one end of a time region.
-// Returns ~0 (UINT_MAX) if not found.
-uint BufferSearchForTimestamp(const TM::InputEventBuffer@ buffer, const ums timestamp, const int direction)
+// Returns -1 if not found.
+int BufferFindTimestamp(const TM::InputEventBuffer@ buffer, const ums timestamp, const int direction)
+{
+    const uint index = BufferSearchTimestamp(buffer, timestamp, direction);
+    if (index >= buffer.Length || buffer[index].Time != timestamp)
+        return -1;
+
+    return index;
+}
+
+// Binary search for time.
+// Returns index (<= buffer.Length) of where an input event would have been added (given the time and direction).
+uint BufferSearchTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
+{
+    return BufferSearchTimestamp(buffer, time + IEB_TIME_OFFSET, direction);
+}
+
+// Binary search for timestamp, then go left or right depending on direction (or just return), to find one end of a time region.
+// Returns index (<= buffer.Length) of where an input event would have been added (given the timestamp and direction).
+uint BufferSearchTimestamp(const TM::InputEventBuffer@ buffer, const ums timestamp, const int direction)
 {
     const uint length = buffer.Length;
     if (length == 0)
-        return ~0;
+        return 0;
 
-    uint lower = 0;
-    for (uint upper = length;;)
+    uint index = 0;
+    for (uint lower = 0, upper = length;;)
     {
         const uint diff = upper - lower;
         if (diff < 2)
+        {
+            index = lower;
             break;
+        }
 
         const uint mid = lower + diff / 2;
         const ums midTimestamp = buffer[mid].Time;
-        if (midTimestamp <= timestamp)
+        if (midTimestamp == timestamp)
         {
-            lower = mid;
-            if (midTimestamp == timestamp)
-                break;
+            index = mid;
+            break;
         }
-        else
-        {
-            upper = mid;
-        }
+
+        // lol
+        (midTimestamp < timestamp ? lower : upper) = mid;
     }
 
-    if (buffer[lower].Time != timestamp)
-        return ~0;
-
-    if (direction != 0)
+    const ums indexTimestamp = buffer[index].Time;
+    if (indexTimestamp == timestamp)
     {
-        for (;;)
+        if (direction != 0)
         {
-            const uint next = lower + direction;
-            if (next >= length || buffer[next].Time != timestamp)
-                break;
+            for (;;)
+            {
+                const uint next = index + direction;
+                if (next >= length || buffer[next].Time != timestamp)
+                    break;
 
-            lower = next;
+                index = next;
+            }
         }
     }
-    return lower;
+    else if (indexTimestamp < timestamp)
+    {
+        ++index;
+    }
+
+    return index;
 }
 
 // We assume here that uint suffices, based on the largest InputType member being smaller than the amount of bits in a uint.
+// Otherwise, make a bit array version.
 uint BufferInputTypesToEventIndexBitmask(const TM::InputEventBuffer@ buffer, const array<InputType>@ inputTypes)
 {
     uint mask = 0;
@@ -117,13 +146,13 @@ array<uint>@ BufferFindInTimerange(
     if (timeTo < timeFrom)
         return {};
 
-    const ums timestampFrom = timeFrom + 100010;
-    const ums timestampTo   = timeTo   + 100010;
+    const ums timestampFrom = timeFrom + IEB_TIME_OFFSET;
+    const ums timestampTo   = timeTo   + IEB_TIME_OFFSET;
 
-    const uint len = buffer.Length;
+    const uint length = buffer.Length;
     array<uint> indices((timeTo - timeFrom + 1) * 10);
-    const uint index = BufferSearchForTimestamp(buffer, timestampFrom, -1);
-    for (uint i = index; i < len; ++i)
+    const uint index = BufferSearchTimestamp(buffer, timestampFrom, -1);
+    for (uint i = index; i < length; ++i)
     {
         const auto inputEvent = buffer[i];
         if (inputEvent.Time > timestampTo)
@@ -134,6 +163,17 @@ array<uint>@ BufferFindInTimerange(
             indices.Add(i);
     }
     return indices;
+}
+
+// Effectively sets 'buffer.Length' to 'index'.
+// If index > buffer.Length, it will throw an exception (it will not try to add dummy input events).
+void BufferKeepUntil(TM::InputEventBuffer@ buffer, const uint index)
+{
+    const uint length = buffer.Length;
+    // NOTE: this if-statement is only needed due to an edge case in TMInterface.
+    // != is chosen so we do not hide correctness issues in the caller's code.
+    if (length != index)
+        buffer.RemoveAt(index, length - index);
 }
 
 void BufferRemoveInTimerange(
@@ -157,11 +197,11 @@ void BufferRemoveInTimerange(
     BufferRemoveIndices(buffer, indices);
 }
 
-// NOTE: indices must be sorted in ascending order (getting indices from a linear search i.e. Find does this automatically).
+// NOTE: indices must be sorted in ascending order (getting indices from a linear search like Find, does this automatically).
 void BufferRemoveIndices(TM::InputEventBuffer@ buffer, const array<uint>@ indices, const uint indicesBase = 0)
 {
     const uint indicesLen = indices.Length;
-    if (indicesLen <= indicesBase)
+    if (indicesBase >= indicesLen)
         return;
 
     uint indicesIndex = indicesBase;
@@ -174,37 +214,5 @@ void BufferRemoveIndices(TM::InputEventBuffer@ buffer, const array<uint>@ indice
         else
             buffer[index++] = buffer[i];
     }
-    buffer.RemoveAt(index, indicesLen - indicesBase);
-}
-
-array<TM::InputEvent>@ BufferCopyInputEvents(const TM::InputEventBuffer@ buffer)
-{
-    const uint len = buffer.Length;
-    array<TM::InputEvent> events(len);
-    for (uint i = 0; i < len; ++i)
-        events[i] = buffer[i];
-    return events;
-}
-
-void BufferReplaceInputEvents(TM::InputEventBuffer@ buffer, const array<TM::InputEvent>@ events)
-{
-    const uint bufferLen = buffer.Length;
-    const uint eventsLen = events.Length;
-    if (bufferLen > eventsLen)
-    {
-        uint i;
-        for (i = 0; i < eventsLen; ++i)
-            buffer[i] = events[i];
-
-        buffer.RemoveAt(i, bufferLen - eventsLen);
-    }
-    else
-    {
-        uint i;
-        for (i = 0; i < bufferLen; ++i)
-            buffer[i] = events[i];
-
-        while (i < eventsLen)
-            buffer.Add(events[i++]);
-    }
+    BufferKeepUntil(buffer, index);
 }

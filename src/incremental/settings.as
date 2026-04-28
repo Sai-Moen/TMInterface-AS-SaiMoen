@@ -126,19 +126,24 @@ void RenderSettings()
 
 void PrintInfo(const array<InputCommand>@ const commands)
 {
-    StringBuilder builder;
-    builder.AppendLine({ Core::tInput, ":" });
+    string s;
+    s += Core::tInput;
+    s += ":\n";
 
     if (varShowInfo)
     {
-        const double kmph = Core::speed.Length() * 3.6;
-        builder.AppendLine({ "Speed (km/h): ", FormatPrecise(kmph) });
+        s += "Speed (km/h): ";
+        s += FormatPrecise(Core::speed.Length() * 3.6);
+        s += "\n";
     }
 
     for (uint i = 0; i < commands.Length; i++)
-        builder.AppendLine(commands[i].ToString());
+    {
+        s += commands[i].ToString();
+        s += "\n";
+    }
 
-    print(builder.ToString());
+    print(s);
 }
 
 class Home : IncMode

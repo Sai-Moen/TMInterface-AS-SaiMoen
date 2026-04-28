@@ -34,25 +34,7 @@ void Initialize(SimulationManager@ sim)
     tTrail = -20;
     tInput = -10;
 
-    ms duration;
-    switch (contextMode)
-    {
-    case ContextMode::Simulation:
-        duration = runReplayTime;
-    break;
-    case ContextMode::Run:
-        duration = sim.EventsDuration;
-    break;
-    default:
-        Panic("Undefined ContextMode in Initialize");
-    break;
-    }
-
-    if (Settings::varEvalEnd == 0)
-        tLimit = duration;
-    else
-        tLimit = Settings::varEvalEnd;
-    tCleanup = duration;
+    tLimit = Settings::varEvalEnd;
 }
 
 void Reset()
@@ -66,7 +48,8 @@ void Reset()
 
 void Finish(SimulationManager@ sim)
 {
-    handleCancel = false;
+    finish = true;
+    handleFinish = false;
     onStep = OnStepState::NONE;
     if (contextMode == ContextMode::Run)
         soState = SimOnlyState::END;
@@ -161,27 +144,12 @@ ms tInit;    // The timestamp required to ensure that we can run an entire timer
 ms tTrail;   // The timestamp that the trailing state is saved on.
 ms tInput;   // The timestamp currently being evaluated.
 ms tLimit;   // The timestamp that triggers the end of the simulation when the input time exceeds it.
-ms tCleanup; // The timestamp of the inputs with the highest indices.
 
 SimulationState@ initState;
 SimulationState@ trailingState;
 
 const vec3 NO_SPEED = vec3();
 vec3 speed;
-
-bool rewinding;
-
-void RewindToInitState(SimulationManager@ sim)
-{
-    sim.RewindToState(initState);
-    rewinding = true;
-}
-
-void RewindToTrailingState(SimulationManager@ sim)
-{
-    sim.RewindToState(trailingState);
-    rewinding = true;
-}
 
 
 // - Inputs
@@ -204,7 +172,7 @@ void SetInput(SimulationManager@ sim, const ms time, const InputType type, const
         Run::SetInput(sim, time, type, value);
     break;
     default:
-        Panic("Undefined ContextMode in SetInput");
+        PanicLog("Undefined ContextMode in SetInput");
     break;
     }
 }
@@ -220,7 +188,7 @@ bool HasInputs(SimulationManager@ sim, const ms time, const InputType type, cons
         Run::HasInputs(sim, time, type, value);
     break;
     default:
-        Panic("Undefined ContextMode in HasInputs");
+        PanicLog("Undefined ContextMode in HasInputs");
     break;
     }
 }
@@ -236,7 +204,7 @@ void RemoveInputs(SimulationManager@ sim, const ms time, const InputType type, c
         Run::RemoveInputs(sim, time, type, value);
     break;
     default:
-        Panic("Undefined ContextMode in RemoveInputs");
+        PanicLog("Undefined ContextMode in RemoveInputs");
     break;
     }
 }
@@ -252,7 +220,7 @@ void RemoveSteeringAhead(SimulationManager@ sim)
         Run::RemoveSteeringAhead(sim);
     break;
     default:
-        Panic("Undefined ContextMode in RemoveSteeringAhead");
+        PanicLog("Undefined ContextMode in RemoveSteeringAhead");
     break;
     }
 }
@@ -295,15 +263,14 @@ void SaveResult(SimulationManager@ sim)
             const uint index = indices[0];
             auto event = buffer[index];
             buffer.RemoveAt(index);
-            event.Time = tInput + 100000; // tmi offset minus a tick
+            event.Time = tInput + 100000; // TMInterface offset minus a tick.
             buffer.Add(event);
         }
-    break;
+    // fallthrough
     case 0:
-        // Do we need to add in this case?
     break;
     default:
-        print("Unexpected amount of FakeFinish inputs...", Severity::Error);
+        PanicLog("Unexpected amount of FakeFinish inputs...");
     break;
     }
 
