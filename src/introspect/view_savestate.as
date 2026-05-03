@@ -1,54 +1,4 @@
-// SaveState introspection
-
-const string ID = "introspect";
-
-PluginInfo@ GetPluginInfo()
-{
-    PluginInfo info;
-    info.Author = "SaiMoen";
-    info.Name = ID;
-    info.Description = "Save State Introspection";
-    info.Version = "v2.1.1a";
-    return info;
-}
-
-void Main()
-{
-    OnRegister();
-    RegisterCustomCommand(ID, "Toggle Introspection Window", OnIntrospect);
-}
-
-const string PREFIX = ID + "_";
-
-const string ENABLED = PREFIX + "enabled";
-bool enabled;
-
-const string SPAM = PREFIX + "spam";
-bool spam;
-
-void OnRegister()
-{
-    RegisterVariable(ENABLED, false);
-    RegisterVariable(SPAM, false);
-
-    enabled = GetVariableBool(ENABLED);
-    spam = GetVariableBool(SPAM);
-}
-
-void OnIntrospect(int, int, const string &in, const array<string> &in)
-{
-    SetVariable(ENABLED, enabled = !enabled);
-}
-
-void Render()
-{
-    if (!enabled)
-        return;
-
-    if (UI::Begin("Introspect"))
-        Window();
-    UI::End();
-}
+// SaveState view.
 
 bool floatView;
 
@@ -57,11 +7,12 @@ array<Struct@> structStack = { SimStateData() };
 
 const array<uint8>@ state;
 
-void Window()
+void ViewSaveState()
 {
-    spam = UI::CheckboxVar("Spam Console", SPAM);
+    const bool spam = VarGetBool(VAR_SPAM);
+
     floatView = UI::Checkbox("Float View", floatView);
-    UI::TextDimmed("Views bytes as floating point values instead of integers (also affects console spam).");
+    TooltipOnHover("Views bytes as floating point values instead of integers (also affects console spam).");
 
     UI::Separator();
 
@@ -97,15 +48,15 @@ void Window()
     case StructType::Structure:
         UI::TextWrapped("Structure:");
         UI::TextWrapped("Size = " + struct.Size());
-        break;
+    break;
     case StructType::Array:
         UI::TextWrapped("Array:");
         UI::TextWrapped("Size = " + struct.Size());
-        break;
+    break;
     case StructType::Bytes:
         UI::TextWrapped("Bytes:");
         UI::TextWrapped("Size = " + struct.Size());
-        break;
+    break;
     }
 
     uint offset = offsetStack[lastIndex];
@@ -142,16 +93,16 @@ void Window()
             UI::TextWrapped("Bytes as i32: " + value);
         else
             UI::TextWrapped("Bytes as f32: " + I32ToF32(value));
-        break;
+    break;
     case StructType::Bool:
         UI::TextWrapped(value == 0 ? "False" : "True");
-        break;
+    break;
     case StructType::Int:
         UI::TextWrapped("i32: " + value);
-        break;
+    break;
     case StructType::Float:
         UI::TextWrapped("f32: " + I32ToF32(value));
-        break;
+    break;
     }
 
     if (spam)
@@ -182,11 +133,6 @@ void Window()
         }
         relativeOffset += child.Size();
     }
-}
-
-void OnRunStep(SimulationManager@ simManager)
-{
-    @state = enabled ? simManager.SaveState().ToArray() : null;
 }
 
 float I32ToF32(int32 value)
@@ -646,7 +592,7 @@ class ArrayData : Struct
     ArrayData(const string &in name, const array<uint>@ const dimensions, Struct@ exampleChild)
     {
         this.name = name;
-        
+
         uint size = 1;
         for (uint i = 0; i < dimensions.Length; i++)
             size *= dimensions[i];

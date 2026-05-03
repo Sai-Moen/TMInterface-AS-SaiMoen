@@ -67,30 +67,42 @@ bool VarSetString(const string &in name, const string &in value) { return SetVar
 
 void log() { log(""); }
 
-void log(const bool value,   Severity severity = Severity::Info) { log("" + value, severity); }
-void log(const uint value,   Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const bool   value, Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const uint8  value, Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const uint16 value, Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const uint32 value, Severity severity = Severity::Info) { log("" + value, severity); }
 void log(const uint64 value, Severity severity = Severity::Info) { log("" + value, severity); }
-void log(const int value,    Severity severity = Severity::Info) { log("" + value, severity); }
-void log(const int64 value,  Severity severity = Severity::Info) { log("" + value, severity); }
-void log(const float value,  Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const int8   value, Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const int16  value, Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const int32  value, Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const int64  value, Severity severity = Severity::Info) { log("" + value, severity); }
+void log(const float  value, Severity severity = Severity::Info) { log("" + value, severity); }
 void log(const double value, Severity severity = Severity::Info) { log("" + value, severity); }
 
 void log(const vec2 value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
 void log(const vec3 value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
+void log(const vec4 value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
+void log(const quat value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
 
 
 void print() { print(""); }
 
-void print(const bool value,   Severity severity = Severity::Info) { print("" + value, severity); }
-void print(const uint value,   Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const bool   value, Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const uint8  value, Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const uint16 value, Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const uint32 value, Severity severity = Severity::Info) { print("" + value, severity); }
 void print(const uint64 value, Severity severity = Severity::Info) { print("" + value, severity); }
-void print(const int value,    Severity severity = Severity::Info) { print("" + value, severity); }
-void print(const int64 value,  Severity severity = Severity::Info) { print("" + value, severity); }
-void print(const float value,  Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const int8   value, Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const int16  value, Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const int32  value, Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const int64  value, Severity severity = Severity::Info) { print("" + value, severity); }
+void print(const float  value, Severity severity = Severity::Info) { print("" + value, severity); }
 void print(const double value, Severity severity = Severity::Info) { print("" + value, severity); }
 
 void print(const vec2 value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
 void print(const vec3 value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
+void print(const vec4 value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
+void print(const quat value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
 
 
 void DrawGame(const bool value)
@@ -99,7 +111,7 @@ void DrawGame(const bool value)
 }
 
 
-// Run-mode only: SetInputState, but asserts that it does not add an input event.
+// ContextMode::Run only (ContextMode::Simulation always adds): SetInputState, but asserts that it does not add an input event.
 void ModifyInputState(SimulationManager@ sim, InputType state, int value)
 {
     const auto@ const buffer = sim.InputEvents;
@@ -109,15 +121,15 @@ void ModifyInputState(SimulationManager@ sim, InputType state, int value)
     Assert(lengthOld == lengthNew);
 }
 
-// Run-mode only: ModifyInputState for each event in the IEB at RaceTime.
-void ApplyInputStates(SimulationManager@ sim)
+// ContextMode::Run only: ModifyInputState for each event in the IEB at RaceTime.
+void ApplyInputEvents(SimulationManager@ sim)
 {
     // Assuming main overload checks for oob and wrong time anyway, thus using Search, not Find.
-    ApplyInputStates(sim, BufferSearchTime(sim.InputEvents, sim.RaceTime, -1));
+    ApplyInputEvents(sim, BufferSearchTime(sim.InputEvents, sim.RaceTime, -1));
 }
 
-// Run-mode only: ModifyInputState for each event in the IEB at RaceTime, with a given starting index.
-void ApplyInputStates(SimulationManager@ sim, const uint index)
+// ContextMode::Run only: ModifyInputState for each event in the IEB at RaceTime, with a given starting index.
+void ApplyInputEvents(SimulationManager@ sim, const uint index)
 {
     auto@ const buffer = sim.InputEvents;
     const uint bufferLen = buffer.Length;
@@ -156,9 +168,10 @@ void RewindDefault(SimulationManager@ sim, SimulationState@ state, const bool re
 	switch (state.Mode)
 	{
 	case ContextMode::Simulation:
+        // In sim mode, input events are always applied.
 	break;
 	case ContextMode::Run:
-		ApplyInputStates(sim);
+		ApplyInputEvents(sim);
 	break;
 	default:
 		Unreachable();
@@ -213,7 +226,7 @@ void RewindPreserve(SimulationManager@ sim, SimulationState@ state, const bool r
             for (uint i = 0; i < length; ++i)
                 buffer.Add(preserved[i]);
 
-            ApplyInputStates(sim, index);
+            ApplyInputEvents(sim, index);
         }
     break;
     default:
@@ -237,7 +250,7 @@ void RewindRemove(SimulationManager@ sim, SimulationState@ state, const bool res
         }
     break;
     case ContextMode::Run:
-        ApplyInputStates(sim);
+        ApplyInputEvents(sim);
     break;
     default:
         Unreachable();
@@ -468,7 +481,7 @@ array<uint>@ BufferFindInTimerange(
     const ums timestampTo   = timeTo   + IEB_TIME_OFFSET;
 
     const uint length = buffer.Length;
-    array<uint> indices((timeTo - timeFrom + 1) * 10);
+    array<uint> indices;
     const uint index = BufferSearchTimestamp(buffer, timestampFrom, -1);
     for (uint i = index; i < length; ++i)
     {
@@ -651,10 +664,17 @@ int InputEventValueToInt(TM::InputEventValue &in inputEventValue, InputType stat
     case InputType::Up:
     case InputType::Left:
     case InputType::Right:
+    case InputType::Respawn:
+    case InputType::Horn:
+    case InputType::FakeFinish:
         value = inputEventValue.Binary ? 1 : 0;
     break;
-    default:
+    case InputType::Steer:
+    case InputType::Gas:
         value = inputEventValue.Analog;
+    break;
+    default:
+        Unreachable();
     break;
     }
     return value;
@@ -687,7 +707,7 @@ void TooltipOnHover(const string &in text)
 // Combo with index.
 funcdef void OnSelectIndex(const uint index);
 
-bool ComboHelper(const string &in label, const array<string>@ names, const uint currentIndex, OnSelectIndex@ onSelect)
+bool ComboSelectIndex(const string &in label, const array<string>@ names, const uint currentIndex, OnSelectIndex@ onSelect)
 {
     const bool isOpen = UI::BeginCombo(label, names[currentIndex]);
     if (isOpen)
@@ -695,8 +715,7 @@ bool ComboHelper(const string &in label, const array<string>@ names, const uint 
         const uint len = names.Length;
         for (uint i = 0; i < len; i++)
         {
-            const string name = names[i];
-            if (UI::Selectable(name, i == currentIndex))
+            if (UI::Selectable(names[i], i == currentIndex))
                 onSelect(i);
         }
 
@@ -708,7 +727,7 @@ bool ComboHelper(const string &in label, const array<string>@ names, const uint 
 // Combo with string.
 funcdef void OnSelectName(const string &in name);
 
-bool ComboHelper(const string &in label, const array<string>@ names, const string &in currentName, OnSelectName@ onSelect)
+bool ComboSelectName(const string &in label, const array<string>@ names, const string &in currentName, OnSelectName@ onSelect)
 {
     const bool isOpen = UI::BeginCombo(label, currentName);
     if (isOpen)
@@ -750,7 +769,7 @@ funcdef void OnUnreachable();
 void Unreachable()
 {
 	OnUnreachable@ unreachable;
-	// This function only gets called if something went wrong.
+	// This unbound function only gets called if something went wrong.
 	unreachable();
 }
 
