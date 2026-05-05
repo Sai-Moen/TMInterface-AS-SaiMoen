@@ -109,45 +109,54 @@ SimulationState@ IncGetTrailingState()
 
 void IncRewind(SimulationManager@ sim)
 {
-    Core::RewindToTrailingState(sim);
+    RewindRemove(sim, Core::trailingState);
 }
 
 class IncCommitContext
 {
-    int down  = -1;
-    int up    = -1;
-    int steer = Math::INT_MIN;
-}
+    protected uint present;
+    protected array<int> analog;
 
-const IncCommitContext ctxNeutral;
+    bool Get(const InputType inputType, int &out analogValue = 0) const
+    {
+        if ((present & (1 << inputType)) == 0)
+            return false;
+
+        analogValue = analog[inputType];
+        return true;
+    }
+
+    void Set(const InputType inputType, const int analogValue)
+    {
+        AssertLog(inputType >= 0, "Tried to allocate like 4GiB, do not pass negative values.");
+
+        present |= 1 << inputType;
+        if (analog.Length <= inputType)
+            analog.Resize(inputType + 1);
+        analog[inputType] = analogValue;
+    }
+}
 
 void IncCommit(SimulationManager@ sim, const IncCommitContext ctx = IncCommitContext())
 {
-    const ms time = Core::tInput;
     array<InputCommand> commands;
 
-    const int down = ctx.down;
-    if (down != ctxNeutral.down)
+    const ms time = Core::tInput;
+    // Note: just doing all input types for completeness I suppose, but we really only need the first half.
+    for (uint i = 0; i < INPUT_TYPE_COUNT; ++i)
     {
-        const InputType type = InputType::Down;
-        IncSetInput(sim, type, down);
-        commands.Add(Core::MakeInputCommand(time, type, down));
-    }
+        const InputType inputType = InputType(i);
+        int state;
+        if (!ctx.Get(inputType, state))
+            continue;
 
-    const int up = ctx.up;
-    if (up != ctxNeutral.up)
-    {
-        const InputType type = InputType::Up;
-        IncSetInput(sim, type, up);
-        commands.Add(Core::MakeInputCommand(time, type, up));
-    }
+        Core::SetInput(sim, time, inputType, state);
 
-    const int steer = ctx.steer;
-    if (steer != ctxNeutral.steer)
-    {
-        const InputType type = InputType::Steer;
-        IncSetInput(sim, type, steer);
-        commands.Add(Core::MakeInputCommand(time, type, steer));
+        InputCommand cmd;
+        cmd.Timestamp = time;
+        cmd.Type = inputType;
+        cmd.State = state;
+        commands.Add(cmd);
     }
 
     Settings::PrintInfo(commands);

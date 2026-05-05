@@ -111,6 +111,9 @@ void DrawGame(const bool value)
 }
 
 
+// Keep in sync (as if it will ever change).
+const uint INPUT_TYPE_COUNT = 10;
+
 // ContextMode::Run only (ContextMode::Simulation always adds): SetInputState, but asserts that it does not add an input event.
 void ModifyInputState(SimulationManager@ sim, InputType state, int value)
 {
@@ -121,22 +124,22 @@ void ModifyInputState(SimulationManager@ sim, InputType state, int value)
     Assert(lengthOld == lengthNew);
 }
 
-// ContextMode::Run only: ModifyInputState for each event in the IEB at RaceTime.
+// ContextMode::Run only: ModifyInputState for each event in the IEB at TickTime.
 void ApplyInputEvents(SimulationManager@ sim)
 {
     // Assuming main overload checks for oob and wrong time anyway, thus using Search, not Find.
-    ApplyInputEvents(sim, BufferSearchTime(sim.InputEvents, sim.RaceTime, -1));
+    ApplyInputEvents(sim, BufferSearchTime(sim.InputEvents, sim.TickTime, -1));
 }
 
-// ContextMode::Run only: ModifyInputState for each event in the IEB at RaceTime, with a given starting index.
+// ContextMode::Run only: ModifyInputState for each event in the IEB at TickTime, with a given starting index.
 void ApplyInputEvents(SimulationManager@ sim, const uint index)
 {
-    auto@ const buffer = sim.InputEvents;
+    const auto@ const buffer = sim.InputEvents;
     const uint bufferLen = buffer.Length;
     if (index >= bufferLen)
         return;
 
-    const ums timestamp = sim.RaceTime + IEB_TIME_OFFSET;
+    const ums timestamp = sim.TickTime + IEB_TIME_OFFSET;
     if (buffer[index].Time != timestamp)
         return;
 
@@ -148,7 +151,7 @@ void ApplyInputEvents(SimulationManager@ sim, const uint index)
             break;
 
         TM::InputEventValue inputEventValue = inputEvent.Value;
-        const int8 eventIndex = inputEventValue.EventIndex;
+        const int eventIndex = inputEventValue.EventIndex;
         const InputType state = EventIndicesMappingGet(mapping, eventIndex);
         if (state == InputType::None)
         {
@@ -246,7 +249,7 @@ void RewindRemove(SimulationManager@ sim, SimulationState@ state, const bool res
         {
             auto@ const buffer = sim.InputEvents;
             const uint index = BufferSearchTime(buffer, state.PlayerInfo.RaceTime, -1);
-            BufferKeepUntil(buffer, index);
+            BufferRemoveFromIndex(buffer, index);
         }
     break;
     case ContextMode::Run:
@@ -381,13 +384,6 @@ ums timestamp = time + 100010.
 
 const ums IEB_TIME_OFFSET = 100010;
 
-// Binary search for time.
-// Returns index (<= buffer.Length) of where an input event would have been added (given the time and direction).
-uint BufferSearchTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
-{
-    return BufferSearchTimestamp(buffer, time + IEB_TIME_OFFSET, direction);
-}
-
 // Binary search for timestamp, then go left or right depending on direction (or just return), to find one end of a time region.
 // Returns index (<= buffer.Length) of where an input event would have been added (given the timestamp and direction).
 uint BufferSearchTimestamp(const TM::InputEventBuffer@ buffer, const ums timestamp, const int direction)
@@ -442,10 +438,10 @@ uint BufferSearchTimestamp(const TM::InputEventBuffer@ buffer, const ums timesta
 }
 
 // Binary search for time.
-// Returns -1 if not found.
-int BufferFindTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
+// Returns index (<= buffer.Length) of where an input event would have been added (given the time and direction).
+uint BufferSearchTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
 {
-    return BufferFindTimestamp(buffer, time + IEB_TIME_OFFSET, direction);
+    return BufferSearchTimestamp(buffer, time + IEB_TIME_OFFSET, direction);
 }
 
 // Binary search for timestamp, then go left or right depending on direction (or just return), to find one end of a time region.
@@ -459,73 +455,112 @@ int BufferFindTimestamp(const TM::InputEventBuffer@ buffer, const ums timestamp,
     return index;
 }
 
+// Binary search for time.
+// Returns -1 if not found.
+int BufferFindTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
+{
+    return BufferFindTimestamp(buffer, time + IEB_TIME_OFFSET, direction);
+}
+
+// Returns: non-null handle to an array of indices of input events in the timerange matching the mask.
+array<uint>@ BufferFindInTimerange(
+    TM::InputEventBuffer@ buffer, const ums timestampFrom, const ums timestampTo, const uint mask)
+{
+    if (timestampFrom > timestampTo)
+        return {};
+
+    array<uint> indices;
+    const uint index = BufferSearchTimestamp(buffer, timestampFrom, -1);
+    const uint length = buffer.Length;
+    for (uint i = index; i < length; ++i)
+    {
+        const TM::InputEvent inputEvent = buffer[i];
+        if (inputEvent.Time > timestampTo)
+            break;
+
+        if (InputEventIsMasked(inputEvent, mask))
+            indices.Add(i);
+    }
+    return indices;
+}
+
 // Returns: non-null handle to an array of indices of input events in the timerange of a type from inputTypes.
 array<uint>@ BufferFindInTimerange(
-    TM::InputEventBuffer@ buffer, const ms timeFrom, const ms timeTo, const array<InputType>@ inputTypes)
+    TM::InputEventBuffer@ buffer, const ums timestampFrom, const ums timestampTo, const array<InputType>@ inputTypes)
 {
-    if (timeTo < timeFrom)
+    if (timestampFrom > timestampTo)
         return {};
 
     const uint mask = EventIndicesMakeInputTypesBitmask(buffer.EventIndices, inputTypes);
-    return BufferFindInTimerange(buffer, timeFrom, timeTo, mask);
+    return BufferFindInTimerange(buffer, timestampFrom, timestampTo, mask);
 }
 
 // Returns: non-null handle to an array of indices of input events in the timerange matching the mask.
 array<uint>@ BufferFindInTimerange(
     TM::InputEventBuffer@ buffer, const ms timeFrom, const ms timeTo, const uint mask)
 {
-    if (timeTo < timeFrom)
+    if (timeFrom > timeTo)
         return {};
 
     const ums timestampFrom = timeFrom + IEB_TIME_OFFSET;
     const ums timestampTo   = timeTo   + IEB_TIME_OFFSET;
-
-    const uint length = buffer.Length;
-    array<uint> indices;
-    const uint index = BufferSearchTimestamp(buffer, timestampFrom, -1);
-    for (uint i = index; i < length; ++i)
-    {
-        const auto inputEvent = buffer[i];
-        if (inputEvent.Time > timestampTo)
-            break;
-
-        const uint masked = (1 << inputEvent.Value.EventIndex) & mask;
-        if (masked != 0)
-            indices.Add(i);
-    }
-    return indices;
+    return BufferFindInTimerange(buffer, timestampFrom, timestampTo, mask);
 }
 
-// Effectively sets 'buffer.Length' to 'index'.
-// If index > buffer.Length, it will throw an exception (it will not try to add dummy input events).
-void BufferKeepUntil(TM::InputEventBuffer@ buffer, const uint index)
-{
-    const uint length = buffer.Length;
-    // NOTE: this if-statement is only needed due to an edge case in TMInterface.
-    // != is chosen so we do not hide correctness issues in the caller's code.
-    if (length != index)
-        buffer.RemoveAt(index, length - index);
-}
-
-void BufferRemoveInTimerange(
+// Returns: non-null handle to an array of indices of input events in the timerange of a type from inputTypes.
+array<uint>@ BufferFindInTimerange(
     TM::InputEventBuffer@ buffer, const ms timeFrom, const ms timeTo, const array<InputType>@ inputTypes)
 {
-    if (timeTo < timeFrom)
-        return;
+    if (timeFrom > timeTo)
+        return {};
 
     const uint mask = EventIndicesMakeInputTypesBitmask(buffer.EventIndices, inputTypes);
-    const array<uint>@ indices = BufferFindInTimerange(buffer, timeFrom, timeTo, mask);
-    BufferRemoveIndices(buffer, indices);
+    return BufferFindInTimerange(buffer, timeFrom, timeTo, mask);
 }
 
-void BufferRemoveInTimerange(
-    TM::InputEventBuffer@ buffer, const ms timeFrom, const ms timeTo, const uint mask)
+// Removes the range of input events from 'lower' to 'upper' (exclusive).
+// If lower > upper, it will throw an exception (it will not try to add dummy input events).
+void BufferRemoveRange(TM::InputEventBuffer@ buffer, const uint lower, const uint upper)
 {
-    if (timeTo < timeFrom)
-        return;
+    // NOTE: this if-statement is only needed due to an edge case in TMInterface (as of writing).
+    // != is chosen so we do not hide correctness issues in the caller's code.
+    if (upper != lower)
+        buffer.RemoveAt(lower, upper - lower);
+}
 
-    const array<uint>@ indices = BufferFindInTimerange(buffer, timeFrom, timeTo, mask);
-    BufferRemoveIndices(buffer, indices);
+// Attempts to lower 'buffer.Length' to 'index'.
+// If index > buffer.Length, it will throw an exception (it will not try to add dummy input events).
+void BufferRemoveFromIndex(TM::InputEventBuffer@ buffer, const uint index)
+{
+    BufferRemoveRange(buffer, index, buffer.Length);
+}
+
+void BufferRemoveEventIndex(TM::InputEventBuffer@ buffer, const int eventIndex)
+{
+    uint index = 0;
+    const uint length = buffer.Length;
+
+    while (index < length)
+    {
+        const TM::InputEvent inputEvent = buffer[index++];
+        if (inputEvent.Value.EventIndex == eventIndex)
+            break;
+    }
+
+    for (uint i = index; i < length; ++i)
+    {
+        const TM::InputEvent inputEvent = buffer[i];
+        if (inputEvent.Value.EventIndex != eventIndex)
+            buffer[index++] = inputEvent;
+    }
+
+    BufferRemoveFromIndex(buffer, index);
+}
+
+void BufferRemoveInputType(TM::InputEventBuffer@ buffer, const InputType inputType)
+{
+    const int eventIndex = EventIndicesEncode(buffer.EventIndices, inputType);
+    BufferRemoveEventIndex(buffer, eventIndex);
 }
 
 // NOTE: indices must be sorted in ascending order (getting indices from a linear search like Find, does this automatically).
@@ -545,7 +580,90 @@ void BufferRemoveIndices(TM::InputEventBuffer@ buffer, const array<uint>@ indice
         else
             buffer[index++] = buffer[i];
     }
-    BufferKeepUntil(buffer, index);
+    BufferRemoveFromIndex(buffer, index);
+}
+
+void BufferRemoveFromTimestamp(TM::InputEventBuffer@ buffer, const ums timestamp, const uint mask)
+{
+    uint index = BufferSearchTimestamp(buffer, timestamp, -1);
+    uint i;
+    const uint length = buffer.Length;
+    for (i = index; i < length; ++i)
+    {
+        const TM::InputEvent inputEvent = buffer[i];
+        if (!InputEventIsMasked(inputEvent, mask))
+            buffer[index++] = inputEvent;
+    }
+    BufferRemoveRange(buffer, index, i);
+}
+
+void BufferRemoveFromTimestamp(TM::InputEventBuffer@ buffer, const ums timestamp, const array<InputType>@ inputTypes)
+{
+    const uint mask = EventIndicesMakeInputTypesBitmask(buffer.EventIndices, inputTypes);
+    BufferRemoveFromTimestamp(buffer, timestamp, mask);
+}
+
+void BufferRemoveFromTime(TM::InputEventBuffer@ buffer, const ms time, const uint mask)
+{
+    BufferRemoveFromTimestamp(buffer, time + IEB_TIME_OFFSET, mask);
+}
+
+void BufferRemoveFromTime(TM::InputEventBuffer@ buffer, const ms time, const array<InputType>@ inputTypes)
+{
+    const uint mask = EventIndicesMakeInputTypesBitmask(buffer.EventIndices, inputTypes);
+    BufferRemoveFromTime(buffer, time, mask);
+}
+
+void BufferRemoveInTimestampRange(
+    TM::InputEventBuffer@ buffer, const ums timestampFrom, const ums timestampTo, const uint mask)
+{
+    if (timestampFrom > timestampTo)
+        return;
+
+    uint index = BufferSearchTimestamp(buffer, timestampFrom, -1);
+    uint i;
+    const uint length = buffer.Length;
+    for (i = index; i < length; ++i)
+    {
+        const TM::InputEvent inputEvent = buffer[i];
+        if (inputEvent.Time > timestampTo)
+            break;
+
+        if (!InputEventIsMasked(inputEvent, mask))
+            buffer[index++] = inputEvent;
+    }
+    BufferRemoveRange(buffer, index, i);
+}
+
+void BufferRemoveInTimestampRange(
+    TM::InputEventBuffer@ buffer, const ums timestampFrom, const ums timestampTo, const array<InputType>@ inputTypes)
+{
+    if (timestampFrom > timestampTo)
+        return;
+
+    const uint mask = EventIndicesMakeInputTypesBitmask(buffer.EventIndices, inputTypes);
+    BufferRemoveInTimestampRange(buffer, timestampFrom, timestampTo, mask);
+}
+
+void BufferRemoveInTimeRange(
+    TM::InputEventBuffer@ buffer, const ms timeFrom, const ms timeTo, const uint mask)
+{
+    if (timeFrom > timeTo)
+        return;
+
+    const ums timestampFrom = timeFrom + IEB_TIME_OFFSET;
+    const ums timestampTo   = timeTo   + IEB_TIME_OFFSET;
+    BufferRemoveInTimestampRange(buffer, timestampFrom, timestampTo, mask);
+}
+
+void BufferRemoveInTimeRange(
+    TM::InputEventBuffer@ buffer, const ms timeFrom, const ms timeTo, const array<InputType>@ inputTypes)
+{
+    if (timeFrom > timeTo)
+        return;
+
+    const uint mask = EventIndicesMakeInputTypesBitmask(buffer.EventIndices, inputTypes);
+    BufferRemoveInTimeRange(buffer, timeFrom, timeTo, mask);
 }
 
 // Turn an array<InputType> into a bitmask where the 1's are shifted event indices of which the InputType was in the array.
@@ -558,25 +676,7 @@ uint EventIndicesMakeInputTypesBitmask(const EventIndices &in eventIndices, cons
     const uint length = inputTypes.Length;
     for (uint i = 0; i < length; ++i)
     {
-        int eventIndex = -1;
-
-        switch (inputTypes[i])
-        {
-        case InputType::Down:       eventIndex = eventIndices.BrakeId;      break;
-        case InputType::Up:         eventIndex = eventIndices.AccelerateId; break;
-        case InputType::Left:       eventIndex = eventIndices.SteerLeftId;  break;
-        case InputType::Right:      eventIndex = eventIndices.SteerRightId; break;
-        case InputType::Steer:      eventIndex = eventIndices.SteerId;      break;
-        case InputType::Gas:        eventIndex = eventIndices.GasId;        break;
-        case InputType::Respawn:    eventIndex = eventIndices.RespawnId;    break;
-        //   InputType::GiveUp: I assume this one does not show up in the IEB...
-        case InputType::Horn:       eventIndex = eventIndices.HornId;       break;
-        case InputType::FakeFinish: eventIndex = eventIndices.FinishLineId; break;
-        default:
-            PanicLog("Undefined InputType in EventIndicesMakeInputTypesBitmask");
-        break;
-        }
-
+        const int eventIndex = EventIndicesEncode(eventIndices, inputTypes[i]);
         Assert(eventIndex < 32); // Amount of bits in a uint (a constant would pollute global scope).
         mask |= 1 << eventIndex;
     }
@@ -584,7 +684,31 @@ uint EventIndicesMakeInputTypesBitmask(const EventIndices &in eventIndices, cons
     return mask;
 }
 
-InputType EventIndicesDecode(const EventIndices &in eventIndices, const int8 eventIndex)
+int EventIndicesEncode(const EventIndices &in eventIndices, const InputType inputType)
+{
+    int eventIndex = -1;
+
+    switch (inputType)
+    {
+    case InputType::Down:       eventIndex = eventIndices.BrakeId;      break;
+    case InputType::Up:         eventIndex = eventIndices.AccelerateId; break;
+    case InputType::Left:       eventIndex = eventIndices.SteerLeftId;  break;
+    case InputType::Right:      eventIndex = eventIndices.SteerRightId; break;
+    case InputType::Steer:      eventIndex = eventIndices.SteerId;      break;
+    case InputType::Gas:        eventIndex = eventIndices.GasId;        break;
+    case InputType::Respawn:    eventIndex = eventIndices.RespawnId;    break;
+    //   InputType::GiveUp: I assume this one does not show up in the IEB...
+    case InputType::Horn:       eventIndex = eventIndices.HornId;       break;
+    case InputType::FakeFinish: eventIndex = eventIndices.FinishLineId; break;
+    default:
+        PanicLog("Bad InputType in EventIndicesEncode");
+    break;
+    }
+
+    return eventIndex;
+}
+
+InputType EventIndicesDecode(const EventIndices &in eventIndices, const int eventIndex)
 {
     InputType inputType = InputType::None;
     if (eventIndex == eventIndices.BrakeId)
@@ -629,16 +753,16 @@ array<InputType>@ EventIndicesMakeMapping(const EventIndices &in eventIndices)
     };
     const uint idsLen = ids.Length;
 
-    int capacity = 0;
+    uint capacity = 0;
     for (uint i = 0; i < idsLen; ++i)
     {
-        const int requiredCapacity = ids[i] + 1;
+        const uint requiredCapacity = ids[i] + 1;
         if (capacity < requiredCapacity)
             capacity = requiredCapacity;
     }
 
     array<InputType> mapping(capacity);
-    for (int i = 0; i < capacity; ++i)
+    for (uint i = 0; i < capacity; ++i)
         mapping[i] = InputType::None;
 
     for (uint i = 0; i < idsLen; ++i)
@@ -650,9 +774,15 @@ array<InputType>@ EventIndicesMakeMapping(const EventIndices &in eventIndices)
     return mapping;
 }
 
-InputType EventIndicesMappingGet(const array<InputType>@ mapping, const int8 eventIndex)
+InputType EventIndicesMappingGet(const array<InputType>@ mapping, const int eventIndex)
 {
-    return eventIndex < int(mapping.Length) ? mapping[eventIndex] : InputType::None;
+    const uint index = eventIndex;
+    return index < mapping.Length ? mapping[index] : InputType::None;
+}
+
+bool InputEventIsMasked(const TM::InputEvent &in inputEvent, const uint mask)
+{
+    return ((1 << inputEvent.Value.EventIndex) & mask) != 0;
 }
 
 int InputEventValueToInt(TM::InputEventValue &in inputEventValue, InputType state)

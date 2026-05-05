@@ -2,65 +2,162 @@ namespace Core
 {
 
 
-// - General
+bool handleFinish;
+string saveStateName;
 
-array<TM::InputEvent>@ initialEvents;
-
-void Initialize(SimulationManager@ sim)
+void Begin(SimulationManager@ sim)
 {
-    // A different system is used for run-mode.
-    if (contextMode == ContextMode::Simulation)
-        @initialEvents = BufferCopyInputEvents(sim.InputEvents);
+    speed = vec3();
 
-    speed = NO_SPEED;
-
-    int timerange = MsToTick(Settings::varEvalBeginStop - Settings::varEvalBeginStart) + 1;
+    int timerange = (Settings::varEvalBeginStop - Settings::varEvalBeginStart) / 10 + 1;
     if (timerange < 1)
         timerange = 1;
     results.Resize(timerange);
 
-    uint t = Settings::varEvalBeginStop;
-    for (uint i = 0; i < timerange; i++)
-    {
-        results[i].time = t;
-        t -= TICK;
-    }
-
     resultIndex = 0;
 
-    // Need this even w/ locked timerange to verify savestate.
-    tInit = Settings::varEvalBeginStart - TickToMs(2);
-
-    tTrail = -20;
-    tInput = -10;
-
+    tInit = Settings::varEvalBeginStart - 10;
+    tInput = -10; // Just to detect if/when we are forgetting to set it later.
     tLimit = Settings::varEvalEnd;
+
+    handleFinish = true;
+
+    // TODO: find out where this came from.
+    if (ShouldTryLoadingSaveState())
+    {
+        saveStateName = Settings::varSaveStateName;
+        onStep = OnStepState::SAVE_STATE;
+    }
+    else
+    {
+        onStep = OnStepState::INIT;
+    }
+
+    ResolveModeIndex();
+
+    string s;
+    s += "\n\n";
+    s += TITLE;
+    s += " w/ ";
+    s += GetCurrentModeName();
+    s += "\n\n";
+    print(s);
+
+    mode.OnBegin(sim);
 }
 
-void Reset()
+void Step(SimulationManager@ sim)
 {
-    @initialEvents = null;
+    const ms time = sim.TickTime;
+    switch (onStep)
+    {
+    case OnStepState::NONE:
+        PanicLog("Should not be able to reach this...");
+    break;
+    case OnStepState::SAVE_STATE:
+        {
+            SimulationStateFile stateFile;
+            string error;
+            if (!stateFile.Load(saveStateName, error))
+            {
+                print("There was an error with the savestate:", Severity::Error);
+                print(error, Severity::Error);
+                break;
+            }
+
+            const ms stateFileTime = stateFile.ToState().PlayerInfo.RaceTime;
+            if (stateFileTime >= tInit)
+            {
+                string s;
+                s += "Attempted to load state that occurs too late! ";
+                s += stateFileTime;
+                s += " is not less than ";
+                s += tInit;
+                print(s, Severity::Warning);
+                break;
+            }
+
+            // NOTE: Not using Rewind functions here, since any inputs that were done on the same tick are long lost...
+            sim.RewindToState(stateFile);
+        }
+    break;
+    case OnStepState::INIT:
+        if (time < tInit)
+            break;
+
+        Assert(time == tInit);
+        @initState = sim.SaveState();
+        onStep = OnStepState::MAIN;
+    break;
+    case OnStepState::MAIN:
+        if (tInput <= tLimit)
+        {
+            if (time == tTrail)
+            {
+                @trailingState = sim.SaveState();
+                break;
+            }
+
+            if (time < tInput)
+                break;
+
+            if (speed == NO_SPEED && time == tInput)
+                speed = sim.Dyna.RefStateCurrent.LinearSpeed;
+
+            modeOnStep(sim);
+        }
+        else
+        {
+            print(); // bit of spacing
+
+            SaveResult(sim);
+            if (NextResult())
+                PrepareResult(sim);
+            else
+                Finish(sim);
+        }
+    break;
+    case OnStepState::FINISH:
+        if (handleFinish)
+            Finish(sim);
+
+        if (contextMode == ContextMode::Simulation)
+            sim.ForceFinish();
+    break;
+    default:
+        PanicLog("Undefined OnStepState in Core::Step");
+    break;
+    }
+}
+
+void End(SimulationManager@ sim)
+{
+    handleFinish = false;
+
+    mode.onEnd(sim);
+
+    const string filename = GetVariableString("bf_result_filename");
+    CommandList script;
+    script.Content = GetBestInputs();
+    if (script.Save(filename))
+        print("Inputs saved! Filename: " + filename, Severity::Success);
+    else
+        print("Inputs not saved! Filename: " + filename, Severity::Error);
+
     @initState = null;
     @trailingState = null;
     cache.Clear();
     results.Clear();
 }
 
-void Finish(SimulationManager@ sim)
-{
-    finish = true;
-    handleFinish = false;
-    onStep = OnStepState::NONE;
-    if (contextMode == ContextMode::Run)
-        soState = SimOnlyState::END;
-}
+
+vec3 speed;
 
 void Advance()
 {
-    tTrail += TICK;
-    tInput += TICK;
+    speed = vec3();
 
-    speed = NO_SPEED;
+    tInput += 10;
 
     const uint cacheLen = cache.Length;
     if (cacheLen == 0)
@@ -71,8 +168,14 @@ void Advance()
     cacheOffset = (cacheOffset + 1) % cacheMod;
 }
 
+void Finish(SimulationManager@ sim)
+{
+    handleFinish = false;
+    onStep = OnStepState::FINISH;
+    if (contextMode == ContextMode::Run)
+        soState = SimOnlyState::END;
+}
 
-// - Modes
 
 array<string> modeNames;
 array<IncMode@> modes;
@@ -86,7 +189,7 @@ bool IsUnlockedTimerange()
         Settings::varEvalBeginStart < Settings::varEvalBeginStop;
 }
 
-string GetCurrentModeName()
+const string& GetCurrentModeName()
 {
     return modeNames[modeIndex];
 }
@@ -96,13 +199,13 @@ void OnModeIndex(const uint index)
     if (SetModeIndex(index))
         return;
 
-    StringBuilder sb; sb
-        .Append("Mode Index went out of bounds... (")
-        .Append(index)
-        .Append(" >= ")
-        .Append(modes.Length)
-        .Append(")");
-    log(sb.ToString(), Severity::Warning);
+    string s;
+    s += "Mode Index went out of bounds... (";
+    s += index;
+    s += " >= ";
+    s += modes.Length;
+    s += ")";
+    log(s, Severity::Warning);
 }
 
 void ResolveModeIndex()
@@ -138,110 +241,154 @@ void ModeDispatch()
 }
 
 
-// - Timestamps
-
-ms tInit;    // The timestamp required to ensure that we can run an entire timerange.
-ms tTrail;   // The timestamp that the trailing state is saved on.
-ms tInput;   // The timestamp currently being evaluated.
-ms tLimit;   // The timestamp that triggers the end of the simulation when the input time exceeds it.
+ms tInit;    // The time required to ensure that we can run an entire timerange.
+ms tInput;   // The time currently being evaluated.
+ms tLimit;   // The time that triggers the end of the iteration when the input time exceeds it.
 
 SimulationState@ initState;
-SimulationState@ trailingState;
+SimulationState@ inputState;
 
-const vec3 NO_SPEED = vec3();
-vec3 speed;
-
-
-// - Inputs
 
 array<uint> cache;
 uint cacheMod;
 uint cacheOffset;
 
-// Keep up to date with InputType's 'length'.
-const uint INPUT_TYPE_COUNT = 10;
-
 void SetInput(SimulationManager@ sim, const ms time, const InputType type, const int value)
 {
-    switch (contextMode)
+    const uint relativeTick = (time - tInput) / 10;
+    do
     {
-    case ContextMode::Simulation:
-        Sim::SetInput(sim, time, type, value);
-    break;
-    case ContextMode::Run:
-        Run::SetInput(sim, time, type, value);
-    break;
-    default:
-        PanicLog("Undefined ContextMode in SetInput");
-    break;
+        const uint requiredMod = relativeTick + 1;
+        if (cacheMod >= requiredMod)
+            break;
+
+        const uint mod = cacheMod;
+        cacheMod = requiredMod;
+        cache.Resize(cacheMod * INPUT_TYPE_COUNT);
+
+        const uint offset = cacheOffset;
+        cacheOffset = 0;
+        if (mod == 0)
+            break;
+
+        // Overlapping on the left, copy right-to-left.
+        for (uint i = INPUT_TYPE_COUNT - 1; i != 0; --i)
+        {
+            const uint old = i * mod;
+            const uint new = i * cacheMod;
+            for (uint j = 0; j < mod; ++j)
+            {
+                const uint cacheIndex = old + (offset + j) % mod;
+                cache[new + j] = cache[cacheIndex];
+                cache[cacheIndex] = 0;
+            }
+        }
     }
+    while (false);
+
+    auto@ const buffer = sim.InputEvents;
+
+    const uint cacheIndex = type * cacheMod + (cacheOffset + relativeTick) % cacheMod;
+    uint eventIndex = cache[cacheIndex];
+    if (eventIndex == 0)
+    {
+        auto@ indices = buffer.Find(time, type);
+        switch (indices.Length)
+        {
+        case 0:
+            {
+                buffer.Add(time, type, value);
+                @indices = buffer.Find(time, type);
+                Assert(indices.Length == 1);
+                const uint index = indices[0];
+
+                const uint cacheLen = cache.Length;
+                for (uint i = 0; i < cacheLen; i++)
+                {
+                    if (cache[i] > index)
+                        ++cache[i];
+                }
+            }
+        // fallthrough
+        case 1:
+            // We have exactly 1 input with the required time and type, let's cache and set that one.
+        break;
+        default:
+            {
+                BufferRemoveIndices(buffer, indices, 1);
+
+                const uint indicesLen = indices.Length;
+                if (indicesLen <= indicesBase)
+                    break;
+
+                const uint cacheLen = cache.Length;
+                for (uint i = 0; i < cacheLen; i++)
+                {
+                    const uint cached = cache[i];
+                    if (cached == 0)
+                        continue;
+
+                    uint shift = 0;
+                    for (uint j = indicesBase; j < indicesLen; j++)
+                    {
+                        const uint index = indices[j];
+                        AssertLog(index != cached, "Index to be removed cannot be in the cache!");
+                        if (index > cached)
+                            break;
+
+                        ++shift;
+                    }
+                    cache[i] -= shift;
+                }
+            }
+        break;
+        }
+
+        eventIndex = indices[0];
+        cache[cacheIndex] = eventIndex;
+    }
+
+    buffer[eventIndex].Value.Analog = value;
 }
 
 bool HasInputs(SimulationManager@ sim, const ms time, const InputType type, const int value)
 {
-    switch (contextMode)
-    {
-    case ContextMode::Simulation:
-        Sim::HasInputs(sim, time, type, value);
-    break;
-    case ContextMode::Run:
-        Run::HasInputs(sim, time, type, value);
-    break;
-    default:
-        PanicLog("Undefined ContextMode in HasInputs");
-    break;
-    }
+    return !sim.InputEvents.Find(time, type, value).IsEmpty();
 }
 
 void RemoveInputs(SimulationManager@ sim, const ms time, const InputType type, const int value)
 {
-    switch (contextMode)
-    {
-    case ContextMode::Simulation:
-        Sim::RemoveInputs(sim, time, type, value);
-    break;
-    case ContextMode::Run:
-        Run::RemoveInputs(sim, time, type, value);
-    break;
-    default:
-        PanicLog("Undefined ContextMode in RemoveInputs");
-    break;
-    }
+    auto@ const buffer = sim.InputEvents;
+    const uint len = buffer.Length;
+    BufferRemoveIndices(buffer, buffer.Find(time, type, value));
+
+    // IDEA: invalidate cache more granularly?
+    if (buffer.Length < len)
+        cache.Clear();
 }
 
 void RemoveSteeringAhead(SimulationManager@ sim)
 {
-    switch (contextMode)
-    {
-    case ContextMode::Simulation:
-        Sim::RemoveSteeringAhead(sim);
-    break;
-    case ContextMode::Run:
-        Run::RemoveSteeringAhead(sim);
-    break;
-    default:
-        PanicLog("Undefined ContextMode in RemoveSteeringAhead");
-    break;
-    }
+    auto@ const buffer = sim.InputEvents;
+    const uint len = buffer.Length;
+    BufferRemoveFromTime(buffer, tInput, { InputType::Left, InputType::Right, InputType::Steer });
+
+    // IDEA: invalidate cache more granularly?
+    if (buffer.Length < len)
+        cache.Clear();
 }
 
-InputCommand MakeInputCommand(const ms timestamp, const InputType type, const int state)
-{
-    InputCommand cmd;
-    cmd.Timestamp = timestamp;
-    cmd.Type = type;
-    cmd.State = state;
-    return cmd;
-}
-
-
-// - Results
 
 class Result
 {
-    ms time;
     string inputs;
     SimulationState@ state;
+
+    Result(SimulationManager@ sim)
+    {
+        inputs = sim.InputEvents.ToCommandsText();
+        state = sim.SaveState();
+    }
 
     float Metric() const
     {
@@ -254,67 +401,48 @@ uint resultIndex;
 
 void SaveResult(SimulationManager@ sim)
 {
-    auto@ const buffer = sim.InputEvents;
-    const auto@ const indices = buffer.Find(-1, InputType::FakeFinish);
-    switch (indices.Length)
-    {
-    case 1:
-        {
-            const uint index = indices[0];
-            auto event = buffer[index];
-            buffer.RemoveAt(index);
-            event.Time = tInput + 100000; // TMInterface offset minus a tick.
-            buffer.Add(event);
-        }
-    // fallthrough
-    case 0:
-    break;
-    default:
-        PanicLog("Unexpected amount of FakeFinish inputs...");
-    break;
-    }
-
-    resultInputs[resultIndex] = buffer.ToCommandsText();
-    @resultStates[resultIndex] = sim.SaveState();
+    @results[resultIndex] = Result(sim);
 }
 
 bool NextResult()
 {
-    Assert(resultIndex <= results.Length);
-    if (resultIndex == results.Length)
+    const uint len = results.Length;
+    Assert(resultIndex <= len);
+    if (resultIndex == len)
         return false;
 
-    tInput = results[resultIndex++].time;
-    tTrail = tInput - TICK;
+    tInput = tInit + (len - resultIndex++) * 10;
     return true;
 }
 
 void PrepareResult(SimulationManager@ sim)
 {
-    if (contextMode == ContextMode::Simulation)
-        BufferReplaceInputEvents(sim.InputEvents, initialEvents);
-    RewindToInitState(sim);
-    modeOnBegin(sim);
+    RewindRemove(sim, initState);
+    mode.OnBegin(sim);
 }
 
-string GetBestInputs()
+const string& GetBestInputs()
 {
-    uint bestIndex = 0;
-    float best = results[bestIndex].Metric();
-    const uint len = resultStates.Length;
-    for (uint i = 1; i < len; i++)
+    Result@ bestResult = results[0];
+    if (bestResult is null)
+        return "# Incremental did not complete a pass.";
+
+    float bestMetric = bestResult.Metric();
+    const uint len = results.Length;
+    for (uint i = 1; i < len; ++i)
     {
-        if (results[i].state is null)
+        Result@ result = results[i];
+        if (result is null)
             break;
 
-        const float other = results[i].Metric();
-        if (best < other)
+        const float metric = result.Metric();
+        if (bestMetric < metric)
         {
-            best = other;
-            bestIndex = i;
+            bestMetric = metric;
+            @bestResult = result;
         }
     }
-    return resultInputs[bestIndex];
+    return bestResult.inputs;
 }
 
 
