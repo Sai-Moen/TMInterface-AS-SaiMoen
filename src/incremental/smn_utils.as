@@ -152,14 +152,14 @@ void ApplyInputEvents(SimulationManager@ sim, const uint index)
 
         TM::InputEventValue inputEventValue = inputEvent.Value;
         const int eventIndex = inputEventValue.EventIndex;
-        const InputType state = EventIndicesMappingGet(mapping, eventIndex);
+        const InputType state = EventIndicesMappingDecode(mapping, eventIndex);
         if (state == InputType::None)
         {
             log("Unknown Input Type, EventIndex: " + eventIndex, Severity::Warning);
             continue;
         }
 
-        ModifyInputState(sim, state, InputEventValueToInt(inputEventValue, state));
+        ModifyInputState(sim, state, InputEventValueGetInt(inputEventValue, state));
     }
 }
 
@@ -774,7 +774,7 @@ array<InputType>@ EventIndicesMakeMapping(const EventIndices &in eventIndices)
     return mapping;
 }
 
-InputType EventIndicesMappingGet(const array<InputType>@ mapping, const int eventIndex)
+InputType EventIndicesMappingDecode(const array<InputType>@ mapping, const int eventIndex)
 {
     const uint index = eventIndex;
     return index < mapping.Length ? mapping[index] : InputType::None;
@@ -785,10 +785,20 @@ bool InputEventIsMasked(const TM::InputEvent &in inputEvent, const uint mask)
     return ((1 << inputEvent.Value.EventIndex) & mask) != 0;
 }
 
-int InputEventValueToInt(TM::InputEventValue &in inputEventValue, InputType state)
+int InputEventGetInt(TM::InputEvent &in inputEvent, const InputType inputType)
+{
+    return InputEventValueGetInt(inputEvent.Value, inputType);
+}
+
+void InputEventSetInt(TM::InputEvent& inputEvent, const InputType inputType, const int value)
+{
+    InputEventValueSetInt(inputEvent.Value, inputType, value);
+}
+
+int InputEventValueGetInt(TM::InputEventValue inputEventValue, const InputType inputType)
 {
     int value;
-    switch (state)
+    switch (inputType)
     {
     case InputType::Down:
     case InputType::Up:
@@ -808,6 +818,29 @@ int InputEventValueToInt(TM::InputEventValue &in inputEventValue, InputType stat
     break;
     }
     return value;
+}
+
+void InputEventValueSetInt(TM::InputEventValue& inputEventValue, const InputType inputType, const int value)
+{
+    switch (inputType)
+    {
+    case InputType::Down:
+    case InputType::Up:
+    case InputType::Left:
+    case InputType::Right:
+    case InputType::Respawn:
+    case InputType::Horn:
+    case InputType::FakeFinish:
+        inputEventValue.Binary = value != 0;
+    break;
+    case InputType::Steer:
+    case InputType::Gas:
+        inputEventValue.Analog = value;
+    break;
+    default:
+        Unreachable();
+    break;
+    }
 }
 
 
@@ -1041,23 +1074,18 @@ Features:
 
 // A reference type containing a 'string', which can be passed around by handle,
 // in cases where return references do not suffice.
-// There is an implicit conversion from string to String (constructor not marked with 'explicit'),
-// and there is an implicit conversion from String to string (opImplConv with a return reference).
 class String
 {
-    string str;
+    protected string str;
 
-    String() {}
+    String() const {}
 
-    String(const string &in s)
-    {
-        str = s;
-    }
+    String(const string &in s) { str = s; }
 
-    string& opImplConv()
-    {
-        return str;
-    }
+    const string& opConv()     const { return str; }
+          string& opConv()           { return str; }
+    const string& opImplConv() const { return str; }
+          string& opImplConv()       { return str; }
 }
 
 uint StringArrayCombinedLength(const array<string>@ strings)
@@ -1069,12 +1097,11 @@ uint StringArrayCombinedLength(const array<string>@ strings)
     return combined;
 }
 
-// To copy: string copy = StringPadLeft(string(s), lengthNew, c);
-String@ StringPadLeft(string& s, const uint lengthNew, const uint8 c = ' ')
+void StringPadLeft(string& s, const uint lengthNew, const uint8 c = ' ')
 {
     const uint lengthOld = s.Length;
     if (lengthNew <= lengthOld)
-        return s;
+        return;
 
     s.Resize(lengthNew);
 
@@ -1084,33 +1111,53 @@ String@ StringPadLeft(string& s, const uint lengthNew, const uint8 c = ' ')
 
     for (uint i = 0; i < padBy; ++i)
         s[i] = c;
-
-    return s;
 }
 
-String@ StringPadLeftBy(string& s, const uint padBy, const uint8 c = ' ')
+String@ StringCopyPadLeft(String@ copy, const uint lengthNew, const uint8 c = ' ')
 {
-    return StringPadLeft(s, s.Length + padBy, c);
+    StringPadLeft(string(copy), lengthNew, c);
+    return copy;
+}
+
+void StringPadLeftBy(string& s, const uint padBy, const uint8 c = ' ')
+{
+    StringPadLeft(s, s.Length + padBy, c);
+}
+
+String@ StringCopyPadLeftBy(String@ copy, const uint padBy, const uint8 c = ' ')
+{
+    StringPadLeftBy(string(copy), padBy, c);
+    return copy;
 }
 
 // To copy: string copy = StringPadRight(string(s), lengthNew, c);
-String@ StringPadRight(string& s, const uint lengthNew, const uint8 c = ' ')
+void StringPadRight(string& s, const uint lengthNew, const uint8 c = ' ')
 {
     const uint lengthOld = s.Length;
     if (lengthNew <= lengthOld)
-        return s;
+        return;
 
     s.Resize(lengthNew);
 
     for (uint i = lengthOld; i < lengthNew; ++i)
         s[i] = c;
-
-    return s;
 }
 
-String@ StringPadRightBy(string& s, const uint padBy, const uint8 c = ' ')
+String@ StringCopyPadRight(String@ copy, const uint lengthNew, const uint8 c = ' ')
 {
-    return StringPadRight(s, s.Length + padBy, c);
+    StringPadRight(string(copy), lengthNew, c);
+    return copy;
+}
+
+void StringPadRightBy(string& s, const uint padBy, const uint8 c = ' ')
+{
+    StringPadRight(s, s.Length + padBy, c);
+}
+
+String@ StringCopyPadRightBy(String@ copy, const uint padBy, const uint8 c = ' ')
+{
+    StringPadRightBy(string(copy), padBy, c);
+    return copy;
 }
 
 // Could also do Join, but that is built-in already.

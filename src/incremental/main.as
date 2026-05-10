@@ -15,8 +15,9 @@ void Main()
 {
     Settings::RegisterSettings();
 
-    IncRegisterMode("Home", Settings::Home());
-    Core::ModeDispatch();
+    IncMode@ const home = Settings::Home();
+    IncRegisterMode("Home", home);
+    @Core::mode = home;
 
     InputSimplifier::Main();
     SpeedDrift::Main();

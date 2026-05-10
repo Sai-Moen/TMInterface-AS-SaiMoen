@@ -11,7 +11,7 @@ PluginInfo@ GetPluginInfo()
 void Main()
 {
     RegisterSettings();
-    RegisterSettingsPage("Introspect Settings", SettingsPage);
+    RegisterSettingsPage("Introspect", SettingsPage);
 }
 
 const string VAR = "introspect_";

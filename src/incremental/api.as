@@ -46,17 +46,27 @@ bool IncRegisterMode(const string &in modeName, IncMode@ mode)
 
 ms IncGetRelativeTime(SimulationManager@ sim)
 {
-    return IncGetRelativeTime(sim.TickTime);
+    return Core::GetRelativeTime(sim.TickTime);
 }
 
-ms IncGetRelativeTime(const ms absoluteTickTime)
+ms IncGetRelativeTime(const ms absoluteTime)
 {
-    return absoluteTickTime - Core::tInput;
+    return Core::GetRelativeTime(absoluteTime);
 }
 
-ms IncGetAbsoluteTime(const ms relativeTickTime)
+ms IncGetAbsoluteTime(const ms relativeTime)
 {
-    return Core::tInput + relativeTickTime;
+    return Core::GetAbsoluteTime(relativeTime);
+}
+
+bool IncGetInput(SimulationManager@ sim, const InputType type, int &out value = void)
+{
+    return Core::GetInput(sim, Core::tInput, type, value);
+}
+
+bool IncGetInput(SimulationManager@ sim, const ms relativeTime, const InputType type, int &out value = void)
+{
+    return Core::GetInput(sim, Core::GetAbsoluteTime(relativeTime), type, value);
 }
 
 void IncSetInput(SimulationManager@ sim, const InputType type, const int value)
@@ -66,21 +76,7 @@ void IncSetInput(SimulationManager@ sim, const InputType type, const int value)
 
 void IncSetInput(SimulationManager@ sim, const ms relativeTime, const InputType type, const int value)
 {
-    Core::SetInput(sim, IncGetAbsoluteTime(relativeTime), type, value);
-}
-
-bool IncHasInputs(
-    SimulationManager@ sim,
-    const InputType type = InputType::None, const int value = Math::INT_MAX)
-{
-    return Core::HasInputs(sim, Core::tInput, type, value);
-}
-
-bool IncHasInputs(
-    SimulationManager@ sim,
-    const ms relativeTime, const InputType type = InputType::None, const int value = Math::INT_MAX)
-{
-    return Core::HasInputs(sim, IncGetAbsoluteTime(relativeTime), type, value);
+    Core::SetInput(sim, Core::GetAbsoluteTime(relativeTime), type, value);
 }
 
 void IncRemoveInputs(
@@ -94,22 +90,22 @@ void IncRemoveInputs(
     SimulationManager@ sim,
     const ms relativeTime, const InputType type = InputType::None, const int value = Math::INT_MAX)
 {
-    Core::RemoveInputs(sim, IncGetAbsoluteTime(relativeTime), type, value);
+    Core::RemoveInputs(sim, Core::GetAbsoluteTime(relativeTime), type, value);
 }
 
-void IncRemoveSteeringAhead(SimulationManager@ sim)
+void IncRemoveFromInputTime(SimulationManager@ sim, const array<InputType>@ inputTypes)
 {
-    Core::RemoveSteeringAhead(sim);
+    Core::RemoveFromInputTime(sim, inputTypes);
 }
 
-SimulationState@ IncGetTrailingState()
+SimulationState@ IncGetInputState()
 {
-    return Core::trailingState;
+    return Core::inputState;
 }
 
 void IncRewind(SimulationManager@ sim)
 {
-    RewindRemove(sim, Core::trailingState);
+    RewindRemove(sim, Core::inputState);
 }
 
 class IncCommitContext
@@ -117,10 +113,13 @@ class IncCommitContext
     protected uint present;
     protected array<int> analog;
 
-    bool Get(const InputType inputType, int &out analogValue = 0) const
+    bool Get(const InputType inputType, int &out analogValue = void) const
     {
         if ((present & (1 << inputType)) == 0)
+        {
+            analogValue = 0;
             return false;
+        }
 
         analogValue = analog[inputType];
         return true;
@@ -128,16 +127,17 @@ class IncCommitContext
 
     void Set(const InputType inputType, const int analogValue)
     {
-        AssertLog(inputType >= 0, "Tried to allocate like 4GiB, do not pass negative values.");
+        AssertLog(inputType >= 0, "Tried to allocate like 4GiB, do not pass negative values for inputType.");
 
-        present |= 1 << inputType;
-        if (analog.Length <= inputType)
-            analog.Resize(inputType + 1);
-        analog[inputType] = analogValue;
+        const uint index = inputType;
+        present |= 1 << index;
+        if (analog.Length <= index)
+            analog.Resize(index + 1);
+        analog[index] = analogValue;
     }
 }
 
-void IncCommit(SimulationManager@ sim, const IncCommitContext ctx = IncCommitContext())
+void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitContext())
 {
     array<InputCommand> commands;
 
@@ -145,18 +145,18 @@ void IncCommit(SimulationManager@ sim, const IncCommitContext ctx = IncCommitCon
     // Note: just doing all input types for completeness I suppose, but we really only need the first half.
     for (uint i = 0; i < INPUT_TYPE_COUNT; ++i)
     {
-        const InputType inputType = InputType(i);
-        int state;
-        if (!ctx.Get(inputType, state))
+        const InputType type = InputType(i);
+        int value;
+        if (!ctx.Get(type, value))
             continue;
-
-        Core::SetInput(sim, time, inputType, state);
 
         InputCommand cmd;
         cmd.Timestamp = time;
-        cmd.Type = inputType;
-        cmd.State = state;
+        cmd.Type = type;
+        cmd.State = value;
         commands.Add(cmd);
+
+        Core::SetInput(sim, time, type, value);
     }
 
     Settings::PrintInfo(commands);
