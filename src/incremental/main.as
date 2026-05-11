@@ -13,9 +13,9 @@ const string TITLE = "Incremental Controller";
 
 void Main()
 {
-    Settings::RegisterSettings();
+    Core::SettingsRegister();
 
-    IncMode@ const home = Settings::Home();
+    IncMode@ const home = Core::Home();
     IncRegisterMode("Home", home);
     @Core::mode = home;
 
@@ -24,7 +24,7 @@ void Main()
     SteerMax::Main();
     Wallhugger::Main();
 
-    RegisterValidationHandler(ID, TITLE, Settings::RenderSettings);
+    RegisterValidationHandler(ID, TITLE, Core::SettingsRender);
 }
 
 void OnSimulationBegin(SimulationManager@ sim)
@@ -43,25 +43,26 @@ void OnSimulationBegin(SimulationManager@ sim)
     Core::Begin(sim);
 }
 
-enum OnStepState
+enum StepState
 {
     NONE,
 
     SAVE_STATE,
     INIT,
-    MAIN,
+    ITER,
+    STEP,
     FINISH,
 }
 
-OnStepState onStep;
+StepState stepState;
 
 void OnSimulationStep(SimulationManager@ sim, bool userCancelled)
 {
-    if (onStep == OnStepState::None)
+    if (stepState == StepState::NONE)
         return;
 
     if (userCancelled)
-        onStep = OnStepState::FINISH;
+        stepState = StepState::FINISH;
 
     Core::Step(sim);
 }
@@ -93,11 +94,14 @@ enum SimOnlyState
 {
     NONE,
 
-    PRE_INIT, INIT, COLLECT,
+    INIT1, INIT2, COLLECT,
     BEGIN, STEP, END
 }
 
 SimOnlyState soState;
+
+ms runReplayTime;
+CommandList@ userCommandList;
 
 void OnRunStep(SimulationManager@ sim)
 {
@@ -106,43 +110,59 @@ void OnRunStep(SimulationManager@ sim)
     case SimOnlyState::NONE:
         // Not active.
     break;
-    case SimOnlyState::PRE_INIT:
+    case SimOnlyState::INIT1:
         contextMode = ContextMode::Run;
+
         DrawGame(false);
-        sim.GiveUp();
-        soState = SimOnlyState::INIT;
-    break;
-    case SimOnlyState::INIT:
         preventSimulationFinish = true;
+        sim.GiveUp();
+
+        runReplayTime = VarGetMs(Core::VAR_RUN_REPLAY_TIME);
+        soState = SimOnlyState::INIT2;
+    break;
+    case SimOnlyState::INIT2:
+        // Messes with some game functionality like GiveUp, so it happens on a separate tick.
         sim.SimulationOnly = true;
         soState = SimOnlyState::COLLECT;
     break;
     case SimOnlyState::COLLECT:
-        // TODO: see also todo.md
-        if (sim.TickTime > Core::runReplayTime)
-        {
-            // TODO save command list.
-            SetCurrentCommandList(null);
-            sim.SimulationOnly = false;
-            sim.GiveUp();
-            soState = SimOnlyState::BEGIN;
-        }
+        if (sim.TickTime <= runReplayTime)
+            break;
+
+        // TODO: preserve input events.
+        @userCommandList = GetCurrentCommandList();
+        SetCurrentCommandList(null);
+
+        sim.SimulationOnly = false;
+        sim.GiveUp();
+        soState = SimOnlyState::BEGIN;
     break;
     case SimOnlyState::BEGIN:
-        sim.SimulationOnly = true;
         Core::Begin(sim);
+        sim.SimulationOnly = true;
         soState = SimOnlyState::STEP;
     break;
     case SimOnlyState::STEP:
-        ApplyInputEvents(sim);
         Core::Step(sim);
+
+        // Apply input events sitting in the Input Event Buffer (IEB).
+        // Although the game would execute the input events normally, just like in Simulation Mode,
+        // TMInterface doesn't understand what is going on if we just put them in the IEB in Run Mode (unfortunately).
+        // We use SetInputState on all inputs at the current timestamp to ensure the inputs are actually played by TMInterface.
+        ApplyInputEvents(sim);
+
         // The state changes when Core::Finish is called.
     break;
     case SimOnlyState::END:
         Core::End(sim);
         sim.SimulationOnly = false;
+
+        SetCurrentCommandList(userCommandList);
+        @userCommandList = null;
+
         preventSimulationFinish = false;
         DrawGame(true);
+
         contextMode = ContextMode::Simulation;
         soState = SimOnlyState::NONE;
     break;

@@ -2,33 +2,147 @@ namespace Core
 {
 
 
+const string VAR = ID + "_";
+
+const string VAR_MODE = VAR + "mode";
+
+const string VAR_LOCK_TIMERANGE   = VAR + "lock_timerange";
+const string VAR_EVAL_BEGIN_START = VAR + "eval_begin_start";
+const string VAR_EVAL_BEGIN_STOP  = VAR + "eval_begin_stop";
+const string VAR_EVAL_END         = VAR + "eval_end";
+
+const string VAR_USE_SAVE_STATE  = VAR + "use_save_state";
+const string VAR_SAVE_STATE_NAME = VAR + "save_state_name";
+
+const string VAR_SHOW_INFO = VAR + "show_info";
+
+const string VAR_RUN_REPLAY_TIME = VAR + "run_replay_time";
+
+void SettingsRegister()
+{
+    RegisterVariable(VAR_MODE, "");
+
+    RegisterVariable(VAR_LOCK_TIMERANGE, true);
+    RegisterVariable(VAR_EVAL_BEGIN_START, 0);
+    RegisterVariable(VAR_EVAL_BEGIN_STOP, 0);
+    RegisterVariable(VAR_EVAL_END, 0);
+
+    RegisterVariable(VAR_USE_SAVE_STATE, false);
+    RegisterVariable(VAR_SAVE_STATE_NAME, "");
+
+    RegisterVariable(VAR_SHOW_INFO, true);
+
+    RegisterVariable(VAR_RUN_REPLAY_TIME, 0);
+}
+
+void SettingsRender()
+{
+    if (UI::CollapsingHeader("General"))
+    {
+        UI::BeginDisabled(mode.singleIteration);
+        const bool lockTimerange = UI::CheckboxVar("Lock Timerange", VAR_LOCK_TIMERANGE);
+        UI::EndDisabled();
+
+        if (mode.singleIteration)
+            TooltipOnHover("The currently selected mode does not support an unlocked timerange.");
+        else
+            TooltipOnHover("Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.");
+
+        if (UI::Button("Reset timestamps to 0"))
+        {
+            VarSetMs(VAR_EVAL_BEGIN_START, 0);
+            VarSetMs(VAR_EVAL_BEGIN_STOP, 0);
+            VarSetMs(VAR_EVAL_END, 0);
+        }
+
+        const ms evalBeginStart = UI::InputTimeVar("Evaluation Begin Starting Time", VAR_EVAL_BEGIN_START);
+        if (mode.singleIteration || lockTimerange)
+        {
+            UI::BeginDisabled();
+            UI::InputTime("Evaluation Begin Stopping Time", evalBeginStart);
+            UI::EndDisabled();
+        }
+        else
+        {
+            UI::InputTimeVar("Evaluation Begin Stopping Time", VAR_EVAL_BEGIN_STOP);
+        }
+        UI::InputTimeVar("Evaluation End Time", VAR_EVAL_END);
+
+        UI::Separator();
+
+        const bool useSaveState = UI::CheckboxVar("Start from Save State", VAR_USE_SAVE_STATE);
+        UI::BeginDisabled(!useSaveState);
+        UI::InputTextVar("Save State name", VAR_SAVE_STATE_NAME);
+        UI::EndDisabled();
+    }
+
+    if (UI::CollapsingHeader("Modes"))
+    {
+        ComboHelper("Mode", modeNames, modeIndex, OnModeIndex);
+        UI::Separator();
+
+        mode.draw();
+    }
+
+    if (UI::CollapsingHeader("Run-Mode"))
+    {
+        UI::TextWrapped(
+            "Run-Mode Bruteforce is an alternative to Simulation,"
+            " where the plugin runs during a race rather than on a replay file");
+
+        UI::Separator();
+
+        UI::InputTimeVar("Replay Time", VAR_RUN_REPLAY_TIME);
+        TooltipOnHover("This is the equivalent to the replay time when using simulation mode.");
+        if (UI::Button("Start Run-Mode Bruteforce"))
+            soState = SimOnlyState::INIT1;
+    }
+
+    if (UI::CollapsingHeader("Misc"))
+    {
+        UI::CheckboxVar("Show Info", VAR_SHOW_INFO);
+        TooltipOnHover("Show additional information about the simulation.");
+    }
+}
+
+IncMode@ Home()
+{
+    IncMode home;
+    home.draw =
+        function()
+        {
+            UI::TextWrapped("Hello!");
+
+            const uint index = GetCurrentModeIndex();
+            if (index != 0)
+                SetModeIndex(index);
+        }
+    ;
+    return home;
+}
+
+
 bool handleFinish;
-string saveStateName;
 
 void Begin(SimulationManager@ sim)
 {
-    int timerange = (Settings::varEvalBeginStop - Settings::varEvalBeginStart) / 10 + 1;
+    const ms evalBeginStart = VarGetMs(VAR_EVAL_BEGIN_START);
+    const ms evalBeginStop  = VarGetMs(VAR_EVAL_BEGIN_STOP);
+
+    int timerange = (evalBeginStop - evalBeginStart) / 10 + 1;
     if (timerange < 1)
         timerange = 1;
     results.Resize(timerange);
 
     resultIndex = 0;
 
-    tInit = Settings::varEvalBeginStart - 10;
+    tInit = evalBeginStart - 10;
     tInput = -10; // Just to detect if/when we are forgetting to set it later.
-    tLimit = Settings::varEvalEnd;
+    tLimit = VarGetMs(VAR_EVAL_END);
 
     handleFinish = true;
 
-    if (VarGetBool(Settings::VAR_USE_SAVE_STATE))
-    {
-        saveStateName = VarGetString(Settings::VAR_SAVE_STATE_NAME);
-        onStep = OnStepState::SAVE_STATE;
-    }
-    else
-    {
-        onStep = OnStepState::INIT;
-    }
+    stepState = VarGetBool(VAR_USE_SAVE_STATE) ? StepState::SAVE_STATE : StepState::INIT;
 
     const uint index = GetCurrentModeIndex();
     if (index == 0)
@@ -43,22 +157,22 @@ void Begin(SimulationManager@ sim)
     s += "\n\n";
     print(s);
 
-    mode.OnBegin(sim);
+    mode.begin(sim);
 }
 
 void Step(SimulationManager@ sim)
 {
     const ms time = sim.TickTime;
-    switch (onStep)
+    switch (stepState)
     {
-    case OnStepState::NONE:
+    case StepState::NONE:
         PanicLog("Should not be able to reach this...");
     break;
-    case OnStepState::SAVE_STATE:
+    case StepState::SAVE_STATE:
         {
             SimulationStateFile stateFile;
             string error;
-            if (!stateFile.Load(saveStateName, error))
+            if (!stateFile.Load(VarGetString(VAR_SAVE_STATE_NAME), error))
             {
                 print("There was an error with the savestate:", Severity::Error);
                 print(error, Severity::Error);
@@ -81,15 +195,18 @@ void Step(SimulationManager@ sim)
             sim.RewindToState(stateFile);
         }
     break;
-    case OnStepState::INIT:
+    case StepState::INIT:
         if (time < tInit)
             break;
 
         Assert(time == tInit);
         @initState = sim.SaveState();
-        onStep = OnStepState::MAIN;
+        stepState = StepState::ITER;
     break;
-    case OnStepState::MAIN:
+    case StepState::ITER:
+        mode.iteration(sim);
+    break;
+    case StepState::STEP:
         if (tInput <= tLimit)
         {
             if (time < tInput)
@@ -98,20 +215,29 @@ void Step(SimulationManager@ sim)
             if (time == tInput)
                 @inputState = sim.SaveState();
 
-            modeOnStep(sim);
+            mode.step(sim);
         }
         else
         {
-            print(); // bit of spacing
+            print();
 
-            SaveResult(sim);
-            if (NextResult())
-                PrepareResult(sim);
-            else
+            const uint index = resultIndex;
+            @results[resultIndex++] = Result(sim);
+
+            const uint length = results.Length;
+            Assert(resultIndex <= length);
+            if (resultIndex == length)
+            {
                 Finish(sim);
+                break;
+            }
+
+            tInput = tInit + (length - index) * 10;
+            RewindRemove(sim, initState);
+            stepState = StepState::ITER;
         }
     break;
-    case OnStepState::FINISH:
+    case StepState::FINISH:
         if (handleFinish)
             Finish(sim);
 
@@ -119,7 +245,7 @@ void Step(SimulationManager@ sim)
             sim.ForceFinish();
     break;
     default:
-        PanicLog("Undefined OnStepState in Core::Step");
+        PanicLog("Undefined StepState in Core::Step");
     break;
     }
 }
@@ -128,7 +254,7 @@ void End(SimulationManager@ sim)
 {
     handleFinish = false;
 
-    mode.onEnd(sim);
+    mode.end(sim);
 
     const string filename = VarGetString("bf_result_filename");
     CommandList script;
@@ -144,15 +270,37 @@ void End(SimulationManager@ sim)
 }
 
 
-void Advance()
+void Advance(const array<InputCommand>@ commands)
 {
+    string s;
+    s += tInput;
+    s += ":\n";
+
+    if (VarGetBool(VAR_SHOW_INFO))
+    {
+        const float mps = inputState.Dyna.CurrentState.LinearSpeed.Length();
+
+        s += "Speed (km/h): ";
+        s += FormatPrecise(mps * 3.6);
+        s += "\n";
+    }
+
+    for (uint i = 0; i < commands.Length; i++)
+    {
+        s += commands[i].ToString();
+        s += "\n";
+    }
+
+    print(s);
+
+
     tInput += 10;
 }
 
 void Finish(SimulationManager@ sim)
 {
     handleFinish = false;
-    onStep = OnStepState::FINISH;
+    stepState = StepState::FINISH;
     if (contextMode == ContextMode::Run)
         soState = SimOnlyState::END;
 }
@@ -162,11 +310,6 @@ array<string> modeNames;
 array<IncMode@> modes;
 uint modeIndex;
 IncMode@ mode;
-
-const string& GetCurrentModeName()
-{
-    return modeNames[modeIndex];
-}
 
 void OnModeIndex(const uint index)
 {
@@ -182,9 +325,14 @@ void OnModeIndex(const uint index)
     log(s, Severity::Warning);
 }
 
+const string& GetCurrentModeName()
+{
+    return modeNames[modeIndex];
+}
+
 uint GetCurrentModeIndex()
 {
-    const uint index = modeNames.Find(VarGetString(Settings::VAR_MODE));
+    const uint index = modeNames.Find(VarGetString(VAR_MODE));
     return index < modes.Length ? index : 0;
 }
 
@@ -196,7 +344,7 @@ bool SetModeIndex(const uint index)
     modeIndex = index;
 
     @mode = modes[modeIndex];
-    SetVariable(Settings::VAR_MODE, GetCurrentModeName());
+    SetVariable(VAR_MODE, GetCurrentModeName());
     return true;
 }
 
@@ -207,11 +355,6 @@ ms tLimit;   // The time that triggers the end of the iteration when the input t
 
 SimulationState@ initState;
 SimulationState@ inputState;
-
-int GetRelativeTick(const ms absoluteTime)
-{
-    return (absoluteTime - tInput) / 10;
-}
 
 ms GetRelativeTime(const ms absoluteTime)
 {
@@ -226,60 +369,38 @@ ms GetAbsoluteTime(const ms relativeTime)
 
 bool GetInput(SimulationManager@ sim, const ms time, const InputType type, int &out value)
 {
-    const auto@ const buffer = sim.InputEvents;
+    auto@ const buffer = sim.InputEvents;
 
     const ums timestamp = IEB_TIME_OFFSET + time;
     const int eventIndex = EventIndicesEncode(buffer.EventIndices, type);
-    const uint bufferIndex = BufferSearchTimestamp(buffer, timestamp, -1);
-    const uint bufferLen = buffer.Length;
-    for (uint i = bufferIndex; i < bufferLen; ++i)
-    {
-        const TM::InputEvent inputEvent = buffer[i];
-        if (inputEvent.Time > timestamp)
-            break;
 
-        TM::InputEventValue inputEventValue = inputEvent.Value;
-        if (inputEventValue.EventIndex == eventIndex)
-        {
-            value = InputEventValueGetInt(inputEventValue, type);
-            return true;
-        }
+    const uint index = BufferFindFirst(buffer, timestamp, eventIndex);
+    if (index == 0)
+    {
+        value = 0;
+        return false;
     }
 
-    value = 0;
-    return false;
+    BufferRemoveDuplicatesAtTimestamp(buffer, timestamp, eventIndex, index);
+    value = InputEventGetInt(buffer[index], type);
+    return true;
 }
 
 void SetInput(SimulationManager@ sim, const ms time, const InputType type, const int value)
 {
     auto@ const buffer = sim.InputEvents;
-    uint index = 0;
 
     const ums timestamp = IEB_TIME_OFFSET + time;
     const int eventIndex = EventIndicesEncode(buffer.EventIndices, type);
 
-    {
-        const uint bufferIndex = BufferSearchTimestamp(buffer, timestamp, -1);
-        for (uint i = bufferIndex; i < buffer.Length; ++i)
-        {
-            const TM::InputEvent inputEvent = buffer[i];
-            if (inputEvent.Time > timestamp)
-                break;
-
-            if (inputEvent.Value.EventIndex == eventIndex)
-            {
-                index = i;
-                break;
-            }
-        }
-    }
-
+    uint index = BufferFindFirst(buffer, timestamp, eventIndex);
     if (index == 0)
     {
         buffer.Add(time, type, value);
 
         const uint bufferIndex = BufferSearchTimestamp(buffer, timestamp, -1);
-        for (uint i = bufferIndex; i < buffer.Length; ++i)
+        const uint bufferLen = buffer.Length;
+        for (uint i = bufferIndex; i < bufferLen; ++i)
         {
             const TM::InputEvent inputEvent = buffer[i];
             if (inputEvent.Value.EventIndex == eventIndex)
@@ -290,6 +411,11 @@ void SetInput(SimulationManager@ sim, const ms time, const InputType type, const
             }
         }
         Assert(index != 0);
+    }
+    else
+    {
+        // If we didn't find anything the first time around, then there cannot be any duplicates.
+        BufferRemoveDuplicatesAtTimestamp(buffer, timestamp, eventIndex, index);
     }
 
     InputEventSetInt(buffer[index], type, value);
@@ -321,28 +447,6 @@ class Result
 
 array<Result@> results;
 uint resultIndex;
-
-void SaveResult(SimulationManager@ sim)
-{
-    @results[resultIndex] = Result(sim);
-}
-
-bool NextResult()
-{
-    const uint len = results.Length;
-    Assert(resultIndex <= len);
-    if (resultIndex == len)
-        return false;
-
-    tInput = tInit + (len - resultIndex++) * 10;
-    return true;
-}
-
-void PrepareResult(SimulationManager@ sim)
-{
-    RewindRemove(sim, initState);
-    mode.OnBegin(sim);
-}
 
 const string& GetBestInputs()
 {

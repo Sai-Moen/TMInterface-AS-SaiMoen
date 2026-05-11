@@ -1,36 +1,43 @@
 interface IncIMode
 {
-    bool SupportsUnlockedTimerange { get; }
+    bool SingleIteration { get; }
 
-    void RenderSettings();
+    void Draw();
 
     void Begin(SimulationManager@);
+    void Iteration(SimulationManager@);
     void Step(SimulationManager@);
     void End(SimulationManager@);
 }
 
-funcdef void OnEvent();
-funcdef void OnSim(SimulationManager@);
+funcdef void OnDraw();
+
+funcdef void OnBegin(SimulationManager@);
+funcdef void OnIteration(SimulationManager@);
+funcdef void OnStep(SimulationManager@);
+funcdef void OnEnd(SimulationManager@);
 
 class IncMode
 {
-    bool supportsUnlockedTimerange;
+    bool singleIteration;
 
-    OnEvent@ renderSettings;
+    OnDraw@ draw;
 
-    OnSim@ begin;
-    OnSim@ step;
-    OnSim@ end;
+    OnBegin@ begin;
+    OnIteration@ iteration;
+    OnStep@ step;
+    OnEnd@ end;
 }
 
 bool IncRegisterMode(const string &in modeName, IncIMode@ imode)
 {
     IncMode mode;
-    mode.supportsUnlockedTimerange = imode.SupportsUnlockedTimerange;
-    mode.renderSettings = OnEvent(imode.RenderSettings);
-    mode.begin = OnSim(imode.Begin);
-    mode.step = OnSim(imode.Step);
-    mode.end = OnSim(imode.End);
+    mode.singleIteration = imode.SingleIteration;
+    mode.draw = OnDraw(imode.Draw);
+    mode.begin = OnBegin(imode.Begin);
+    mode.iteration = OnIteration(imode.Iteration);
+    mode.step = OnStep(imode.Step);
+    mode.end = OnEnd(imode.End);
     return IncRegisterMode(modeName, mode);
 }
 
@@ -40,6 +47,14 @@ bool IncRegisterMode(const string &in modeName, IncMode@ mode)
         return false;
 
     Core::modeNames.Add(modeName);
+
+    if (mode.draw is null) mode.draw = function() {};
+
+    if (mode.begin is null)     mode.begin     = function(sim) {};
+    if (mode.iteration is null) mode.iteration = function(sim) {};
+    if (mode.step is null)      mode.step      = function(sim) {};
+    if (mode.end is null)       mode.end       = function(sim) {};
+
     Core::modes.Add(mode);
     return true;
 }
@@ -105,6 +120,7 @@ SimulationState@ IncGetInputState()
 
 void IncRewind(SimulationManager@ sim)
 {
+    // TODO: actual rewind semantics.
     RewindRemove(sim, Core::inputState);
 }
 
@@ -159,6 +175,5 @@ void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitCo
         Core::SetInput(sim, time, type, value);
     }
 
-    Settings::PrintInfo(commands);
-    Core::Advance();
+    Core::Advance(commands);
 }

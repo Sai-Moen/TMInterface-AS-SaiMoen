@@ -139,7 +139,7 @@ void ApplyInputEvents(SimulationManager@ sim, const uint index)
     if (index >= bufferLen)
         return;
 
-    const ums timestamp = sim.TickTime + IEB_TIME_OFFSET;
+    const ums timestamp = IEB_TIME_OFFSET + sim.TickTime;
     if (buffer[index].Time != timestamp)
         return;
 
@@ -441,7 +441,7 @@ uint BufferSearchTimestamp(const TM::InputEventBuffer@ buffer, const ums timesta
 // Returns index (<= buffer.Length) of where an input event would have been added (given the time and direction).
 uint BufferSearchTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
 {
-    return BufferSearchTimestamp(buffer, time + IEB_TIME_OFFSET, direction);
+    return BufferSearchTimestamp(buffer, IEB_TIME_OFFSET + time, direction);
 }
 
 // Binary search for timestamp, then go left or right depending on direction (or just return), to find one end of a time region.
@@ -459,7 +459,31 @@ int BufferFindTimestamp(const TM::InputEventBuffer@ buffer, const ums timestamp,
 // Returns -1 if not found.
 int BufferFindTime(const TM::InputEventBuffer@ buffer, const ms time, const int direction)
 {
-    return BufferFindTimestamp(buffer, time + IEB_TIME_OFFSET, direction);
+    return BufferFindTimestamp(buffer, IEB_TIME_OFFSET + time, direction);
+}
+
+// Returns the first index of an input event with the given timestamp and event index.
+// If no such event exists, returns 0, thus if you are looking for RaceRunningId, check buffer[0] first.
+uint BufferFindFirst(const TM::InputEventBuffer@ buffer, const ums timestamp, const int eventIndex)
+{
+    uint index = 0;
+
+    const uint bufferIndex = BufferSearchTimestamp(buffer, timestamp, -1);
+    const uint bufferLen = buffer.Length;
+    for (uint i = bufferIndex; i < bufferLen; ++i)
+    {
+        const TM::InputEvent inputEvent = buffer[i];
+        if (inputEvent.Time > timestamp)
+            break;
+
+        if (inputEvent.Value.EventIndex == eventIndex)
+        {
+            index = i;
+            break;
+        }
+    }
+
+    return index;
 }
 
 // Returns: non-null handle to an array of indices of input events in the timerange matching the mask.
@@ -502,8 +526,8 @@ array<uint>@ BufferFindInTimerange(
     if (timeFrom > timeTo)
         return {};
 
-    const ums timestampFrom = timeFrom + IEB_TIME_OFFSET;
-    const ums timestampTo   = timeTo   + IEB_TIME_OFFSET;
+    const ums timestampFrom = IEB_TIME_OFFSET + timeFrom;
+    const ums timestampTo   = IEB_TIME_OFFSET + timeTo;
     return BufferFindInTimerange(buffer, timestampFrom, timestampTo, mask);
 }
 
@@ -583,6 +607,39 @@ void BufferRemoveIndices(TM::InputEventBuffer@ buffer, const array<uint>@ indice
     BufferRemoveFromIndex(buffer, index);
 }
 
+// Removes input events with the given timestamp and event index, after 'index'.
+// The input event at 'index' is expected (and asserted) to be the first input event in the buffer with those properties.
+void BufferRemoveDuplicatesAtTimestamp(
+    TM::InputEventBuffer@ buffer, const ums timestamp, const int eventIndex, const uint index)
+{
+    Assert(buffer[index].Time == timestamp && buffer[index].Value.EventIndex == eventIndex);
+
+    uint lower = 0;
+    uint upper = index + 1;
+
+    const uint bufferLen = buffer.Length;
+    for (; upper < bufferLen; ++upper)
+    {
+        const TM::InputEvent inputEvent = buffer[upper];
+        if (inputEvent.Time > timestamp)
+            break;
+
+        if (inputEvent.Value.EventIndex != eventIndex)
+        {
+            if (lower != 0)
+                buffer[lower++] = inputEvent;
+
+            continue;
+        }
+
+        if (lower == 0)
+            lower = upper;
+    }
+
+    if (lower != 0)
+        BufferRemoveRange(buffer, lower, upper);
+}
+
 void BufferRemoveFromTimestamp(TM::InputEventBuffer@ buffer, const ums timestamp, const uint mask)
 {
     uint index = BufferSearchTimestamp(buffer, timestamp, -1);
@@ -605,7 +662,7 @@ void BufferRemoveFromTimestamp(TM::InputEventBuffer@ buffer, const ums timestamp
 
 void BufferRemoveFromTime(TM::InputEventBuffer@ buffer, const ms time, const uint mask)
 {
-    BufferRemoveFromTimestamp(buffer, time + IEB_TIME_OFFSET, mask);
+    BufferRemoveFromTimestamp(buffer, IEB_TIME_OFFSET + time, mask);
 }
 
 void BufferRemoveFromTime(TM::InputEventBuffer@ buffer, const ms time, const array<InputType>@ inputTypes)
@@ -651,8 +708,8 @@ void BufferRemoveInTimeRange(
     if (timeFrom > timeTo)
         return;
 
-    const ums timestampFrom = timeFrom + IEB_TIME_OFFSET;
-    const ums timestampTo   = timeTo   + IEB_TIME_OFFSET;
+    const ums timestampFrom = IEB_TIME_OFFSET + timeFrom;
+    const ums timestampTo   = IEB_TIME_OFFSET + timeTo;
     BufferRemoveInTimestampRange(buffer, timestampFrom, timestampTo, mask);
 }
 
