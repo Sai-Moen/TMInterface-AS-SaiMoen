@@ -78,7 +78,7 @@ void SettingsRender()
 
     if (UI::CollapsingHeader("Modes"))
     {
-        ComboHelper("Mode", modeNames, modeIndex, OnModeIndex);
+        ComboHelper("Mode", modeNames, modeIndex, ModeIndexCallback);
         UI::Separator();
 
         mode.draw();
@@ -95,7 +95,7 @@ void SettingsRender()
         UI::InputTimeVar("Replay Time", VAR_RUN_REPLAY_TIME);
         TooltipOnHover("This is the equivalent to the replay time when using simulation mode.");
         if (UI::Button("Start Run-Mode Bruteforce"))
-            soState = SimOnlyState::INIT1;
+            runState = RunState::INIT1;
     }
 
     if (UI::CollapsingHeader("Misc"))
@@ -111,11 +111,16 @@ IncMode@ Home()
     home.draw =
         function()
         {
-            UI::TextWrapped("Hello!");
+            string s;
+            s += "Loading: ";
+            s += modeNames[modeIndex];
+            s += CharRepeat(Time::Now % 3 + 1, '.');
+            UI::TextWrapped(s);
 
-            const uint index = GetCurrentModeIndex();
-            if (index != 0)
-                SetModeIndex(index);
+            // TODO: uncomment.
+            // const uint index = ModeIndexDetermineByName();
+            // if (index != 0)
+            //     ModeIndexTrySet(index);
         }
     ;
     return home;
@@ -124,10 +129,19 @@ IncMode@ Home()
 
 bool handleFinish;
 
-void Begin(SimulationManager@ sim)
+void Initialize()
 {
+    const uint index = ModeIndexDetermineByName();
+    if (index == 0)
+        log("Mode resolved to Home...?", Severity::Warning);
+    ModeIndexTrySet(index);
+
     const ms evalBeginStart = VarGetMs(VAR_EVAL_BEGIN_START);
     const ms evalBeginStop  = VarGetMs(VAR_EVAL_BEGIN_STOP);
+
+    tInit = evalBeginStart - 20;
+    tInput = -10; // Just to detect if/when we are forgetting to set it later.
+    tLimit = VarGetMs(VAR_EVAL_END);
 
     int timerange = (evalBeginStop - evalBeginStart) / 10 + 1;
     if (timerange < 1)
@@ -136,24 +150,17 @@ void Begin(SimulationManager@ sim)
 
     resultIndex = 0;
 
-    tInit = evalBeginStart - 10;
-    tInput = -10; // Just to detect if/when we are forgetting to set it later.
-    tLimit = VarGetMs(VAR_EVAL_END);
-
+    preventSimulationFinish = true;
     handleFinish = true;
 
     stepState = VarGetBool(VAR_USE_SAVE_STATE) ? StepState::SAVE_STATE : StepState::INIT;
+}
 
-    const uint index = GetCurrentModeIndex();
-    if (index == 0)
-        log("Mode resolved to Home...?", Severity::Warning);
-    SetModeIndex(index);
-
+void Begin(SimulationManager@ sim)
+{
     string s;
-    s += "\n\n";
-    s += TITLE;
-    s += " w/ ";
-    s += GetCurrentModeName();
+    s += "\n\n Incremental w/ ";
+    s += modeNames[modeIndex];
     s += "\n\n";
     print(s);
 
@@ -170,12 +177,17 @@ void Step(SimulationManager@ sim)
     break;
     case StepState::SAVE_STATE:
         {
+            // Regardless of what happens, we will go to this state next.
+            stepState = StepState::INIT;
+
             SimulationStateFile stateFile;
             string error;
             if (!stateFile.Load(VarGetString(VAR_SAVE_STATE_NAME), error))
             {
-                print("There was an error with the savestate:", Severity::Error);
-                print(error, Severity::Error);
+                string s;
+                s += "There was an error with the savestate:\n";
+                s += error;
+                print(s, Severity::Error);
                 break;
             }
 
@@ -185,7 +197,7 @@ void Step(SimulationManager@ sim)
                 string s;
                 s += "Attempted to load state that occurs too late! ";
                 s += stateFileTime;
-                s += " is not less than ";
+                s += " >= ";
                 s += tInit;
                 print(s, Severity::Warning);
                 break;
@@ -204,7 +216,9 @@ void Step(SimulationManager@ sim)
         stepState = StepState::ITER;
     break;
     case StepState::ITER:
+        tInput = (tInit + 10) + (results.Length - resultIndex) * 10;
         mode.iteration(sim);
+        stepState = StepState::STEP;
     break;
     case StepState::STEP:
         if (tInput <= tLimit)
@@ -221,18 +235,15 @@ void Step(SimulationManager@ sim)
         {
             print();
 
-            const uint index = resultIndex;
+            // TODO: add delay?
             @results[resultIndex++] = Result(sim);
-
-            const uint length = results.Length;
-            Assert(resultIndex <= length);
-            if (resultIndex == length)
+            if (resultIndex == results.Length)
             {
                 Finish(sim);
                 break;
             }
 
-            tInput = tInit + (length - index) * 10;
+            // TODO: proper rewind...
             RewindRemove(sim, initState);
             stepState = StepState::ITER;
         }
@@ -252,6 +263,7 @@ void Step(SimulationManager@ sim)
 
 void End(SimulationManager@ sim)
 {
+    preventSimulationFinish = false;
     handleFinish = false;
 
     mode.end(sim);
@@ -266,6 +278,7 @@ void End(SimulationManager@ sim)
 
     @initState = null;
     @inputState = null;
+    postInitInputEvents.Clear();
     results.Clear();
 }
 
@@ -302,7 +315,7 @@ void Finish(SimulationManager@ sim)
     handleFinish = false;
     stepState = StepState::FINISH;
     if (contextMode == ContextMode::Run)
-        soState = SimOnlyState::END;
+        runState = RunState::END;
 }
 
 
@@ -311,9 +324,9 @@ array<IncMode@> modes;
 uint modeIndex;
 IncMode@ mode;
 
-void OnModeIndex(const uint index)
+void ModeIndexCallback(const uint index)
 {
-    if (SetModeIndex(index))
+    if (ModeIndexTrySet(index))
         return;
 
     string s;
@@ -325,18 +338,13 @@ void OnModeIndex(const uint index)
     log(s, Severity::Warning);
 }
 
-const string& GetCurrentModeName()
-{
-    return modeNames[modeIndex];
-}
-
-uint GetCurrentModeIndex()
+uint ModeIndexDetermineByName()
 {
     const uint index = modeNames.Find(VarGetString(VAR_MODE));
     return index < modes.Length ? index : 0;
 }
 
-bool SetModeIndex(const uint index)
+bool ModeIndexTrySet(const uint index)
 {
     if (index >= modes.Length)
         return false;
@@ -344,17 +352,19 @@ bool SetModeIndex(const uint index)
     modeIndex = index;
 
     @mode = modes[modeIndex];
-    SetVariable(VAR_MODE, GetCurrentModeName());
+    SetVariable(VAR_MODE, modeNames[modeIndex]);
     return true;
 }
 
 
-ms tInit;    // The time required to ensure that we can run an entire timerange.
-ms tInput;   // The time currently being evaluated.
-ms tLimit;   // The time that triggers the end of the iteration when the input time exceeds it.
-
+ms tInit;  // The time required to ensure that we can run all iterations.
 SimulationState@ initState;
+ms tInput; // The time currently being evaluated.
 SimulationState@ inputState;
+ms tLimit; // The time that triggers the end of the iteration when the input time exceeds it.
+
+array<TM::InputEvent> postInitInputEvents;
+uint preservationIndex;
 
 ms GetRelativeTime(const ms absoluteTime)
 {
@@ -364,6 +374,22 @@ ms GetRelativeTime(const ms absoluteTime)
 ms GetAbsoluteTime(const ms relativeTime)
 {
     return tInput + relativeTime;
+}
+
+void SetPostInitInputEvents(const TM::InputEventBuffer@ buffer)
+{
+    const uint index = BufferSearchTime(buffer, tInit, -1);
+    SetPostInitInputEvents(buffer, index);
+}
+
+void SetPostInitInputEvents(const TM::InputEventBuffer@ buffer, const uint index)
+{
+    const uint bufferLen = buffer.Length;
+    Assert(bufferLen >= index);
+
+    postInitInputEvents.Resize(bufferLen - index);
+    for (uint i = index; i < bufferLen; ++i)
+        postInitInputEvents[i - index] = buffer[i];
 }
 
 

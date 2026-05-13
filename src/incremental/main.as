@@ -3,13 +3,12 @@ PluginInfo@ GetPluginInfo()
     PluginInfo info;
     info.Author = "SaiMoen";
     info.Name = "Incremental";
-    info.Description = "Incremental Controller";
+    info.Description = "Incremental Controller (Input Simplifier, SD, SteerMaximizer)";
     info.Version = "v3.0.1";
     return info;
 }
 
 const string ID = "incremental";
-const string TITLE = "Incremental Controller";
 
 void Main()
 {
@@ -24,7 +23,7 @@ void Main()
     SteerMax::Main();
     Wallhugger::Main();
 
-    RegisterValidationHandler(ID, TITLE, Core::SettingsRender);
+    RegisterValidationHandler(ID, "Incremental Controller", Core::SettingsRender);
 }
 
 void OnSimulationBegin(SimulationManager@ sim)
@@ -37,10 +36,11 @@ void OnSimulationBegin(SimulationManager@ sim)
     auto@ const buffer = sim.InputEvents;
     BufferRemoveEventIndex(buffer, buffer.EventIndices.FinishLineId);
 
-    preventSimulationFinish = true;
-    handleEnd = true;
-
+    Core::Initialize();
+    Core::SetPostInitInputEvents(buffer);
     Core::Begin(sim);
+
+    handleEnd = true;
 }
 
 enum StepState
@@ -82,15 +82,13 @@ void OnSimulationEnd(SimulationManager@ sim, SimulationResult)
     if (!handleEnd)
         return;
 
-    preventSimulationFinish = false;
-    handleEnd = false;
-
     Core::End(sim);
+    handleEnd = false;
 }
 
 ContextMode contextMode;
 
-enum SimOnlyState
+enum RunState
 {
     NONE,
 
@@ -98,51 +96,70 @@ enum SimOnlyState
     BEGIN, STEP, END
 }
 
-SimOnlyState soState;
+RunState runState;
 
 ms runReplayTime;
 CommandList@ userCommandList;
+array<TM::InputEvent> preInitInputEvents;
 
 void OnRunStep(SimulationManager@ sim)
 {
-    switch (soState)
+    const ms time = sim.TickTime;
+    switch (runState)
     {
-    case SimOnlyState::NONE:
+    case RunState::NONE:
         // Not active.
     break;
-    case SimOnlyState::INIT1:
+    case RunState::INIT1:
+        DrawGame(false);
+        sim.GiveUp();
         contextMode = ContextMode::Run;
 
-        DrawGame(false);
-        preventSimulationFinish = true;
-        sim.GiveUp();
-
+        Core::Initialize();
         runReplayTime = VarGetMs(Core::VAR_RUN_REPLAY_TIME);
-        soState = SimOnlyState::INIT2;
+        runState = RunState::INIT2;
     break;
-    case SimOnlyState::INIT2:
+    case RunState::INIT2:
         // Messes with some game functionality like GiveUp, so it happens on a separate tick.
         sim.SimulationOnly = true;
-        soState = SimOnlyState::COLLECT;
+        runState = RunState::COLLECT;
     break;
-    case SimOnlyState::COLLECT:
-        if (sim.TickTime <= runReplayTime)
+    case RunState::COLLECT:
+        if (time <= runReplayTime)
             break;
 
-        // TODO: preserve input events.
         @userCommandList = GetCurrentCommandList();
         SetCurrentCommandList(null);
 
+        {
+            const auto@ const buffer = sim.InputEvents;
+            const uint index = BufferSearchTime(buffer, Core::tInit, -1);
+
+            preInitInputEvents.Resize(index);
+            for (uint i = 0; i < index; ++i)
+                preInitInputEvents[i] = buffer[i];
+
+            Core::SetPostInitInputEvents(buffer, index);
+        }
+
         sim.SimulationOnly = false;
         sim.GiveUp();
-        soState = SimOnlyState::BEGIN;
+        runState = RunState::BEGIN;
     break;
-    case SimOnlyState::BEGIN:
-        Core::Begin(sim);
+    case RunState::BEGIN:
+        {
+            auto@ const buffer = sim.InputEvents;
+            const uint length = preInitInputEvents.Length;
+            for (uint i = 0; i < length; ++i)
+                buffer.Add(preInitInputEvents[i]);
+            preInitInputEvents.Clear();
+        }
+
         sim.SimulationOnly = true;
-        soState = SimOnlyState::STEP;
+        Core::Begin(sim);
+        runState = RunState::STEP;
     break;
-    case SimOnlyState::STEP:
+    case RunState::STEP:
         Core::Step(sim);
 
         // Apply input events sitting in the Input Event Buffer (IEB).
@@ -153,21 +170,19 @@ void OnRunStep(SimulationManager@ sim)
 
         // The state changes when Core::Finish is called.
     break;
-    case SimOnlyState::END:
+    case RunState::END:
         Core::End(sim);
         sim.SimulationOnly = false;
 
         SetCurrentCommandList(userCommandList);
         @userCommandList = null;
 
-        preventSimulationFinish = false;
-        DrawGame(true);
-
         contextMode = ContextMode::Simulation;
-        soState = SimOnlyState::NONE;
+        DrawGame(true);
+        runState = RunState::NONE;
     break;
     default:
-        PanicLog("Undefined SimOnlyState in OnRunStep");
+        PanicLog("Undefined RunState in OnRunStep");
     break;
     }
 }

@@ -1,6 +1,7 @@
 interface IncIMode
 {
     bool SingleIteration { get; }
+    array<InputType> PreservationExclusions { get; }
 
     void Draw();
 
@@ -20,6 +21,7 @@ funcdef void OnEnd(SimulationManager@);
 class IncMode
 {
     bool singleIteration;
+    array<InputType> preservationExclusions;
 
     OnDraw@ draw;
 
@@ -32,12 +34,17 @@ class IncMode
 bool IncRegisterMode(const string &in modeName, IncIMode@ imode)
 {
     IncMode mode;
-    mode.singleIteration = imode.SingleIteration;
+
+    mode.singleIteration        = imode.SingleIteration;
+    mode.preservationExclusions = imode.PreservationExclusions;
+
     mode.draw = OnDraw(imode.Draw);
-    mode.begin = OnBegin(imode.Begin);
+
+    mode.begin     = OnBegin(imode.Begin);
     mode.iteration = OnIteration(imode.Iteration);
-    mode.step = OnStep(imode.Step);
-    mode.end = OnEnd(imode.End);
+    mode.step      = OnStep(imode.Step);
+    mode.end       = OnEnd(imode.End);
+
     return IncRegisterMode(modeName, mode);
 }
 
@@ -131,7 +138,7 @@ class IncCommitContext
 
     bool Get(const InputType inputType, int &out analogValue = void) const
     {
-        if ((present & (1 << inputType)) == 0)
+        if (present & 1 << inputType == 0)
         {
             analogValue = 0;
             return false;
