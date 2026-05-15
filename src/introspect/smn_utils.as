@@ -153,46 +153,54 @@ void ApplyInputEvents(SimulationManager@ sim, const uint index)
         TM::InputEventValue inputEventValue = inputEvent.Value;
         const int eventIndex = inputEventValue.EventIndex;
         const InputType state = EventIndicesMappingDecode(mapping, eventIndex);
-        if (state == InputType::None)
-        {
-            log("Unknown Input Type, EventIndex: " + eventIndex, Severity::Warning);
-            continue;
-        }
-
-        ModifyInputState(sim, state, InputEventValueGetInt(inputEventValue, state));
+        if (state != InputType::None)
+            ModifyInputState(sim, state, InputEventValueGetInt(inputEventValue, state));
     }
 }
 
-// Rewind, with default behavior, as well as applying inputs in run mode.
-void RewindDefault(SimulationManager@ sim, SimulationState@ state, const bool resetCamera = true)
+// Specifies the behavior of Rewind.
+// Using PRESERVE together with REMOVE may cause unportable behavior, and is thus not recommended.
+// When using APPLY, it is highly recommended to also use PRESERVE.
+enum RewindFlags
 {
-    sim.RewindToState(state, resetCamera);
+    // Holds the optional 'resetCamera' parameter of RewindToState.
+    // Although, it is inverted to make the 0 flag match the default behavior of RewindToState.
+    NO_RESET_CAMERA = 1 << 0,
 
-    switch (state.Mode)
-    {
-    case ContextMode::Simulation:
-        // In sim mode, input events are always applied.
-    break;
-    case ContextMode::Run:
-        ApplyInputEvents(sim);
-    break;
-    default:
-        Unreachable();
-    break;
-    }
+    // Preserve input events starting from the time at which the savestate was saved.
+    // Input events before the savestate time are always preserved.
+    PRESERVE        = 1 << 1,
+
+    // Remove input events starting from the time at which the savestate was saved.
+    // Input events before the savestate time are always preserved.
+    REMOVE          = 1 << 2,
+
+    // Apply input events in ContextMode::Run, i.e.,
+    // input events that are preserved exactly on the savestate time will be applied using SetInputState after rewinding.
+    // This flag is ignored in ContextMode::Simulation, as input events are always applied already.
+    APPLY           = 1 << 3,
 }
 
-// Rewind, but preserve IEB.
-void RewindPreserve(SimulationManager@ sim, SimulationState@ state, const bool resetCamera = true)
+// This is the one-flag version of Rewind, the multi-flag version is the next function down.
+void Rewind(SimulationManager@ sim, SimulationState@ state, const RewindFlags flags)
+{
+    Rewind(sim, state, uint(flags));
+}
+
+// Rewind to 'state', using the behavior specified by 'flags'.
+// NOTE: Weak type system, doing anything with enums other than reading/copying immediately converts them to (u)int.
+// Hence, 'flags' is uint, for when you bitwise-or multiple flags together.
+void Rewind(SimulationManager@ sim, SimulationState@ state, const uint flags)
 {
     array<TM::InputEvent> preserved;
 
     switch (state.Mode)
     {
     case ContextMode::Simulation:
-        // In sim mode, inputs are not modified.
+        // In ContextMode::Simulation, inputs are always preserved.
     break;
     case ContextMode::Run:
+        if (flags & RewindFlags::PRESERVE != 0)
         {
             const auto@ const buffer = sim.InputEvents;
             const uint index = BufferSearchTime(buffer, state.PlayerInfo.RaceTime, -1);
@@ -210,14 +218,20 @@ void RewindPreserve(SimulationManager@ sim, SimulationState@ state, const bool r
     break;
     }
 
-    sim.RewindToState(state, resetCamera);
+    sim.RewindToState(state, flags & RewindFlags::NO_RESET_CAMERA == 0);
 
     switch (state.Mode)
     {
     case ContextMode::Simulation:
-        // In sim mode, inputs are not modified.
+        if (flags & RewindFlags::REMOVE != 0)
+        {
+            auto@ const buffer = sim.InputEvents;
+            const uint index = BufferSearchTime(buffer, state.PlayerInfo.RaceTime, -1);
+            BufferRemoveFromIndex(buffer, index);
+        }
     break;
     case ContextMode::Run:
+        if (flags & RewindFlags::PRESERVE != 0)
         {
             const uint length = preserved.Length;
             if (length == 0)
@@ -228,32 +242,10 @@ void RewindPreserve(SimulationManager@ sim, SimulationState@ state, const bool r
 
             for (uint i = 0; i < length; ++i)
                 buffer.Add(preserved[i]);
-
-            ApplyInputEvents(sim, index);
         }
-    break;
-    default:
-        Unreachable();
-    break;
-    }
-}
 
-// Rewind, but remove input events starting from state.PlayerInfo.RaceTime.
-void RewindRemove(SimulationManager@ sim, SimulationState@ state, const bool resetCamera = true)
-{
-    sim.RewindToState(state, resetCamera);
-
-    switch (state.Mode)
-    {
-    case ContextMode::Simulation:
-        {
-            auto@ const buffer = sim.InputEvents;
-            const uint index = BufferSearchTime(buffer, state.PlayerInfo.RaceTime, -1);
-            BufferRemoveFromIndex(buffer, index);
-        }
-    break;
-    case ContextMode::Run:
-        ApplyInputEvents(sim);
+        if (flags & RewindFlags::APPLY != 0)
+            ApplyInputEvents(sim);
     break;
     default:
         Unreachable();

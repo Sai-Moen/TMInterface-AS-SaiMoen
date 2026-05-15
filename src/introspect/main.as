@@ -39,14 +39,14 @@ void Render()
 {
     if (VarGetBool(VAR_VIEW_IEB))
     {
-        if (UI::Begin("Introspect IEB", UI::WindowFlags::NoTitleBar))
+        if (UI::Begin("Introspect IEB"))
             ViewIEB();
         UI::End();
     }
 
     if (VarGetBool(VAR_VIEW_STATE))
     {
-        if (UI::Begin("Introspect SaveState", UI::WindowFlags::NoTitleBar))
+        if (UI::Begin("Introspect SaveState"))
             ViewSaveState();
         UI::End();
     }

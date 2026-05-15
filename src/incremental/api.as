@@ -127,8 +127,8 @@ SimulationState@ IncGetInputState()
 
 void IncRewind(SimulationManager@ sim)
 {
-    // TODO: actual rewind semantics.
     RewindRemove(sim, Core::inputState);
+    Core::PostInitInputEventsCopyToIEB(sim.InputEvents);
 }
 
 class IncCommitContext
@@ -162,9 +162,26 @@ class IncCommitContext
 
 void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitContext())
 {
-    array<InputCommand> commands;
-
     const ms time = Core::tInput;
+    Core::tInput += 10;
+
+    RewindRemove(sim, Core::inputState);
+    Core::PostInitInputEventsAdvance(sim.InputEvents);
+
+    string s;
+    s += time;
+    s += ":\n";
+
+    if (VarGetBool(Core::VAR_SHOW_INFO))
+    {
+        // NOTE: since we already did a rewind to inputState on this tick, we can access SimulationManager directly for stuff.
+        const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
+
+        s += "Speed (km/h): ";
+        s += FormatPrecise(mps * 3.6);
+        s += "\n";
+    }
+
     // Note: just doing all input types for completeness I suppose, but we really only need the first half.
     for (uint i = 0; i < INPUT_TYPE_COUNT; ++i)
     {
@@ -177,10 +194,11 @@ void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitCo
         cmd.Timestamp = time;
         cmd.Type = type;
         cmd.State = value;
-        commands.Add(cmd);
+        s += cmd.ToString();
+        s += "\n";
 
         Core::SetInput(sim, time, type, value);
     }
 
-    Core::Advance(commands);
+    print(s);
 }

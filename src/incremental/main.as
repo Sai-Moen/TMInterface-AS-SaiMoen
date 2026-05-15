@@ -37,7 +37,7 @@ void OnSimulationBegin(SimulationManager@ sim)
     BufferRemoveEventIndex(buffer, buffer.EventIndices.FinishLineId);
 
     Core::Initialize();
-    Core::SetPostInitInputEvents(buffer);
+    Core::PostInitInputEventsInitialize(buffer);
     Core::Begin(sim);
 
     handleEnd = true;
@@ -49,7 +49,6 @@ enum StepState
 
     SAVE_STATE,
     INIT,
-    ITER,
     STEP,
     FINISH,
 }
@@ -82,8 +81,8 @@ void OnSimulationEnd(SimulationManager@ sim, SimulationResult)
     if (!handleEnd)
         return;
 
-    Core::End(sim);
     handleEnd = false;
+    Core::End(sim);
 }
 
 ContextMode contextMode;
@@ -139,7 +138,7 @@ void OnRunStep(SimulationManager@ sim)
             for (uint i = 0; i < index; ++i)
                 preInitInputEvents[i] = buffer[i];
 
-            Core::SetPostInitInputEvents(buffer, index);
+            Core::PostInitInputEventsInitialize(buffer, index);
         }
 
         sim.SimulationOnly = false;
