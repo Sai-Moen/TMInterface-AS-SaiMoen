@@ -212,8 +212,7 @@ void Step(SimulationManager@ sim)
                 break;
             }
 
-            // NOTE: Not using Rewind wrappers here.
-            // Any inputs that were done on the same tick are long lost.
+            // Rewinding forwards, no point in RewindFlags::PRESERVE.
             sim.RewindToState(stateFile);
             time = sim.TickTime;
         }
@@ -247,8 +246,7 @@ void Step(SimulationManager@ sim)
         @results[resultIndex++] = Result(sim);
         if (resultIndex != results.Length)
         {
-            // TODO: proper rewind...
-            RewindRemove(sim, initState);
+            Rewind(sim, initState, RewindFlags::REMOVE);
             Iteration(sim);
             break;
         }
@@ -354,30 +352,30 @@ ms GetAbsoluteTime(const ms relativeTime)
     return tInput + relativeTime;
 }
 
-void PostInitInputEventsInitialize(const TM::InputEventBuffer@ buffer)
+void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb)
 {
-    const uint index = BufferSearchTime(buffer, tInit, -1);
-    PostInitInputEventsInitialize(buffer, index);
+    const uint index = IEBSearchTime(ieb, tInit, -1);
+    PostInitInputEventsInitialize(ieb, index);
 }
 
-void PostInitInputEventsInitialize(const TM::InputEventBuffer@ buffer, const uint index)
+void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint index)
 {
-    const uint bufferLen = buffer.Length;
-    Assert(bufferLen >= index);
+    const uint iebLen = ieb.Length;
+    Assert(iebLen >= index);
 
-    postInitInputEvents.Resize(bufferLen - index);
-    for (uint i = index; i < bufferLen; ++i)
-        postInitInputEvents[i - index] = buffer[i];
+    postInitInputEvents.Resize(iebLen - index);
+    for (uint i = index; i < iebLen; ++i)
+        postInitInputEvents[i - index] = ieb[i];
 }
 
-void PostInitInputEventsCopyToIEB(TM::InputEventBuffer@ buffer)
+void PostInitInputEventsCopyToIEB(TM::InputEventBuffer@ ieb)
 {
     const uint len = postInitInputEvents.Length;
     for (uint i = preservationIndex; i < len; ++i)
-        buffer.Add(postInitInputEvents[i]);
+        ieb.Add(postInitInputEvents[i]);
 }
 
-void PostInitInputEventsAdvance(TM::InputEventBuffer@ buffer)
+void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
 {
     const uint len = postInitInputEvents.Length;
     const ums timestamp = IEB_TIME_OFFSET + tInput;
@@ -390,48 +388,48 @@ void PostInitInputEventsAdvance(TM::InputEventBuffer@ buffer)
             break;
         }
 
-        buffer.Add(inputEvent);
+        ieb.Add(inputEvent);
     }
-    PostInitInputEventsCopyToIEB(buffer);
+    PostInitInputEventsCopyToIEB(ieb);
 }
 
 
 bool GetInput(SimulationManager@ sim, const ms time, const InputType type, int &out value)
 {
-    auto@ const buffer = sim.InputEvents;
+    auto@ const ieb = sim.InputEvents;
 
     const ums timestamp = IEB_TIME_OFFSET + time;
-    const int eventIndex = EventIndicesEncode(buffer.EventIndices, type);
+    const int eventIndex = EventIndicesEncode(ieb.EventIndices, type);
 
-    const uint index = BufferFindFirst(buffer, timestamp, eventIndex);
+    const uint index = IEBFindFirst(ieb, timestamp, eventIndex);
     if (index == 0)
     {
         value = 0;
         return false;
     }
 
-    BufferRemoveDuplicatesAtTimestamp(buffer, timestamp, eventIndex, index);
-    value = InputEventGetInt(buffer[index], type);
+    IEBRemoveDuplicatesAtTimestamp(ieb, timestamp, eventIndex, index);
+    value = InputEventGetInt(ieb[index], type);
     return true;
 }
 
 void SetInput(SimulationManager@ sim, const ms time, const InputType type, const int value)
 {
-    auto@ const buffer = sim.InputEvents;
+    auto@ const ieb = sim.InputEvents;
 
     const ums timestamp = IEB_TIME_OFFSET + time;
-    const int eventIndex = EventIndicesEncode(buffer.EventIndices, type);
+    const int eventIndex = EventIndicesEncode(ieb.EventIndices, type);
 
-    uint index = BufferFindFirst(buffer, timestamp, eventIndex);
+    uint index = IEBFindFirst(ieb, timestamp, eventIndex);
     if (index == 0)
     {
-        buffer.Add(time, type, value);
+        ieb.Add(time, type, value);
 
-        const uint bufferIndex = BufferSearchTimestamp(buffer, timestamp, -1);
-        const uint bufferLen = buffer.Length;
-        for (uint i = bufferIndex; i < bufferLen; ++i)
+        const uint iebIndex = IEBSearchTimestamp(ieb, timestamp, -1);
+        const uint iebLen = ieb.Length;
+        for (uint i = iebIndex; i < iebLen; ++i)
         {
-            const TM::InputEvent inputEvent = buffer[i];
+            const TM::InputEvent inputEvent = ieb[i];
             if (inputEvent.Value.EventIndex == eventIndex)
             {
                 Assert(inputEvent.Time == timestamp);
@@ -444,21 +442,21 @@ void SetInput(SimulationManager@ sim, const ms time, const InputType type, const
     else
     {
         // If we didn't find anything the first time around, then there cannot be any duplicates.
-        BufferRemoveDuplicatesAtTimestamp(buffer, timestamp, eventIndex, index);
+        IEBRemoveDuplicatesAtTimestamp(ieb, timestamp, eventIndex, index);
     }
 
-    InputEventSetInt(buffer[index], type, value);
+    InputEventSetInt(ieb[index], type, value);
 }
 
 void RemoveInputs(SimulationManager@ sim, const ms time, const InputType type, const int value)
 {
-    auto@ const buffer = sim.InputEvents;
-    BufferRemoveIndices(buffer, buffer.Find(time, type, value));
+    auto@ const ieb = sim.InputEvents;
+    IEBRemoveIndices(ieb, ieb.Find(time, type, value));
 }
 
 void RemoveFromInputTime(SimulationManager@ sim, const array<InputType>@ inputTypes)
 {
-    BufferRemoveFromTime(sim.InputEvents, tInput, inputTypes);
+    IEBRemoveFromTime(sim.InputEvents, tInput, inputTypes);
 }
 
 

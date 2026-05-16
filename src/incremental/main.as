@@ -33,11 +33,11 @@ void OnSimulationBegin(SimulationManager@ sim)
 
     sim.RemoveStateValidation();
 
-    auto@ const buffer = sim.InputEvents;
-    BufferRemoveEventIndex(buffer, buffer.EventIndices.FinishLineId);
+    auto@ const ieb = sim.InputEvents;
+    IEBRemoveEventIndex(ieb, ieb.EventIndices.FinishLineId);
 
     Core::Initialize();
-    Core::PostInitInputEventsInitialize(buffer);
+    Core::PostInitInputEventsInitialize(ieb);
     Core::Begin(sim);
 
     handleEnd = true;
@@ -131,14 +131,14 @@ void OnRunStep(SimulationManager@ sim)
         SetCurrentCommandList(null);
 
         {
-            const auto@ const buffer = sim.InputEvents;
-            const uint index = BufferSearchTime(buffer, Core::tInit, -1);
+            const auto@ const ieb = sim.InputEvents;
+            const uint index = IEBSearchTime(ieb, Core::tInit, -1);
 
             preInitInputEvents.Resize(index);
             for (uint i = 0; i < index; ++i)
-                preInitInputEvents[i] = buffer[i];
+                preInitInputEvents[i] = ieb[i];
 
-            Core::PostInitInputEventsInitialize(buffer, index);
+            Core::PostInitInputEventsInitialize(ieb, index);
         }
 
         sim.SimulationOnly = false;
@@ -147,10 +147,10 @@ void OnRunStep(SimulationManager@ sim)
     break;
     case RunState::BEGIN:
         {
-            auto@ const buffer = sim.InputEvents;
+            auto@ const ieb = sim.InputEvents;
             const uint length = preInitInputEvents.Length;
             for (uint i = 0; i < length; ++i)
-                buffer.Add(preInitInputEvents[i]);
+                ieb.Add(preInitInputEvents[i]);
             preInitInputEvents.Clear();
         }
 

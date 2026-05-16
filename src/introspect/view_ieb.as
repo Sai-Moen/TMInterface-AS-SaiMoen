@@ -2,20 +2,19 @@
 
 void ViewIEB()
 {
-    auto@ const sim = GetSimulationManager();
-    const auto@ const buffer = sim.InputEvents;
-    if (buffer is null)
+    const auto@ const ieb = GetSimulationManager().InputEvents;
+    if (ieb is null)
     {
         UI::Text("IEB is null");
         return;
     }
 
-    const uint len = buffer.Length;
+    const uint len = ieb.Length;
     UI::Text("IEB Length: " + len);
     UI::Separator();
 	if (!VarGetBool(VAR_RAW_IEB))
 	{
-	    UI::TextWrapped(buffer.ToCommandsText());
+	    UI::TextWrapped(ieb.ToCommandsText());
 	    return;
 	}
 
@@ -30,7 +29,7 @@ void ViewIEB()
         array<int> analogIds;
         if (!VarGetBool(VAR_ORIGINAL_ANALOG))
         {
-            const auto eventIndices = buffer.EventIndices;
+            const auto eventIndices = ieb.EventIndices;
             analogIds = { eventIndices.SteerId, eventIndices.GasId };
         }
 
@@ -48,7 +47,7 @@ void ViewIEB()
 
         for (uint i = begin; i < len; i += step)
         {
-            const TM::InputEvent inputEvent = buffer[i];
+            const TM::InputEvent inputEvent = ieb[i];
             UI::TableNextColumn();
             UI::Text("" + inputEvent.Time);
 

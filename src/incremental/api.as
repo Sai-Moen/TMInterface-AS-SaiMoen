@@ -127,7 +127,7 @@ SimulationState@ IncGetInputState()
 
 void IncRewind(SimulationManager@ sim)
 {
-    RewindRemove(sim, Core::inputState);
+    Rewind(sim, Core::inputState, RewindFlags::Remove);
     Core::PostInitInputEventsCopyToIEB(sim.InputEvents);
 }
 
@@ -165,7 +165,7 @@ void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitCo
     const ms time = Core::tInput;
     Core::tInput += 10;
 
-    RewindRemove(sim, Core::inputState);
+    Rewind(sim, Core::inputState, RewindFlags::REMOVE);
     Core::PostInitInputEventsAdvance(sim.InputEvents);
 
     string s;
