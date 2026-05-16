@@ -71,46 +71,42 @@ ms IncGetRelativeTime(SimulationManager@ sim)
     return Core::GetRelativeTime(sim.TickTime);
 }
 
-ms IncGetRelativeTime(const ms absoluteTime)
+ms IncGetRelativeTime(ms absoluteTime)
 {
     return Core::GetRelativeTime(absoluteTime);
 }
 
-ms IncGetAbsoluteTime(const ms relativeTime)
+ms IncGetAbsoluteTime(ms relativeTime)
 {
     return Core::GetAbsoluteTime(relativeTime);
 }
 
-bool IncGetInput(SimulationManager@ sim, const InputType type, int &out value = void)
+bool IncGetInput(SimulationManager@ sim, InputType type, int &out value = void)
 {
     return Core::GetInput(sim, Core::tInput, type, value);
 }
 
-bool IncGetInput(SimulationManager@ sim, const ms relativeTime, const InputType type, int &out value = void)
+bool IncGetInput(SimulationManager@ sim, ms relativeTime, InputType type, int &out value = void)
 {
     return Core::GetInput(sim, Core::GetAbsoluteTime(relativeTime), type, value);
 }
 
-void IncSetInput(SimulationManager@ sim, const InputType type, const int value)
+void IncSetInput(SimulationManager@ sim, InputType type, int value)
 {
     Core::SetInput(sim, Core::tInput, type, value);
 }
 
-void IncSetInput(SimulationManager@ sim, const ms relativeTime, const InputType type, const int value)
+void IncSetInput(SimulationManager@ sim, ms relativeTime, InputType type, int value)
 {
     Core::SetInput(sim, Core::GetAbsoluteTime(relativeTime), type, value);
 }
 
-void IncRemoveInputs(
-    SimulationManager@ sim,
-    const InputType type = InputType::None, const int value = Math::INT_MAX)
+void IncRemoveInputs(SimulationManager@ sim, InputType type = InputType::None, int value = Math::INT_MAX)
 {
     Core::RemoveInputs(sim, Core::tInput, type, value);
 }
 
-void IncRemoveInputs(
-    SimulationManager@ sim,
-    const ms relativeTime, const InputType type = InputType::None, const int value = Math::INT_MAX)
+void IncRemoveInputs(SimulationManager@ sim, ms relativeTime, InputType type = InputType::None, int value = Math::INT_MAX)
 {
     Core::RemoveInputs(sim, Core::GetAbsoluteTime(relativeTime), type, value);
 }
@@ -125,10 +121,15 @@ SimulationState@ IncGetInputState()
     return Core::inputState;
 }
 
-void IncRewind(SimulationManager@ sim)
+void IncRewindRemove(SimulationManager@ sim)
 {
-    Rewind(sim, Core::inputState, RewindFlags::Remove);
+    Rewind(sim, Core::inputState, RewindFlags::REMOVE);
     Core::PostInitInputEventsCopyToIEB(sim.InputEvents);
+}
+
+void IncRewindPreserve(SimulationManager@ sim)
+{
+    Rewind(sim, Core::inputState, RewindFlags::PRESERVE);
 }
 
 class IncCommitContext
@@ -136,7 +137,7 @@ class IncCommitContext
     protected uint present;
     protected array<int> analog;
 
-    bool Get(const InputType inputType, int &out analogValue = void) const
+    bool Get(InputType inputType, int &out analogValue = void) const
     {
         if (present & 1 << inputType == 0)
         {
@@ -148,7 +149,7 @@ class IncCommitContext
         return true;
     }
 
-    void Set(const InputType inputType, const int analogValue)
+    void Set(InputType inputType, const int analogValue)
     {
         AssertLog(inputType >= 0, "Tried to allocate like 4GiB, do not pass negative values for inputType.");
 

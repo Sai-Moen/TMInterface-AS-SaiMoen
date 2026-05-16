@@ -4,8 +4,6 @@ namespace Core
 
 const string VAR = ID + "_";
 
-const string VAR_MODE = VAR + "mode";
-
 const string VAR_LOCK_TIMERANGE  = VAR + "lock_timerange";
 const string VAR_EVAL_ITER_BEGIN = VAR + "eval_iter_begin";
 const string VAR_EVAL_ITER_END   = VAR + "eval_iter_end";
@@ -14,28 +12,26 @@ const string VAR_EVAL_END        = VAR + "eval_end";
 const string VAR_USE_SAVE_STATE  = VAR + "use_save_state";
 const string VAR_SAVE_STATE_NAME = VAR + "save_state_name";
 
-const string VAR_SHOW_INFO = VAR + "show_info";
-
+const string VAR_SHOW_INFO       = VAR + "show_info";
 const string VAR_RUN_REPLAY_TIME = VAR + "run_replay_time";
+const string VAR_MODE            = VAR + "mode";
 
-void SettingsRegister()
+void Register()
 {
-    RegisterVariable(VAR_MODE, "");
-
-    RegisterVariable(VAR_LOCK_TIMERANGE, true);
+    RegisterVariable(VAR_LOCK_TIMERANGE,  true);
     RegisterVariable(VAR_EVAL_ITER_BEGIN, 0);
-    RegisterVariable(VAR_EVAL_ITER_END, 0);
-    RegisterVariable(VAR_EVAL_END, 0);
+    RegisterVariable(VAR_EVAL_ITER_END,   0);
+    RegisterVariable(VAR_EVAL_END,        0);
 
-    RegisterVariable(VAR_USE_SAVE_STATE, false);
+    RegisterVariable(VAR_USE_SAVE_STATE,  false);
     RegisterVariable(VAR_SAVE_STATE_NAME, "");
 
-    RegisterVariable(VAR_SHOW_INFO, true);
-
+    RegisterVariable(VAR_SHOW_INFO,       true);
     RegisterVariable(VAR_RUN_REPLAY_TIME, 0);
+    RegisterVariable(VAR_MODE,            "");
 }
 
-void SettingsRender()
+void Draw()
 {
     if (UI::CollapsingHeader("General"))
     {
@@ -63,6 +59,7 @@ void SettingsRender()
             if (evalIterEnd < evalIterBegin)
                 VarSetMs(VAR_EVAL_ITER_END, evalIterEnd = evalIterBegin);
         }
+
         ms evalEnd = UI::InputTimeVar("Evaluation End Time", VAR_EVAL_END);
         if (evalEnd < evalIterEnd)
             VarSetMs(VAR_EVAL_END, evalEnd = evalIterEnd);
@@ -136,23 +133,31 @@ void Initialize()
     ModeIndexTrySet(index);
 
     const ms evalIterBegin = VarGetMs(VAR_EVAL_ITER_BEGIN);
-    const ms evalIterEnd  = VarGetMs(VAR_EVAL_ITER_END);
+    const ms evalIterEnd   = VarGetMs(VAR_EVAL_ITER_END);
+    const ms evalEnd       = VarGetMs(VAR_EVAL_END);
 
-    tInit = evalIterBegin - 10;
-    tInput = -10; // Just to detect if/when we are forgetting to set it later.
-    tLimit = VarGetMs(VAR_EVAL_END);
+    tInit = evalIterBegin;
+    tInput = -10; // Detecting uninitialized usage.
+    tLimit = evalEnd;
+    preservationIndex = uint(-1); // Detecting uninitialized usage.
 
-    int timerange = (evalIterEnd - evalIterBegin) / 10 + 1;
-    if (timerange < 1)
+    int timerange;
+    if (mode.SingleIteration || VarGetBool(VAR_LOCK_TIMERANGE))
+    {
         timerange = 1;
+    }
+    else
+    {
+        timerange = (evalIterEnd - evalIterBegin) / 10 + 1;
+        if (timerange < 1)
+            timerange = 1;
+    }
     results.Resize(timerange);
-
     resultIndex = 0;
 
+    stepState = VarGetBool(VAR_USE_SAVE_STATE) ? StepState::SAVE_STATE : StepState::INIT;
     preventSimulationFinish = true;
     handleFinish = true;
-
-    stepState = VarGetBool(VAR_USE_SAVE_STATE) ? StepState::SAVE_STATE : StepState::INIT;
 }
 
 void Begin(SimulationManager@ sim)
@@ -168,7 +173,7 @@ void Begin(SimulationManager@ sim)
 
 void Iteration(SimulationManager@ sim)
 {
-    tInput = tInit + (results.Length - resultIndex) * 10;
+    tInput = (tInit - 10) + (results.Length - resultIndex) * 10;
     preservationIndex = 0;
     PostInitInputEventsAdvance(sim.InputEvents);
 
@@ -177,7 +182,6 @@ void Iteration(SimulationManager@ sim)
 
 void Step(SimulationManager@ sim)
 {
-    ms time = sim.TickTime;
     switch (stepState)
     {
     case StepState::NONE:
@@ -214,23 +218,27 @@ void Step(SimulationManager@ sim)
 
             // Rewinding forwards, no point in RewindFlags::PRESERVE.
             sim.RewindToState(stateFile);
-            time = sim.TickTime;
         }
 
         stepState = StepState::INIT;
     // fallthrough
     case StepState::INIT:
-        if (time < tInit)
-            break;
+        {
+            const ms time = sim.TickTime;
+            if (time < tInit)
+                break;
 
-        Assert(time == tInit);
+            Assert(time == tInit);
+        }
+
         @initState = sim.SaveState();
         Iteration(sim);
         stepState = StepState::STEP;
-    break;
+    // fallthrough
     case StepState::STEP:
         if (tInput <= tLimit)
         {
+            const ms time = sim.TickTime;
             if (time < tInput)
                 break;
 
@@ -266,23 +274,45 @@ void Step(SimulationManager@ sim)
 
 void End(SimulationManager@ sim)
 {
+    stepState = StepState::NONE;
     preventSimulationFinish = false;
     handleFinish = false;
 
-    mode.end(sim);
+    // Just for the GC.
+    @initState = null;
+    @inputState = null;
+    postInitInputEvents.Clear();
+
+    CommandList script;
+
+    Result@ bestResult = results[0];
+    if (bestResult is null)
+    {
+        script.Content = "# Incremental did not complete a pass.";
+    }
+    else
+    {
+        const uint len = results.Length;
+        for (uint i = 1; i < len; ++i)
+        {
+            Result@ result = results[i];
+            if (result is null)
+                break;
+
+            if (bestResult.metric < result.metric)
+                @bestResult = result;
+        }
+        script.Content = bestResult.inputs;
+    }
+    results.Clear();
 
     const string filename = VarGetString("bf_result_filename");
-    CommandList script;
-    script.Content = GetBestInputs();
     if (script.Save(filename))
         print("Inputs saved! Filename: " + filename, Severity::Success);
     else
         print("Inputs not saved! Filename: " + filename, Severity::Error);
 
-    @initState = null;
-    @inputState = null;
-    postInitInputEvents.Clear();
-    results.Clear();
+    mode.end(sim);
 }
 
 void Finish()
@@ -354,18 +384,24 @@ ms GetAbsoluteTime(const ms relativeTime)
 
 void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb)
 {
-    const uint index = IEBSearchTime(ieb, tInit, -1);
-    PostInitInputEventsInitialize(ieb, index);
+    PostInitInputEventsInitialize(ieb, IEBSearchTime(ieb, tInit, -1));
 }
 
-void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint index)
+void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint iebIndex)
 {
     const uint iebLen = ieb.Length;
-    Assert(iebLen >= index);
+    Assert(iebLen >= iebIndex);
 
-    postInitInputEvents.Resize(iebLen - index);
-    for (uint i = index; i < iebLen; ++i)
-        postInitInputEvents[i - index] = ieb[i];
+    uint index = 0;
+    postInitInputEvents.Resize(iebLen - iebIndex);
+    const uint mask = EventIndicesMakeInputTypesBitmask(ieb.EventIndices, mode.preservationExclusions);
+    for (uint i = iebIndex; i < iebLen; ++i)
+    {
+        const TM::InputEvent inputEvent = ieb[i];
+        if (mask & 1 << inputEvent.Value.EventIndex == 0)
+            postInitInputEvents[index++] = inputEvent;
+    }
+    postInitInputEvents.Resize(index);
 }
 
 void PostInitInputEventsCopyToIEB(TM::InputEventBuffer@ ieb)
@@ -377,9 +413,9 @@ void PostInitInputEventsCopyToIEB(TM::InputEventBuffer@ ieb)
 
 void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
 {
-    const uint len = postInitInputEvents.Length;
     const ums timestamp = IEB_TIME_OFFSET + tInput;
-    for (uint i = 0; i < len; ++i)
+    const uint len = postInitInputEvents.Length;
+    for (uint i = preservationIndex; i < len; ++i)
     {
         const TM::InputEvent inputEvent = postInitInputEvents[i];
         if (inputEvent.Time >= timestamp)
@@ -474,25 +510,6 @@ class Result
 
 array<Result@> results;
 uint resultIndex;
-
-const string& GetBestInputs()
-{
-    Result@ bestResult = results[0];
-    if (bestResult is null)
-        return "# Incremental did not complete a pass.";
-
-    const uint len = results.Length;
-    for (uint i = 1; i < len; ++i)
-    {
-        Result@ result = results[i];
-        if (result is null)
-            break;
-
-        if (bestResult.metric < result.metric)
-            @bestResult = result;
-    }
-    return bestResult.inputs;
-}
 
 
 } // namespace Core

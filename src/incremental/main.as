@@ -4,7 +4,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "Incremental";
     info.Description = "Incremental Controller (Input Simplifier, SD, SteerMaximizer)";
-    info.Version = "v3.0.1";
+    info.Version = "v3.1.0";
     return info;
 }
 
@@ -12,7 +12,7 @@ const string ID = "incremental";
 
 void Main()
 {
-    Core::SettingsRegister();
+    Core::Register();
 
     IncMode@ const home = Core::Home();
     IncRegisterMode("Home", home);
@@ -23,7 +23,7 @@ void Main()
     SteerMax::Main();
     Wallhugger::Main();
 
-    RegisterValidationHandler(ID, "Incremental Controller", Core::SettingsRender);
+    RegisterValidationHandler(ID, "Incremental Controller", Core::Draw);
 }
 
 void OnSimulationBegin(SimulationManager@ sim)
@@ -132,13 +132,13 @@ void OnRunStep(SimulationManager@ sim)
 
         {
             const auto@ const ieb = sim.InputEvents;
-            const uint index = IEBSearchTime(ieb, Core::tInit, -1);
+            const uint iebIndex = IEBSearchTime(ieb, Core::tInit, -1);
 
-            preInitInputEvents.Resize(index);
-            for (uint i = 0; i < index; ++i)
+            preInitInputEvents.Resize(iebIndex);
+            for (uint i = 0; i < iebIndex; ++i)
                 preInitInputEvents[i] = ieb[i];
 
-            Core::PostInitInputEventsInitialize(ieb, index);
+            Core::PostInitInputEventsInitialize(ieb, iebIndex);
         }
 
         sim.SimulationOnly = false;
@@ -152,6 +152,8 @@ void OnRunStep(SimulationManager@ sim)
             for (uint i = 0; i < length; ++i)
                 ieb.Add(preInitInputEvents[i]);
             preInitInputEvents.Clear();
+
+            Core::PostInitInputEventsCopyToIEB(ieb);
         }
 
         sim.SimulationOnly = true;
