@@ -128,7 +128,7 @@ void ModifyInputState(SimulationManager@ sim, InputType state, int value)
 void ApplyInputEvents(SimulationManager@ sim)
 {
     // Assuming main overload checks for oob and wrong time anyway, thus using Search, not Find.
-    ApplyInputEvents(sim, IEBSearchTime(sim.InputEvents, sim.TickTime, -1));
+    ApplyInputEvents(sim, IEBSearchTime(sim.InputEvents, sim.TickTime));
 }
 
 // ContextMode::Run only: ModifyInputState for each event in the IEB at TickTime, with a given starting index.
@@ -203,7 +203,7 @@ void Rewind(SimulationManager@ sim, SimulationState@ state, const uint flags)
         if (flags & RewindFlags::PRESERVE != 0)
         {
             const auto@ const ieb = sim.InputEvents;
-            const uint index = IEBSearchTime(ieb, state.PlayerInfo.RaceTime, -1);
+            const uint index = IEBSearchTime(ieb, state.PlayerInfo.RaceTime);
             const uint length = ieb.Length - index;
             if (length == 0)
                 break;
@@ -226,7 +226,7 @@ void Rewind(SimulationManager@ sim, SimulationState@ state, const uint flags)
         if (flags & RewindFlags::REMOVE != 0)
         {
             auto@ const ieb = sim.InputEvents;
-            const uint index = IEBSearchTime(ieb, state.PlayerInfo.RaceTime, -1);
+            const uint index = IEBSearchTime(ieb, state.PlayerInfo.RaceTime);
             IEBRemoveFromIndex(ieb, index);
         }
     break;
@@ -385,7 +385,8 @@ const ums IEB_TIME_OFFSET = 100010;
 
 // Binary search for timestamp, then go left or right depending on direction (or just return), to find one end of a time region.
 // Returns index (<= ieb.Length) of where an input event would have been added (given the timestamp and direction).
-uint IEBSearchTimestamp(const TM::InputEventBuffer@ ieb, const ums timestamp, const int direction)
+// By default, the direction will be -1, i.e., get the lowest index of the range of input events with the given timestamp.
+uint IEBSearchTimestamp(const TM::InputEventBuffer@ ieb, const ums timestamp, const int direction = -1)
 {
     const uint length = ieb.Length;
     if (length == 0)
@@ -435,7 +436,7 @@ uint IEBSearchTimestamp(const TM::InputEventBuffer@ ieb, const ums timestamp, co
 
 // Binary search for timestamp, then go left or right depending on direction (or just return), to find one end of a time region.
 // Returns -1 if not found.
-int IEBFindTimestamp(const TM::InputEventBuffer@ ieb, const ums timestamp, const int direction)
+int IEBFindTimestamp(const TM::InputEventBuffer@ ieb, const ums timestamp, const int direction = -1)
 {
     const uint index = IEBSearchTimestamp(ieb, timestamp, direction);
     if (index >= ieb.Length || ieb[index].Time != timestamp)
@@ -450,7 +451,7 @@ uint IEBFindFirst(const TM::InputEventBuffer@ ieb, const ums timestamp, const in
 {
     uint index = 0;
 
-    const uint iebIndex = IEBSearchTimestamp(ieb, timestamp, -1);
+    const uint iebIndex = IEBSearchTimestamp(ieb, timestamp);
     const uint iebLen = ieb.Length;
     for (uint i = iebIndex; i < iebLen; ++i)
     {
@@ -476,7 +477,7 @@ array<uint>@ IEBFindInTimestampRange(
         return {};
 
     array<uint> indices;
-    const uint index = IEBSearchTimestamp(ieb, timestampFrom, -1);
+    const uint index = IEBSearchTimestamp(ieb, timestampFrom);
     const uint length = ieb.Length;
     for (uint i = index; i < length; ++i)
     {
@@ -520,17 +521,20 @@ void IEBRemoveFromIndex(TM::InputEventBuffer@ ieb, const uint index)
 
 void IEBRemoveEventIndex(TM::InputEventBuffer@ ieb, const int eventIndex)
 {
-    uint index = 0;
-    const uint length = ieb.Length;
+    uint i = 0;
+    const uint len = ieb.Length;
+    uint index = len;
 
-    while (index < length)
+    for (; i < len; ++i)
     {
-        const TM::InputEvent inputEvent = ieb[index++];
-        if (inputEvent.Value.EventIndex == eventIndex)
+        if (ieb[i].Value.EventIndex == eventIndex)
+        {
+            index = i++;
             break;
+        }
     }
 
-    for (uint i = index; i < length; ++i)
+    for (; i < len; ++i)
     {
         const TM::InputEvent inputEvent = ieb[i];
         if (inputEvent.Value.EventIndex != eventIndex)
@@ -599,9 +603,32 @@ void IEBRemoveDuplicatesAtTimestamp(
         IEBRemoveRange(ieb, lower, upper);
 }
 
-void IEBRemoveFromTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const uint mask)
+void IEBRemoveOneAtTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const int eventIndex)
 {
-    uint index = IEBSearchTimestamp(ieb, timestamp, -1);
+    uint lower = IEBSearchTimestamp(ieb, timestamp);
+    uint upper = lower;
+    const uint len = ieb.Length;
+    for (; upper < len; ++upper)
+    {
+        const TM::InputEvent inputEvent = ieb[upper];
+        if (inputEvent.Time != timestamp)
+            break;
+
+        if (inputEvent.Value.EventIndex != eventIndex)
+            ieb[lower++] = inputEvent;
+    }
+    IEBRemoveRange(ieb, lower, upper);
+}
+
+void IEBRemoveOneAtTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const InputType inputType)
+{
+    const int eventIndex = EventIndicesEncode(ieb.EventIndices, inputType);
+    IEBRemoveOneAtTimestamp(ieb, timestamp, eventIndex);
+}
+
+void IEBRemoveManyFromTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const uint mask)
+{
+    uint index = IEBSearchTimestamp(ieb, timestamp);
     uint i;
     const uint length = ieb.Length;
     for (i = index; i < length; ++i)
@@ -613,19 +640,19 @@ void IEBRemoveFromTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, cons
     IEBRemoveRange(ieb, index, i);
 }
 
-void IEBRemoveFromTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const array<InputType>@ inputTypes)
+void IEBRemoveManyFromTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const array<InputType>@ inputTypes)
 {
     const uint mask = EventIndicesMakeInputTypesBitmask(ieb.EventIndices, inputTypes);
-    IEBRemoveFromTimestamp(ieb, timestamp, mask);
+    IEBRemoveManyFromTimestamp(ieb, timestamp, mask);
 }
 
-void IEBRemoveInTimestampRange(
+void IEBRemoveManyInTimestampRange(
     TM::InputEventBuffer@ ieb, const ums timestampFrom, const ums timestampTo, const uint mask)
 {
     if (timestampFrom > timestampTo)
         return;
 
-    uint index = IEBSearchTimestamp(ieb, timestampFrom, -1);
+    uint index = IEBSearchTimestamp(ieb, timestampFrom);
     uint i;
     const uint length = ieb.Length;
     for (i = index; i < length; ++i)
@@ -640,29 +667,30 @@ void IEBRemoveInTimestampRange(
     IEBRemoveRange(ieb, index, i);
 }
 
-void IEBRemoveInTimestampRange(
+void IEBRemoveManyInTimestampRange(
     TM::InputEventBuffer@ ieb, const ums timestampFrom, const ums timestampTo, const array<InputType>@ inputTypes)
 {
     if (timestampFrom > timestampTo)
         return;
 
     const uint mask = EventIndicesMakeInputTypesBitmask(ieb.EventIndices, inputTypes);
-    IEBRemoveInTimestampRange(ieb, timestampFrom, timestampTo, mask);
+    IEBRemoveManyInTimestampRange(ieb, timestampFrom, timestampTo, mask);
 }
 
 
 // - IEB (ms)
 
-// Binary search for time.
+// Binary search for time, then go left or right depending on direction (or just return), to find one end of a time region.
 // Returns index (<= ieb.Length) of where an input event would have been added (given the time and direction).
-uint IEBSearchTime(const TM::InputEventBuffer@ ieb, const ms time, const int direction)
+// By default, the direction will be -1, i.e., get the lowest index of the range of input events with the given time.
+uint IEBSearchTime(const TM::InputEventBuffer@ ieb, const ms time, const int direction = -1)
 {
     return IEBSearchTimestamp(ieb, IEB_TIME_OFFSET + time, direction);
 }
 
 // Binary search for time.
 // Returns -1 if not found.
-int IEBFindTime(const TM::InputEventBuffer@ ieb, const ms time, const int direction)
+int IEBFindTime(const TM::InputEventBuffer@ ieb, const ms time, const int direction = -1)
 {
     return IEBFindTimestamp(ieb, IEB_TIME_OFFSET + time, direction);
 }
@@ -690,18 +718,29 @@ array<uint>@ IEBFindInTimerange(
     return IEBFindInTimerange(ieb, timeFrom, timeTo, mask);
 }
 
-void IEBRemoveFromTime(TM::InputEventBuffer@ ieb, const ms time, const uint mask)
+void IEBRemoveOneAtTime(TM::InputEventBuffer@ ieb, const ms time, const int eventIndex)
 {
-    IEBRemoveFromTimestamp(ieb, IEB_TIME_OFFSET + time, mask);
+    IEBRemoveOneAtTimestamp(ieb, IEB_TIME_OFFSET + time, eventIndex);
 }
 
-void IEBRemoveFromTime(TM::InputEventBuffer@ ieb, const ms time, const array<InputType>@ inputTypes)
+void IEBRemoveOneAtTime(TM::InputEventBuffer@ ieb, const ms time, const InputType inputType)
+{
+    const int eventIndex = EventIndicesEncode(ieb.EventIndices, inputType);
+    IEBRemoveOneAtTime(ieb, time, eventIndex);
+}
+
+void IEBRemoveManyFromTime(TM::InputEventBuffer@ ieb, const ms time, const uint mask)
+{
+    IEBRemoveManyFromTimestamp(ieb, IEB_TIME_OFFSET + time, mask);
+}
+
+void IEBRemoveManyFromTime(TM::InputEventBuffer@ ieb, const ms time, const array<InputType>@ inputTypes)
 {
     const uint mask = EventIndicesMakeInputTypesBitmask(ieb.EventIndices, inputTypes);
-    IEBRemoveFromTime(ieb, time, mask);
+    IEBRemoveManyFromTime(ieb, time, mask);
 }
 
-void IEBRemoveInTimeRange(
+void IEBRemoveManyInTimeRange(
     TM::InputEventBuffer@ ieb, const ms timeFrom, const ms timeTo, const uint mask)
 {
     if (timeFrom > timeTo)
@@ -709,17 +748,17 @@ void IEBRemoveInTimeRange(
 
     const ums timestampFrom = IEB_TIME_OFFSET + timeFrom;
     const ums timestampTo   = IEB_TIME_OFFSET + timeTo;
-    IEBRemoveInTimestampRange(ieb, timestampFrom, timestampTo, mask);
+    IEBRemoveManyInTimestampRange(ieb, timestampFrom, timestampTo, mask);
 }
 
-void IEBRemoveInTimeRange(
+void IEBRemoveManyInTimeRange(
     TM::InputEventBuffer@ ieb, const ms timeFrom, const ms timeTo, const array<InputType>@ inputTypes)
 {
     if (timeFrom > timeTo)
         return;
 
     const uint mask = EventIndicesMakeInputTypesBitmask(ieb.EventIndices, inputTypes);
-    IEBRemoveInTimeRange(ieb, timeFrom, timeTo, mask);
+    IEBRemoveManyInTimeRange(ieb, timeFrom, timeTo, mask);
 }
 
 

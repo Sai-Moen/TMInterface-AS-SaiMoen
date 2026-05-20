@@ -21,7 +21,6 @@ void Main()
     InputSimplifier::Main();
     SpeedDrift::Main();
     SteerMax::Main();
-    Wallhugger::Main();
 
     RegisterValidationHandler(ID, "Incremental Controller", Core::Draw);
 }
@@ -36,7 +35,7 @@ void OnSimulationBegin(SimulationManager@ sim)
     auto@ const ieb = sim.InputEvents;
     IEBRemoveEventIndex(ieb, ieb.EventIndices.FinishLineId);
 
-    Core::Initialize();
+    Core::Initialize(sim.EventsDuration);
     Core::PostInitInputEventsInitialize(ieb);
     Core::Begin(sim);
 
@@ -114,8 +113,8 @@ void OnRunStep(SimulationManager@ sim)
         sim.GiveUp();
         contextMode = ContextMode::Run;
 
-        Core::Initialize();
         runReplayTime = VarGetMs(Core::VAR_RUN_REPLAY_TIME);
+        Core::Initialize(runReplayTime);
         runState = RunState::INIT2;
     break;
     case RunState::INIT2:
@@ -132,7 +131,7 @@ void OnRunStep(SimulationManager@ sim)
 
         {
             const auto@ const ieb = sim.InputEvents;
-            const uint iebIndex = IEBSearchTime(ieb, Core::tInit, -1);
+            const uint iebIndex = IEBSearchTime(ieb, Core::tInit);
 
             preInitInputEvents.Resize(iebIndex);
             for (uint i = 0; i < iebIndex; ++i)

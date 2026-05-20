@@ -2,7 +2,7 @@ namespace Core
 {
 
 
-const string VAR = ID + "_";
+const string VAR = "incremental_";
 
 const string VAR_LOCK_TIMERANGE  = VAR + "lock_timerange";
 const string VAR_EVAL_ITER_BEGIN = VAR + "eval_iter_begin";
@@ -46,8 +46,10 @@ void Draw()
         ms evalIterEnd;
         if (mode.singleIteration)
         {
+            VarSetMs(VAR_EVAL_ITER_END, evalIterEnd = evalIterBegin);
+
             UI::BeginDisabled();
-            evalIterEnd = UI::InputTime("Evaluation Begin Stopping Time", evalIterBegin);
+            UI::InputTime("Evaluation Iteration End Time", evalIterEnd);
             TooltipOnHover("The currently selected mode only supports a single iteration.");
             UI::EndDisabled();
         }
@@ -61,7 +63,7 @@ void Draw()
         }
 
         ms evalEnd = UI::InputTimeVar("Evaluation End Time", VAR_EVAL_END);
-        if (evalEnd < evalIterEnd)
+        if (evalEnd != 0 && evalEnd < evalIterEnd)
             VarSetMs(VAR_EVAL_END, evalEnd = evalIterEnd);
 
         UI::Separator();
@@ -104,7 +106,7 @@ void Draw()
 IncMode@ Home()
 {
     IncMode home;
-    home.draw =
+    @home.draw =
         function()
         {
             string s;
@@ -125,7 +127,7 @@ IncMode@ Home()
 
 bool handleFinish;
 
-void Initialize()
+void Initialize(const ms alternativeTimeLimit)
 {
     const uint index = ModeIndexDetermineByName();
     if (index == 0)
@@ -138,11 +140,11 @@ void Initialize()
 
     tInit = evalIterBegin;
     tInput = -10; // Detecting uninitialized usage.
-    tLimit = evalEnd;
+    tLimit = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
     preservationIndex = uint(-1); // Detecting uninitialized usage.
 
     int timerange;
-    if (mode.SingleIteration || VarGetBool(VAR_LOCK_TIMERANGE))
+    if (mode.singleIteration || VarGetBool(VAR_LOCK_TIMERANGE))
     {
         timerange = 1;
     }
@@ -384,7 +386,7 @@ ms GetAbsoluteTime(const ms relativeTime)
 
 void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb)
 {
-    PostInitInputEventsInitialize(ieb, IEBSearchTime(ieb, tInit, -1));
+    PostInitInputEventsInitialize(ieb, IEBSearchTime(ieb, tInit));
 }
 
 void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint iebIndex)
@@ -414,23 +416,22 @@ void PostInitInputEventsCopyToIEB(TM::InputEventBuffer@ ieb)
 void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
 {
     const ums timestamp = IEB_TIME_OFFSET + tInput;
+    uint i;
     const uint len = postInitInputEvents.Length;
-    for (uint i = preservationIndex; i < len; ++i)
+    for (i = preservationIndex; i < len; ++i)
     {
         const TM::InputEvent inputEvent = postInitInputEvents[i];
         if (inputEvent.Time >= timestamp)
-        {
-            preservationIndex = i;
             break;
-        }
 
         ieb.Add(inputEvent);
     }
+    preservationIndex = i;
     PostInitInputEventsCopyToIEB(ieb);
 }
 
 
-bool GetInput(SimulationManager@ sim, const ms time, const InputType type, int &out value)
+bool InputGet(SimulationManager@ sim, const ms time, const InputType type, int &out value)
 {
     auto@ const ieb = sim.InputEvents;
 
@@ -449,7 +450,7 @@ bool GetInput(SimulationManager@ sim, const ms time, const InputType type, int &
     return true;
 }
 
-void SetInput(SimulationManager@ sim, const ms time, const InputType type, const int value)
+void InputSet(SimulationManager@ sim, const ms time, const InputType type, const int value)
 {
     auto@ const ieb = sim.InputEvents;
 
@@ -461,7 +462,7 @@ void SetInput(SimulationManager@ sim, const ms time, const InputType type, const
     {
         ieb.Add(time, type, value);
 
-        const uint iebIndex = IEBSearchTimestamp(ieb, timestamp, -1);
+        const uint iebIndex = IEBSearchTimestamp(ieb, timestamp);
         const uint iebLen = ieb.Length;
         for (uint i = iebIndex; i < iebLen; ++i)
         {
@@ -484,15 +485,9 @@ void SetInput(SimulationManager@ sim, const ms time, const InputType type, const
     InputEventSetInt(ieb[index], type, value);
 }
 
-void RemoveInputs(SimulationManager@ sim, const ms time, const InputType type, const int value)
+void InputRemove(SimulationManager@ sim, const ms time, const InputType type)
 {
-    auto@ const ieb = sim.InputEvents;
-    IEBRemoveIndices(ieb, ieb.Find(time, type, value));
-}
-
-void RemoveFromInputTime(SimulationManager@ sim, const array<InputType>@ inputTypes)
-{
-    IEBRemoveFromTime(sim.InputEvents, tInput, inputTypes);
+    IEBRemoveOneAtTime(sim.InputEvents, time, type);
 }
 
 

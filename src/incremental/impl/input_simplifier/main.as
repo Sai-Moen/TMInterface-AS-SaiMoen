@@ -4,135 +4,103 @@ namespace InputSimplifier
 
 void Main()
 {
-    RegisterSettings();
-    IncRegisterMode("Input Simplifier", Mode());
+    Register();
+
+    IncMode mode;
+    mode.singleIteration = true;
+    @mode.draw  = Draw;
+    @mode.begin = Begin;
+    @mode.step  = Step;
+    @mode.end   = End;
+    IncRegisterMode("Input Simplifier", mode);
 }
 
-class Mode : IncMode
-{
-    bool SupportsUnlockedTimerange { get { return false; } }
-
-    void RenderSettings()
-    {
-        InputSimplifier::RenderSettings();
-    }
-
-    void OnBegin(SimulationManager@)
-    {
-        OnSimBegin();
-    }
-
-    void OnStep(SimulationManager@ sim)
-    {
-        onStep(sim);
-    }
-
-    void OnEnd(SimulationManager@)
-    {}
-}
-
-const string VAR = Settings::VAR + "simplify_inputs_";
+const string VAR = ::Core::VAR + "input_simplifier_";
 
 const string VAR_CONTEXT_TIMESPAN = VAR + "context_timespan";
-const ms MIN_CTX_TIMESPAN = TickToMs(2);
-const ms DEF_CTX_TIMESPAN = TickToMs(25);
-const string DEF_TIMESPAN_TEXT = "(default " + DEF_CTX_TIMESPAN + "ms)";
-ms varContextTimespan;
+const ms DEF_CTX_TIMESPAN = 250;
+const string DEF_CTX_TIMESPAN_TEXT = "(default " + DEF_CTX_TIMESPAN + "ms)";
 
-const string VAR_MAGNITUDE = VAR + "air_magnitude";
-int varMagnitude;
+const string VAR_ORDERED_STRATEGY_INDICES = VAR + "ordered_strategy_indices";
+array<Strategy> varOrderedStrategyIndices(ORDERED_STRATEGY_LEN);
 
+const string VAR_AIR_MAGNITUDE = VAR + "air_magnitude";
 const string VAR_MINIMIZE_BRAKE = VAR + "minimize_brake";
-bool varMinimizeBrake;
 
-const string VAR_STRATEGY_INDICES = VAR + "strategy_indices";
-const string STRATEGY_SEP = ",";
-array<Strategy> varStrategyIndices(STRATEGY_LEN);
-
-void RegisterSettings()
+void Register()
 {
     RegisterVariable(VAR_CONTEXT_TIMESPAN, DEF_CTX_TIMESPAN);
-    RegisterVariable(VAR_MAGNITUDE, 0);
+    RegisterVariable(VAR_ORDERED_STRATEGY_INDICES, "");
+    RegisterVariable(VAR_AIR_MAGNITUDE, 0);
     RegisterVariable(VAR_MINIMIZE_BRAKE, false);
-    RegisterVariable(VAR_STRATEGY_INDICES, "");
 
-    varContextTimespan = ms(GetVariableDouble(VAR_CONTEXT_TIMESPAN));
-    varMagnitude = int(GetVariableDouble(VAR_MAGNITUDE));
-    varMinimizeBrake = GetVariableBool(VAR_MINIMIZE_BRAKE);
-    DeserializeStrategyIndicesFromVar();
+    if (!DeserializeStrategyIndicesFromVar())
+    {
+        for (uint i = 0; i < ORDERED_STRATEGY_LEN; i++)
+            varOrderedStrategyIndices[i] = Strategy(i);
+    }
 }
 
-void DeserializeStrategyIndicesFromVar()
+const string STRATEGY_SEP = ",";
+
+bool DeserializeStrategyIndicesFromVar()
 {
-    const auto@ const strategies = GetVariableString(VAR_STRATEGY_INDICES).Split(STRATEGY_SEP);
-    const uint len = strategies.Length;
-    if (len != STRATEGY_LEN)
-    {
-        SetDefaultStrategyIndices();
-        return;
-    }
+    const auto@ const orderedStrategyIndices = GetVariableString(VAR_ORDERED_STRATEGY_INDICES).Split(STRATEGY_SEP);
+    const uint len = orderedStrategyIndices.Length;
+    if (len != ORDERED_STRATEGY_LEN)
+        return false;
 
     for (uint i = 0; i < len; i++)
     {
         uint byteCount;
-        const uint64 parsed = Text::ParseUInt(strategies[i], 10, byteCount);
+        const uint64 parsed = Text::ParseUInt(orderedStrategyIndices[i], 10, byteCount);
         if (byteCount == 0 || parsed >= len)
-        {
-            SetDefaultStrategyIndices();
-            return;
-        }
+            return false;
 
-        varStrategyIndices[i] = Strategy(parsed);
+        varOrderedStrategyIndices[i] = Strategy(parsed);
     }
+    return true;
 }
 
-void SetDefaultStrategyIndices()
+void Draw()
 {
-    for (uint i = 0; i < STRATEGY_LEN; i++)
-        varStrategyIndices[i] = Strategy(i);
-}
+    UI::InputTimeVar("Context Timespan", VAR_CONTEXT_TIMESPAN, 10);
+    TooltipOnHover("Lower timespan is faster, but may desync in an unrecoverable way " + DEF_CTX_TIMESPAN_TEXT + ".");
 
-const string INFO_CONTEXT_TIMESPAN =
-    "Lower timespan is faster, but may desync in an unrecoverable way " + DEF_TIMESPAN_TEXT + ".";
-const string INFO_MAGNITUDE =
-    "This is the magnitude used by steering inputs in the air, where only input direction matters.\n" +
-    "Setting this to 0 will skip the air input strategy altogether.";
-const string INFO_MINIMIZE_BRAKE =
-    "If this is enabled, the amount of time spent braking will be made as small as possible.\n" +
-    "The trade-off is that this may introduce more brake inputs.";
+    int airMagnitude = UI::InputIntVar("Air Magnitude", VAR_AIR_MAGNITUDE);
+    airMagnitude = ClampSteer(airMagnitude);
+    VarSetInt(VAR_AIR_MAGNITUDE, airMagnitude);
+    TooltipOnHover(
+        "This is the magnitude used by steering inputs in the air, where only input direction matters.\n"
+        "Setting this to 0 will skip the air input strategy altogether.");
 
-void RenderSettings()
-{
-    varContextTimespan = UI::InputTimeVar("Context Timespan", VAR_CONTEXT_TIMESPAN, TICK);
-    TooltipOnHover(INFO_CONTEXT_TIMESPAN);
-
-    varMagnitude = UI::InputIntVar("Magnitude", VAR_MAGNITUDE);
-    varMagnitude = ClampSteer(varMagnitude);
-    TooltipOnHover(INFO_MAGNITUDE);
-
-    varMinimizeBrake = UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
-    TooltipOnHover(INFO_MINIMIZE_BRAKE);
+    UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
+    TooltipOnHover(
+        "If this is enabled, the amount of time spent braking will be made as small as possible.\n"
+        "The trade-off is that this may introduce more brake inputs.");
 
     UI::Separator();
 
     UI::TextWrapped("Strategy Order:");
     bool changed = false;
-    for (uint i = 0; i < STRATEGY_LEN; i++)
+    for (uint i = 0; i < ORDERED_STRATEGY_LEN; ++i)
     {
-        const Strategy strategy = varStrategyIndices[i];
+        const Strategy strategy = varOrderedStrategyIndices[i];
 
         const bool pressed = UI::Button("Move Down##" + i);
         UI::SameLine();
         switch (strategy)
         {
-        case Strategy::SignMagnitude:
-            if (varMagnitude == 0)
+        case Strategy::SIGN_MAGNITUDE:
+            if (airMagnitude == 0)
             {
-                UI::TextDimmed(strategyNames[strategy]);
+                UI::TextDimmed(ORDERED_STRATEGY_NAMES[strategy]);
                 break;
             }
+        // fallthrough
         default:
-            UI::TextWrapped(strategyNames[strategy]);
+            UI::TextWrapped(ORDERED_STRATEGY_NAMES[strategy]);
+        break;
         }
 
         if (!pressed)
@@ -140,45 +108,52 @@ void RenderSettings()
 
         changed = true;
         const uint nextIndex = i + 1;
-        if (nextIndex < STRATEGY_LEN)
+        if (nextIndex < ORDERED_STRATEGY_LEN)
         {
-            varStrategyIndices[i] = varStrategyIndices[nextIndex];
-            varStrategyIndices[nextIndex] = strategy;
+            varOrderedStrategyIndices[i] = varOrderedStrategyIndices[nextIndex];
+            varOrderedStrategyIndices[nextIndex] = strategy;
         }
     }
 
     if (changed)
     {
-        array<string> strategies(STRATEGY_LEN);
-        for (uint i = 0; i < STRATEGY_LEN; i++)
-            strategies[i] = Text::FormatUInt(varStrategyIndices[i]);
-        SetVariable(VAR_STRATEGY_INDICES, Text::Join(strategies, STRATEGY_SEP));
+        array<string> orderedStrategyIndices(ORDERED_STRATEGY_LEN);
+        for (uint i = 0; i < ORDERED_STRATEGY_LEN; i++)
+            orderedStrategyIndices[i] = Text::FormatUInt(varOrderedStrategyIndices[i]);
+        SetVariable(VAR_ORDERED_STRATEGY_INDICES, Text::Join(orderedStrategyIndices, STRATEGY_SEP));
     }
 }
 
 class Context
 {
+    bool initialized;
+
     vec3 position;
     mat3 rotation;
     vec3 linearSpeed;
     vec3 angularSpeed;
 
-    Context(const TM::HmsStateDyna@ const dyna)
+    void Init(const TM::HmsStateDyna@ const dyna)
     {
         const iso4 location = dyna.Location;
         position = location.Position;
         rotation = location.Rotation;
         linearSpeed = dyna.LinearSpeed;
         angularSpeed = dyna.AngularSpeed;
+
+        initialized = true;
     }
 
-    bool opEquals(const Context@ const other)
+    bool HasEquivalentState(const TM::HmsStateDyna@ const other) const
     {
+        Assert(initialized);
+
+        const iso4 location = other.Location;
         return
-            EqualsVec3(position, other.position) &&
-            EqualsMat3(rotation, other.rotation) &&
-            EqualsVec3(linearSpeed, other.linearSpeed) &&
-            EqualsVec3(angularSpeed, other.angularSpeed);
+            EqualsVec3(position, location.Position) &&
+            EqualsMat3(rotation, location.Rotation) &&
+            EqualsVec3(linearSpeed, other.LinearSpeed) &&
+            EqualsVec3(angularSpeed, other.AngularSpeed);
     }
 }
 
@@ -198,318 +173,346 @@ bool EqualsVec3(const vec3 &in v1, const vec3 &in v2)
         v1.z == v2.z;
 }
 
-array<Context@> contexts;
+array<Context> contexts;
+uint contextIndex;
 
 enum Strategy
 {
-    TurningRate,
-    SignMagnitude,
-    Removal,
+    // Ordered
+    TURNING_RATE,
+    SIGN_MAGNITUDE,
+    REMOVAL,
 
-    MinimizeBrake,
+    // Unordered
+    MINIMIZE_BRAKE,
 
-    Count
+    COUNT
 }
 
-const uint STRATEGY_LEN = strategyNames.Length;
+// MINIMIZE_BRAKE is not an ordered strategy, so this is an exclusive upper bound (also keep in sync with the enum).
+const uint ORDERED_STRATEGY_LEN = Strategy::MINIMIZE_BRAKE;
 
-const array<string> strategyNames =
+const array<string> ORDERED_STRATEGY_NAMES =
 {
     "Turning Rate",
     "Sign-Magnitude",
     "Removal"
 };
 
-funcdef void OnSim(SimulationManager@);
+funcdef void OnStep(SimulationManager@);
 
-const array<OnSim@> strategyCallbacks =
+const array<OnStep@> ORDERED_STRATEGY_CALLBACKS =
 {
-    OnStepTurningRate,
-    OnStepAir,
-    OnStepRemoval
+    StepTurningRate,
+    StepAir,
+    StepRemoval
 };
 
 ms contextTimespan;
 
-uint stratIndex;
-const uint stratLen = Strategy::Count + 1;
-array<OnSim@> strats(stratLen);
+array<OnStep@> steps;
+uint stepIndex;
 
-void OnSimBegin()
+int varAirMagnitude;
+bool varMinimizeBrake;
+
+void Begin(SimulationManager@)
 {
-    contextTimespan = Math::Max(MIN_CTX_TIMESPAN, varContextTimespan);
-    contexts.Resize(MsToTick(contextTimespan) - 1);
+    contextTimespan = VarGetMs(VAR_CONTEXT_TIMESPAN);
+    if (contextTimespan < 20)
+        contextTimespan = 20;
+    contexts.Resize(contextTimespan / 10 - 1);
+    contextIndex = 0;
 
-    // maybe the value got clamped but not updated in the UI
-    SetVariable(VAR_MAGNITUDE, varMagnitude);
+    varAirMagnitude = VarGetInt(VAR_AIR_MAGNITUDE);
 
-    uint stratsAdded = 0;
+    steps.Add(StepScan);
+
+    varMinimizeBrake = VarGetBool(VAR_MINIMIZE_BRAKE);
     if (varMinimizeBrake)
-        @strats[stratsAdded++] = OnStepMinimizeBrake;
+        steps.Add(StepMinimizeBrake);
 
-    const uint len = varStrategyIndices.Length;
+    const uint len = varOrderedStrategyIndices.Length;
     for (uint i = 0; i < len; i++)
     {
-        const Strategy strategy = varStrategyIndices[i];
+        const Strategy strategy = varOrderedStrategyIndices[i];
         switch (strategy)
         {
-        case Strategy::SignMagnitude:
-            if (varMagnitude == 0)
+        case Strategy::SIGN_MAGNITUDE:
+            if (varAirMagnitude == 0)
                 continue;
+        break;
         }
 
-        @strats[stratsAdded++] = strategyCallbacks[strategy];
+        steps.Add(ORDERED_STRATEGY_CALLBACKS[strategy]);
     }
-
-    while (stratsAdded < stratLen)
-        @strats[stratsAdded++] = null;
-
-    Reset();
+    stepIndex = 0;
 }
 
-const OnSim@ onStep;
+void Step(SimulationManager@ sim)
+{
+    steps[stepIndex](sim);
+}
+
+void End(SimulationManager@ sim)
+{
+    contexts.Clear();
+    steps.Clear();
+
+    // Variables that directly or indirectly cause uninitialized variables to be used incorrectly.
+    fillSteer = false;
+    fillBrake = false;
+}
 
 int prevInputBrake;
 int prevInputSteer;
 
-int oldInputBrake;
-int oldInputGas;
-int oldInputSteer;
+int   oldInputBrake;
+int   oldInputSteer;
 float oldTurningRate;
 
-bool isBraking;
-
-int nextInputBrake;
 float nextTurningRate;
 
-void OnStepScan(SimulationManager@ sim)
+IncCommitContext ctx;
+
+bool minimizeBrake;
+bool fillBrake;
+bool preserveBrake;
+
+bool fillSteer;
+bool preserveSteer;
+int  preservedInputSteer;
+
+void StepScan(SimulationManager@ sim)
 {
-    const ms time = IncGetRelativeTime(sim);
     const auto@ const svc = sim.SceneVehicleCar;
-    switch (MsToTick(time))
+
+    const ms time = IncGetRelativeTime(sim);
+    const uint tick = time / 10;
+    switch (tick)
     {
     case 0:
         prevInputBrake = int(svc.InputBrake);
         prevInputSteer = ToSteer(svc.InputSteer);
+
+        preserveBrake = fillBrake && prevInputBrake == 0;
+        if (preserveBrake)
+        {
+            Assert(minimizeBrake);
+            IncInputSet(sim, InputType::Down, 1);
+        }
+
+        // If the old 'oldInputSteer' is not equal to the new 'prevInputSteer',
+        // then we managed to change the steering input in the previous commit.
+        // However, if we filled the steer while doing the previous commit,
+        // we must use that steer on this commit, unless we find a better one.
+        preservedInputSteer = oldInputSteer;
+        preserveSteer = fillSteer && preservedInputSteer != prevInputSteer;
+        if (preserveSteer)
+            IncInputSet(sim, InputType::Steer, preservedInputSteer);
     return;
     case 1:
-        oldInputBrake = int(svc.InputBrake);
-        oldInputGas   = int(svc.InputGas);
-        oldInputSteer = ToSteer(svc.InputSteer);
+        oldInputBrake  = int(svc.InputBrake);
+        oldInputSteer  = ToSteer(svc.InputSteer);
         oldTurningRate = svc.TurningRate;
 
-        // if the next tick does not have an input, we must add it to avoid overriding the intended inputSteer
-        if (!IncHasInputs(sim, time, InputType::Steer))
-            IncSetInput(sim, time, InputType::Steer, oldInputSteer);
-
-        // only do this stuff if we are able to remove it later
-        isBraking = varMinimizeBrake && oldInputBrake == 1;
-        if (isBraking)
+        minimizeBrake = varMinimizeBrake && oldInputBrake == 1;
+        if (minimizeBrake)
         {
-            const bool mustAddDownPress =
-                prevInputBrake == 0 &&                            // we started pressing down at relative time 0 and not before
-                !IncHasInputs(sim, time, InputType::Down); // we do not already have a down input at relative time 10
-            if (mustAddDownPress)
-                IncSetInput(sim, time, InputType::Down, 1);
+            fillBrake = !IncInputGet(sim, 10, InputType::Down);
+            if (fillBrake)
+                IncInputSet(sim, 10, InputType::Down, 1);
         }
+        else
+        {
+            fillBrake = false;
+        }
+
+        // If this tick does not have an input,
+        // we must fill it to avoid overriding the intended inputSteer (that tick 0 would otherwise accidentally change).
+        fillSteer = !IncInputGet(sim, 10, InputType::Steer);
+        if (fillSteer)
+            IncInputSet(sim, 10, InputType::Steer, oldInputSteer);
     return;
     case 2:
-        nextInputBrake = int(svc.InputBrake);
         nextTurningRate = svc.TurningRate;
     break;
     }
 
-    const uint index = TimeToContextIndex(time);
-    @contexts[index] = Context(sim.Dyna.RefStateCurrent);
+    const auto@ const dyna = sim.Dyna.RefStateCurrent;
+
+    Context@ const context = RelativeTickToContext(tick);
+    if (!context.initialized)
+        context.Init(dyna);
+    else
+        AssertPrint(context.HasEquivalentState(dyna), "[Input Simplifier] Ring buffer corruption!");
 
     if (time == contextTimespan)
-    {
-        NextStrategy(sim);
-        IncRewind(sim);
-    }
+        NextStep(sim);
 }
 
-int brake;
-
-void OnStepMinimizeBrake(SimulationManager@ sim)
+void StepMinimizeBrake(SimulationManager@ sim)
 {
-    if (!isBraking)
+    if (!minimizeBrake)
     {
-        brake = ctxNeutral.down;
-        NextStrategy(sim);
-        IncRewind(sim);
+        NextStep(sim);
         return;
     }
 
     const ms time = IncGetRelativeTime(sim);
-    switch (MsToTick(time))
+    const uint tick = time / 10;
+    switch (tick)
     {
     case 0:
-        brake = 0;
-        IncSetInput(sim, InputType::Down, brake);
-        // fallthrough
+        IncInputSet(sim, InputType::Down, 0);
+    return;
     case 1:
-        return;
+    return;
     }
 
-    if (Desynced(sim, time))
+    if (Desynced(sim, tick))
     {
-        brake = 1;
-        SetDown(sim);
+        IncInputSet(sim, InputType::Down, 1);
+        NextStep(sim);
     }
     else if (time == contextTimespan)
     {
-        brake = 0;
-        SetDown(sim);
-        if (nextInputBrake == 0)
-            IncRemoveInputs(sim, TICK, InputType::Down, 0);
+        ctx.Set(InputType::Down, 0);
+        NextStep(sim);
     }
-    else
-    {
-        return;
-    }
-
-    IncRewind(sim);
-}
-
-void SetDown(SimulationManager@ sim)
-{
-    IncRemoveInputs(sim, InputType::Down);
-    if (brake == prevInputBrake)
-        brake = ctxNeutral.down;
-    else
-        IncSetInput(sim, InputType::Down, brake);
-
-    NextStrategy(sim);
 }
 
 int steer;
 
-void OnStepTurningRate(SimulationManager@ sim)
+void StepTurningRate(SimulationManager@ sim)
 {
     const ms time = IncGetRelativeTime(sim);
-    switch (MsToTick(time))
+    const uint tick = time / 10;
+    switch (tick)
     {
     case 0:
         steer = RoundAway(nextTurningRate * STEER_FULL, nextTurningRate - oldTurningRate);
-        IncSetInput(sim, InputType::Steer, steer);
-        // fallthrough
+        IncInputSet(sim, InputType::Steer, steer);
+    return;
     case 1:
-        return;
+    return;
     }
 
-    if (Desynced(sim, time))
-        NextStrategy(sim);
+    if (Desynced(sim, tick))
+        NextStep(sim);
     else if (time == contextTimespan)
         AdvanceUnfill(sim);
-    else
-        return;
-
-    IncRewind(sim);
 }
 
-void OnStepAir(SimulationManager@ sim)
+void StepAir(SimulationManager@ sim)
 {
     const ms time = IncGetRelativeTime(sim);
-    switch (MsToTick(time))
+    const uint tick = time / 10;
+    switch (tick)
     {
     case 0:
-        steer = Sign(oldInputSteer) * varMagnitude;
-        IncSetInput(sim, InputType::Steer, steer);
-        // fallthrough
+        steer = Sign(oldInputSteer) * varAirMagnitude;
+        IncInputSet(sim, InputType::Steer, steer);
+    return;
     case 1:
-        return;
+    return;
     }
 
-    if (Desynced(sim, time))
-        NextStrategy(sim);
+    if (Desynced(sim, tick))
+        NextStep(sim);
     else if (time == contextTimespan)
         AdvanceUnfill(sim);
-    else
-        return;
-
-    IncRewind(sim);
 }
 
-void OnStepRemoval(SimulationManager@ sim)
+void StepRemoval(SimulationManager@ sim)
 {
     const ms time = IncGetRelativeTime(sim);
-    switch (MsToTick(time))
+    const uint tick = time / 10;
+    switch (tick)
     {
     case 0:
-        IncRemoveInputs(sim, InputType::Steer);
-        // fallthrough
+        IncInputRemove(sim, InputType::Steer);
+    return;
     case 1:
-        return;
+    return;
     }
 
-    if (Desynced(sim, time))
+    if (Desynced(sim, tick))
     {
-        NextStrategy(sim);
+        NextStep(sim);
     }
     else if (time == contextTimespan)
     {
+        ctx.Remove(InputType::Steer);
         Commit(sim);
-        Reset();
     }
-    else
+}
+
+bool Desynced(SimulationManager@ sim, const uint relativeTick)
+{
+    Context@ const context = RelativeTickToContext(relativeTick);
+    return !context.HasEquivalentState(sim.Dyna.RefStateCurrent);
+}
+
+Context@ RelativeTickToContext(const uint relativeTick)
+{
+    Assert(relativeTick >= 2);
+    const uint offset = relativeTick - 2;
+    return contexts[(contextIndex + offset) % contexts.Length];
+}
+
+void NextStep(SimulationManager@ sim)
+{
+    const uint len = steps.Length;
+    Assert(stepIndex < len);
+    if (++stepIndex == len)
     {
+        print("[Input Simplifier] Desynchronized, restoring old inputs...", Severity::Warning);
+        Commit(sim);
         return;
     }
 
-    IncRewind(sim);
-}
-
-void Reset()
-{
-    stratIndex = 0;
-    @onStep = OnStepScan;
-}
-
-bool Desynced(SimulationManager@ sim, const ms time)
-{
-    const uint index = TimeToContextIndex(time);
-    return contexts[index] != Context(sim.Dyna.RefStateCurrent);
-}
-
-uint TimeToContextIndex(const ms time)
-{
-    return MsToTick(time) - 2;
-}
-
-void NextStrategy(SimulationManager@ sim)
-{
-    @onStep = strats[stratIndex++];
-    if (onStep is null)
-    {
-        print("Desynchronized, restoring old inputs...", Severity::Warning);
-
-        IncCommitContext ctx;
-        ctx.down  = oldInputBrake;
-        ctx.up    = oldInputGas;
-        ctx.steer = oldInputSteer;
-        Commit(sim, ctx);
-
-        Reset();
-    }
+    IncRewindPreserve(sim);
+    Step(sim);
 }
 
 void AdvanceUnfill(SimulationManager@ sim)
 {
-    IncCommitContext ctx;
     if (steer == prevInputSteer)
-        IncRemoveInputs(sim, InputType::Steer);
+        ctx.Remove(InputType::Steer);
     else
-        ctx.steer = steer;
-    Commit(sim, ctx);
-
-    Reset();
+        ctx.Set(InputType::Steer, steer);
+    Commit(sim);
 }
 
-void Commit(SimulationManager@ sim, IncCommitContext ctx = ctxNeutral)
+void Commit(SimulationManager@ sim)
 {
-    ctx.down = brake;
+    contexts[contextIndex++].initialized = false;
+    contextIndex %= contexts.Length;
+    stepIndex = 0;
+
+    int brake;
+    switch (ctx.Get(InputType::Down, brake))
+    {
+    case IncCommitState::NONE:
+        if (preserveBrake)
+            ctx.Set(InputType::Down, 1);
+    break;
+    case IncCommitState::SET:
+        Assert(brake == 1);
+        if (prevInputBrake == 0)
+            ctx.Remove(InputType::Down);
+    break;
+    default:
+        PanicPrint("[Input Simplifier] Unexpected state for brake!");
+    break;
+    }
+
+    if (preserveSteer && ctx.Get(InputType::Steer) == IncCommitState::NONE)
+        ctx.Set(InputType::Steer, preservedInputSteer);
+
     IncCommit(sim, ctx);
+    ctx.Clear();
 }
 
 
