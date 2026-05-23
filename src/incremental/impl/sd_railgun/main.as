@@ -2,71 +2,22 @@ namespace SpeedDrift
 {
 
 
+IncMode mode;
+
 void Main()
 {
-    RegisterSettings();
-    IncRegisterMode("SD Railgun", Mode());
+    Register();
+
+    mode.preservationExclusions = { InputType::Left, InputType::Right, InputType::Steer };
+
+    @mode.draw = Draw;
+    @mode.begin = Begin;
+    @mode.step = StepInit;
+    @mode.end = End;
+    IncRegisterMode("SD Railgun", mode);
 }
 
-// tick 0: input time
-// tick 1: input applied
-// tick 2: input's effect observed
-const ms MINIMUM_SEEK = TickToMs(2);
-
-class Mode : IncMode
-{
-    bool SupportsUnlockedTimerange { get { return true; } }
-
-    void RenderSettings()
-    {
-        varQualityThreshold = UI::SliderFloatVar("Quality Threshold", VAR_QUALITY_THRESHOLD, 0, 1);
-        TooltipOnHover(
-            "Represents the maximum allowed deviation from a perfect SD, 0.25 by default.\n"
-            "0: Never use SD Quality\n"
-            "1: Always use SD Quality\n"
-            "For anything in between, use Quality first.\n"
-            "If the quality deviation exceeds the given threshold, use velocity instead.");
-
-        varSeekQuality = UI::InputTimeVar("Quality seeking (lookahead) time", VAR_SEEK_QUALITY, TICK);
-        TooltipOnHover("Can be set as low as 20ms, but it's a bit shaky, 60ms by default.");
-        if (varSeekQuality < MINIMUM_SEEK)
-        {
-            varSeekQuality = MINIMUM_SEEK;
-            SetVariable(VAR_SEEK_QUALITY, varSeekQuality);
-        }
-
-        varSeekNormal = UI::InputTimeVar("Normal seeking (lookahead) time", VAR_SEEK_NORMAL, TICK);
-        TooltipOnHover(
-            "Can be set as low as 20ms, but depending on speed you might want up to 130ms-140ms "
-            "(lowest working in a test was 50ms-60ms at close to speed cap), 120ms by default.");
-        if (varSeekNormal < MINIMUM_SEEK)
-        {
-            varSeekNormal = MINIMUM_SEEK;
-            SetVariable(VAR_SEEK_NORMAL, varSeekNormal);
-        }
-    }
-
-    void OnBegin(SimulationManager@ simManager)
-    {
-        IncRemoveSteeringAhead(simManager);
-
-        fallback = false;
-        threshold = Math::Clamp(varQualityThreshold, 0.f, 1.f);
-        Reset();
-    }
-
-    void OnStep(SimulationManager@ simManager)
-    {
-        onStep(simManager);
-    }
-
-    void OnEnd(SimulationManager@)
-    {
-        Reset();
-    }
-}
-
-const string VAR = Settings::VAR + "sd_";
+const string VAR = ::Core::VAR + "sd_";
 
 const string VAR_QUALITY_THRESHOLD = VAR + "quality_threshold";
 const string VAR_SEEK_QUALITY      = VAR + "seek_quality";
@@ -76,62 +27,143 @@ float varQualityThreshold;
 ms varSeekQuality;
 ms varSeekNormal;
 
-void RegisterSettings()
+void Register()
 {
     RegisterVariable(VAR_QUALITY_THRESHOLD, 0.25);
     RegisterVariable(VAR_SEEK_QUALITY, 60);
     RegisterVariable(VAR_SEEK_NORMAL, 120);
 
-    varQualityThreshold = GetConVarFloat(VAR_QUALITY_THRESHOLD);
-    varSeekQuality = GetConVarTime(VAR_SEEK_QUALITY);
-    varSeekNormal  = GetConVarTime(VAR_SEEK_NORMAL);
+    varQualityThreshold = VarGetFloat(VAR_QUALITY_THRESHOLD);
+    varSeekQuality = VarGetMs(VAR_SEEK_QUALITY);
+    varSeekNormal  = VarGetMs(VAR_SEEK_NORMAL);
+}
+
+// tick 0: input time
+// tick 1: input applied
+// tick 2: input's effect observed
+const ms MINIMUM_SEEK = 20;
+
+void Draw()
+{
+    varQualityThreshold = UI::SliderFloatVar("Quality Threshold", VAR_QUALITY_THRESHOLD, 0, 1);
+    TooltipOnHover(
+        "Represents the maximum allowed deviation from a perfect SD, 0.25 by default.\n"
+        "0: Never use SD Quality\n"
+        "1: Always use SD Quality\n"
+        "For anything in between, use Quality first.\n"
+        "If the quality deviation exceeds the given threshold, use velocity as a fallback.");
+
+    UI::BeginDisabled(varQualityThreshold == 0);
+
+    varSeekQuality = UI::InputTime("Quality seeking (lookahead) time", varSeekQuality, 10);
+    TooltipOnHover("Can be set as low as 20ms, but it's a bit shaky, 60ms by default.");
+    if (varSeekQuality < MINIMUM_SEEK)
+        varSeekQuality = MINIMUM_SEEK;
+    VarSetMs(VAR_SEEK_QUALITY, varSeekQuality);
+
+    UI::EndDisabled();
+
+    varSeekNormal = UI::InputTime("Normal seeking (lookahead) time", varSeekNormal, 10);
+    TooltipOnHover(
+        "Can be set as low as 20ms, but depending on speed you might want up to 130ms-140ms "
+        "(lowest working in a test was 50ms-60ms at close to speed cap), 120ms by default.");
+    if (varSeekNormal < MINIMUM_SEEK)
+        varSeekNormal = MINIMUM_SEEK;
+    VarSetMs(VAR_SEEK_NORMAL, varSeekNormal);
+}
+
+void Begin(SimulationManager@ sim)
+{
+    const float clampedQualityThreshold = Math::Clamp(varQualityThreshold, 0.f, 1.f);
+    if (varQualityThreshold != clampedQualityThreshold)
+    {
+        varQualityThreshold = clampedQualityThreshold;
+        VarSetFloat(VAR_QUALITY_THRESHOLD, varQualityThreshold);
+    }
+
+    if (varSeekQuality < MINIMUM_SEEK)
+    {
+        varSeekQuality = MINIMUM_SEEK;
+        VarSetMs(VAR_SEEK_QUALITY, varSeekQuality);
+    }
+
+    if (varSeekNormal < MINIMUM_SEEK)
+    {
+        varSeekNormal = MINIMUM_SEEK;
+        VarSetMs(VAR_SEEK_NORMAL, varSeekNormal);
+    }
+}
+
+void End(SimulationManager@)
+{
+    Reset();
 }
 
 const int RANGE_SIZE = 4;
 const int STEP_LAST_DEVIATION = RANGE_SIZE / 2;
 
-bool fallback;
-bool useQuality;
-float threshold;
-ms seek;
+enum EvalState
+{
+    NONE,
+    LAST,
+    COMMIT,
+    FALLBACK,
+}
 
-double bestResult;
-double result;
+bool haveTurningRates;
+float turningRate0;
+float turningRate1;
+
+EvalState evalState;
+bool useQuality;
 
 int bestSteer;
 int steer;
 array<int> steerHistory;
 
+double bestResult;
+double result;
+
+ms seek;
 int step;
 int bound;
-bool done;
 
-funcdef void OnSim(SimulationManager@);
-OnSim@ onStep;
-
-void OnStepInit(SimulationManager@ simManager)
+// NOTE: right now the steering on the input time is nuked too early, so the turning rates will just be the same.
+// Will look again if/when we get API's with more control over the input event buffer in different context modes.
+// E.g. RewindToState not removing input events in run mode (and actually playing them without needing SetInputState).
+void StepInit(SimulationManager@ sim)
 {
-    if (!fallback)
-        useQuality = threshold != 0;
+    if (evalState != EvalState::FALLBACK)
+    {
+        const float turningRate = sim.SceneVehicleCar.TurningRate;
+        if (!haveTurningRates)
+        {
+            turningRate0 = turningRate;
+            haveTurningRates = true;
+            return;
+        }
+        turningRate1 = turningRate;
+        haveTurningRates = false;
+        IncRewindPreserve(sim);
 
-    seek = useQuality ? varSeekQuality : varSeekNormal;
+        useQuality = varQualityThreshold != 0;
+    }
+    evalState = EvalState::NONE;
 
-    const float prevTurningRate = IncGetTrailingState().SceneVehicleCar.TurningRate;
-    const float turningRate = simManager.SceneVehicleCar.TurningRate;
-    bestSteer = RoundAway(turningRate * STEER_FULL, turningRate - prevTurningRate);
+    bestSteer = RoundAway(turningRate1 * STEER_FULL, turningRate1 - turningRate0);
     bestResult = useQuality ? 1 : -1;
 
+    seek = useQuality ? varSeekQuality : varSeekNormal;
     step = 0x8000 / RANGE_SIZE;
     SetSteerBounds();
-    done = false;
 
-    @onStep = OnStepMain;
-    onStep(simManager);
+    @mode.step = StepMain;
+    StepMain(sim);
 }
 
-void OnStepMain(SimulationManager@ simManager)
+void StepMain(SimulationManager@ sim)
 {
-    const ms time = IncGetRelativeTime(simManager);
+    const ms time = IncGetRelativeTime(sim);
     if (time == 0)
     {
         while (steer <= bound)
@@ -140,21 +172,25 @@ void OnStepMain(SimulationManager@ simManager)
             if (steerHistory.Find(steer) == -1)
             {
                 steerHistory.Add(steer);
-                IncSetInput(simManager, InputType::Steer, steer);
+                IncInputSet(sim, InputType::Steer, steer);
                 break;
             }
         }
     }
     else if (time == seek)
     {
-        OnEval(simManager);
-        IncRewind(simManager);
+        Evaluate(sim);
+        if (evalState != EvalState::COMMIT)
+        {
+            IncRewindPreserve(sim);
+            mode.step(sim);
+        }
     }
 }
 
-void OnEval(SimulationManager@ simManager)
+void Evaluate(SimulationManager@ sim)
 {
-    if (IsBetter(simManager))
+    if (IsBetter(sim))
     {
         bestResult = result;
         bestSteer = steer;
@@ -163,18 +199,19 @@ void OnEval(SimulationManager@ simManager)
     if (steer <= bound)
         return;
 
-    if (done)
+    if (evalState == EvalState::LAST)
     {
-        fallback = useQuality && bestResult > threshold;
-        if (fallback)
+        if (useQuality && bestResult > varQualityThreshold)
         {
             useQuality = false;
+            evalState = EvalState::FALLBACK;
         }
         else
         {
             IncCommitContext ctx;
-            ctx.steer = bestSteer;
-            IncCommit(simManager, ctx);
+            ctx.Set(InputType::Steer, bestSteer);
+            IncCommit(sim, ctx);
+            evalState = EvalState::COMMIT;
         }
 
         Reset();
@@ -184,35 +221,34 @@ void OnEval(SimulationManager@ simManager)
     switch (step)
     {
     case 0:
-        print("step == 0", Severity::Warning);
+        print("[SD Railgun] step == 0", Severity::Warning);
         step = 1;
-        // fallthrough
+    // fallthrough
     case 1:
         SetSteerBoundsWithOffset(STEP_LAST_DEVIATION);
-        done = true;
-        break;
+        evalState = EvalState::LAST;
+    break;
     default:
         step >>= 1;
         SetSteerBounds();
-        break;
+    break;
     }
 }
 
-bool IsBetter(SimulationManager@ simManager)
+bool IsBetter(SimulationManager@ sim)
 {
     if (useQuality)
     {
-        result = Math::Abs(1 - ComputeSpeedslideQualityForStadiumCar(simManager));
+        result = Math::Abs(1 - ComputeSpeedslideQualityForStadiumCar(sim));
         return result < bestResult;
     }
     else
     {
-        result = simManager.Dyna.RefStateCurrent.LinearSpeed.Length();
+        result = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
         return result > bestResult;
     }
 }
 
-// Note: relies on side-effect from step
 void SetSteerBounds()
 {
     SetSteerBoundsWithOffset(step * (RANGE_SIZE - 1) / 2);
@@ -227,7 +263,7 @@ void SetSteerBoundsWithOffset(const int offset)
 void Reset()
 {
     steerHistory.Clear();
-    @onStep = OnStepInit;
+    @mode.step = StepInit;
 }
 
 

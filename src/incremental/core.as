@@ -91,7 +91,7 @@ void Draw()
         UI::Separator();
 
         UI::InputTimeVar("Replay Time", VAR_RUN_REPLAY_TIME);
-        TooltipOnHover("This is the equivalent to the replay time when using simulation mode.");
+        TooltipOnHover("This is equivalent to the replay time in Simulation.");
         if (UI::Button("Start Run-Mode Bruteforce"))
             runState = RunState::INIT1;
     }
@@ -109,16 +109,26 @@ IncMode@ Home()
     @home.draw =
         function()
         {
-            string s;
-            s += "Loading: ";
-            s += modeNames[modeIndex];
-            s += CharRepeat(Time::Now % 3 + 1, '.');
-            UI::TextWrapped(s);
+            UI::TextWrapped("Currently loaded modes:");
 
-            // TODO: uncomment.
-            // const uint index = ModeIndexDetermineByName();
-            // if (index != 0)
-            //     ModeIndexTrySet(index);
+            UI::Separator();
+
+            for (uint i = 0; i < modeNames.Length; ++i)
+                UI::TextWrapped(modeNames[i]);
+
+            UI::Separator();
+
+            const uint index = ModeIndexDetermineByName();
+            if (index != 0)
+            {
+                string s;
+                s += "Loading: ";
+                s += modeNames[modeIndex];
+                s += CharRepeat(Time::Now % 3 + 1, '.');
+                UI::TextWrapped(s);
+
+                ModeIndexTrySet(index);
+            }
         }
     ;
     return home;
