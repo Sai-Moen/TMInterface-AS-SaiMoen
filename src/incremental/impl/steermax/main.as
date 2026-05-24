@@ -2,17 +2,15 @@ namespace SteerMax
 {
 
 
-IncMode mode;
-
 void Main()
 {
     Register();
 
+    IncMode mode;
     mode.preservationExclusions = { InputType::Left, InputType::Right, InputType::Steer };
-
     @mode.draw = Draw;
     @mode.begin = Begin;
-    @mode.step = StepSearch;
+    @mode.step = Step;
     @mode.end = End;
     IncRegisterMode("SteerMax", mode);
 }
@@ -41,8 +39,8 @@ bool varNoSlide;
 
 void Register()
 {
-    RegisterVariable(VAR_TIMEOUT, 1200);
-    RegisterVariable(VAR_LOOKAHEAD, 600);
+    RegisterVariable(VAR_TIMEOUT, 200);
+    RegisterVariable(VAR_LOOKAHEAD, 200);
     RegisterVariable(VAR_INITIAL_STEER, 0x10000);
     RegisterVariable(VAR_STEER_OFFSET, 0);
 
@@ -114,7 +112,6 @@ int steerOffset;
 float maxSpeedBleed;
 float maxSpeedLoss;
 
-// Initialize non-convars.
 void Begin(SimulationManager@)
 {
     if (varTimeout < CAUSALITY)
@@ -146,75 +143,120 @@ void Begin(SimulationManager@)
     Reset();
 }
 
-void End(SimulationManager@)
+enum StepState
 {
-    // Call Reset here or not?
-    @mode.step = StepSearch;
+    SEARCH,
+    SCAN,
+    EVALUATE,
 }
 
+StepState stepState;
+
+uint lastHasAnyLateralContactTime;
+float velocityPrevious;
+float velocityCurrent;
+float velocityMinimumImmediate;
+float velocityMinimumCumulative;
+
 int collider;
+int steer;
 int avoider;
 
-float previousSpeed;
-float lastSpeedPeak;
+void Step(SimulationManager@ sim)
+{
+    const ms time = IncGetRelativeTime(sim);
+
+    const auto@ const dyna = sim.Dyna;
+    velocityPrevious = dyna.RefStatePrevious.LinearSpeed.Length();
+    velocityCurrent = dyna.RefStateCurrent.LinearSpeed.Length();
+    velocityMinimumImmediate = velocityPrevious - maxSpeedBleed;
+
+    switch (stepState)
+    {
+    // Phase 1: Search - Find the earliest tInput on which the constraints are violated for initialSteer within 'timeout' ms.
+    //                   (also grab some information).
+    case StepState::SEARCH:
+        if (time == 0)
+        {
+            lastHasAnyLateralContactTime = sim.SceneVehicleCar.LastHasAnyLateralContactTime;
+            velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
+
+            if (ConstraintsViolated(sim))
+                print("[SteerMax] Constraints already violated at input time...", Severity::Warning);
+
+            IncInputSet(sim, InputType::Steer, initialSteerTowards);
+        }
+        else if (ConstraintsViolated(sim))
+        {
+            IncRewindPreserve(sim);
+            stepState = StepState::SCAN;
+            Step(sim);
+        }
+        else if (time == varTimeout)
+        {
+            IncCommitContext ctx;
+            ctx.Set(InputType::Steer, initialSteerTowards);
+            IncCommit(sim, ctx);
+        }
+    break;
+    // Phase 2: Scan - Find the latest tick on which countersteering removes the constraint violations within 'lookahead' ms
+    //                 (starting from the countersteer tick, or maybe the constraint violation tick?).
+    case StepState::SCAN:
+        // TODO
+    break;
+    // Phase 3: Evaluate - Binary search for 'maximal' steering value on this tick, that does not violate the constraints.
+    case StepState::EVALUATE:
+        // TODO
+    break;
+    default:
+        Unreachable();
+    break;
+    }
+}
+
+void End(SimulationManager@)
+{
+    stepState = StepState::SEARCH;
+}
 
 void Reset()
 {
     collider = initialSteerTowards;
     avoider = initialSteerAway;
 
-    @mode.step = StepSearch;
+    stepState = StepState::SEARCH;
 }
 
-// Phase 1: Search - Find the earliest tInput on which the constraints are violated for initialSteer within 'timeout' ms.
-void StepSearch(SimulationManager@ sim)
+bool ConstraintsViolated(SimulationManager@ sim)
 {
-    const ms time = IncGetRelativeTime(sim);
-    if (time == 0)
+    if (velocityCurrent < velocityPrevious)
     {
-        IncInputSet(sim, InputType::Steer, initialSteerTowards);
-        return;
+        if (velocityCurrent < velocityMinimumImmediate || velocityCurrent < velocityMinimumCumulative)
+            return true;
     }
-    // TODO
-}
+    else
+    {
+        // Velocity no longer dropping: set new minimum.
+        velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
+    }
 
-// Phase 2: Scan -- Find the latest tick on which countersteering removes the constraint violations within 'lookahead' ms
-//                  (starting from the countersteer tick).
-void StepScan(SimulationManager@ sim)
-{
-    // TODO
-}
+    const auto@ const svc = sim.SceneVehicleCar;
 
-// Phase 3: Evaluate -- Binary search for 'maximal' steering value on this tick, that does not violate the constraints.
-void StepEvaluate(SimulationManager@ sim)
-{
-    // TODO
-}
+    if (varNoWallbang)
+    {
+        if (svc.HasAnyLateralContact || svc.LastHasAnyLateralContactTime != lastHasAnyLateralContactTime)
+            return true;
+    }
 
-bool ConstraintsHold(SimulationManager@ sim)
-{
-    // TODO: grab information from svc ahead of time...
-    return false; // TODO: just to compile, remove later and uncomment the rest.
+    if (varNoSlide)
+    {
+        // Ask Dona to also add the timed slide fields,
+        // maybe this field has the same issue where the bool does not always go to true...
+        if (svc.IsSliding)
+            return true;
+    }
 
-    // // TODO: speed bleed/loss
-    // const auto@ const svcOld = IncGetTrailingState().SceneVehicleCar;
-    // const auto@ const svcNew = sim.SceneVehicleCar;
-
-    // if (varNoWallbang)
-    // {
-    //     if (svcNew.HasAnyLateralContact || svcNew.LastHasAnyLateralContactTime != svcOld.LastHasAnyLateralContactTime)
-    //         return false;
-    // }
-
-    // if (varNoSlide)
-    // {
-    //     // Ask Dona to also add the timed slide fields,
-    //     // maybe this field has the same issue where the bool does not always go to true...
-    //     if (svcNew.IsSliding)
-    //         return false;
-    // }
-
-    // return true;
+    return false;
 }
 
 
