@@ -1175,16 +1175,16 @@ Features:
 // in cases where return references do not suffice.
 class String
 {
-    protected string str;
+    string _string;
 
     String() const {}
 
-    String(const string &in s) { str = s; }
+    String(const string &in s) { _string = s; }
 
-    const string& opConv()     const { return str; }
-          string& opConv()           { return str; }
-    const string& opImplConv() const { return str; }
-          string& opImplConv()       { return str; }
+    const string& opConv()     const { return _string; }
+          string& opConv()           { return _string; }
+    const string& opImplConv() const { return _string; }
+          string& opImplConv()       { return _string; }
 }
 
 uint StringArrayCombinedLength(const array<string>@ strings)

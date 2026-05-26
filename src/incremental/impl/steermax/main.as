@@ -22,8 +22,8 @@ const string VAR_LOOKAHEAD     = VAR + "lookahead";
 const string VAR_INITIAL_STEER = VAR + "initial_steer";
 const string VAR_STEER_OFFSET  = VAR + "steer_offset";
 
-const string VAR_MAX_SPEED_BLEED = VAR + "max_speed_bleed";
 const string VAR_MAX_SPEED_LOSS  = VAR + "max_speed_loss";
+const string VAR_MAX_SPEED_BLEED = VAR + "max_speed_bleed";
 const string VAR_NO_WALLBANG     = VAR + "no_wallbang";
 const string VAR_NO_SLIDE        = VAR + "no_slide";
 
@@ -32,8 +32,8 @@ ms varLookahead;
 int varInitialSteer;
 int varSteerOffset;
 
-float varMaxSpeedBleed;
 float varMaxSpeedLoss;
+float varMaxSpeedBleed;
 bool varNoWallbang;
 bool varNoSlide;
 
@@ -44,8 +44,8 @@ void Register()
     RegisterVariable(VAR_INITIAL_STEER, 0x10000);
     RegisterVariable(VAR_STEER_OFFSET, 0);
 
-    RegisterVariable(VAR_MAX_SPEED_BLEED, 0.1);
     RegisterVariable(VAR_MAX_SPEED_LOSS, 36);
+    RegisterVariable(VAR_MAX_SPEED_BLEED, 0.1);
     RegisterVariable(VAR_NO_WALLBANG, true);
     RegisterVariable(VAR_NO_SLIDE, true);
 
@@ -54,8 +54,8 @@ void Register()
     varInitialSteer = VarGetInt(VAR_INITIAL_STEER);
     varSteerOffset = VarGetInt(VAR_STEER_OFFSET);
 
-    varMaxSpeedBleed = VarGetFloat(VAR_MAX_SPEED_BLEED);
     varMaxSpeedLoss = VarGetFloat(VAR_MAX_SPEED_LOSS);
+    varMaxSpeedBleed = VarGetFloat(VAR_MAX_SPEED_BLEED);
     varNoWallbang = VarGetBool(VAR_NO_WALLBANG);
     varNoSlide = VarGetBool(VAR_NO_SLIDE);
 }
@@ -89,10 +89,10 @@ void Draw()
         varSteerOffset = 0;
     VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
 
-    varMaxSpeedBleed = UI::InputFloatVar("Max Speed Bleed", VAR_MAX_SPEED_BLEED);
+    varMaxSpeedLoss = UI::InputFloatVar("Max Speed Loss", VAR_MAX_SPEED_LOSS);
     // TODO: tooltip
 
-    varMaxSpeedLoss = UI::InputFloatVar("Max Speed Loss", VAR_MAX_SPEED_LOSS);
+    varMaxSpeedBleed = UI::InputFloatVar("Max Speed Bleed", VAR_MAX_SPEED_BLEED);
     // TODO: tooltip
 
     varNoWallbang = UI::CheckboxVar("No wallbang", VAR_NO_WALLBANG);
@@ -109,8 +109,8 @@ int initialSteerTowards;
 int initialSteerAway;
 int steerOffset;
 
-float maxSpeedBleed;
 float maxSpeedLoss;
+float maxSpeedBleed;
 
 void Begin(SimulationManager@)
 {
@@ -137,8 +137,8 @@ void Begin(SimulationManager@)
 
     steerOffset = varSteerOffset * GetSign(clampedInitialSteer);
 
-    maxSpeedBleed = varMaxSpeedBleed / 3.6;
     maxSpeedLoss = varMaxSpeedLoss / 3.6;
+    maxSpeedBleed = varMaxSpeedBleed / 3.6;
 
     Reset();
 }
@@ -157,6 +157,50 @@ float velocityPrevious;
 float velocityCurrent;
 float velocityMinimumImmediate;
 float velocityMinimumCumulative;
+
+enum Constraint
+{
+    NONE,
+
+    SPEED_LOSS,
+    SPEED_BLEED,
+    WALLBANG,
+    SLIDE,
+}
+
+String@ GenerateConstraintFailureMessage(const Constraint c)
+{
+    string message;
+    switch (c)
+    {
+    case Constraint::NONE:
+        return String();
+    case Constraint::SPEED_LOSS:
+        message += "Speed Loss: ";
+        message += (velocityMinimumCumulative + maxSpeedLoss) - velocityCurrent;
+        message += " exceeds ";
+        message += maxSpeedLoss;
+        message += " m/s";
+    break;
+    case Constraint::SPEED_BLEED:
+        message += "Speed Bleed: ";
+        message += (velocityMinimumImmediate + maxSpeedBleed) - velocityCurrent;
+        message += " exceeds ";
+        message += maxSpeedBleed;
+        message += " m/s";
+    break;
+    case Constraint::WALLBANG:
+        message = "Wallbang";
+    break;
+    case Constraint::SLIDE:
+        message = "Slide";
+    break;
+    default:
+        Unreachable();
+    break;
+    }
+    return message;
+}
 
 int collider;
 int steer;
@@ -181,12 +225,18 @@ void Step(SimulationManager@ sim)
             lastHasAnyLateralContactTime = sim.SceneVehicleCar.LastHasAnyLateralContactTime;
             velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
 
-            if (ConstraintsViolated(sim))
-                print("[SteerMax] Constraints already violated at input time...", Severity::Warning);
+            const Constraint c = ConstraintsCheck(sim);
+            if (c != Constraint::NONE)
+            {
+                string s;
+                s += "[SteerMax] Constraints already violated at input time: ";
+                s += GenerateConstraintFailureMessage(c);
+                print(s, Severity::Error);
+            }
 
             IncInputSet(sim, InputType::Steer, initialSteerTowards);
         }
-        else if (ConstraintsViolated(sim))
+        else if (ConstraintsCheck(sim) != Constraint::NONE)
         {
             IncRewindPreserve(sim);
             stepState = StepState::SCAN;
@@ -227,12 +277,15 @@ void Reset()
     stepState = StepState::SEARCH;
 }
 
-bool ConstraintsViolated(SimulationManager@ sim)
+Constraint ConstraintsCheck(SimulationManager@ sim)
 {
     if (velocityCurrent < velocityPrevious)
     {
-        if (velocityCurrent < velocityMinimumImmediate || velocityCurrent < velocityMinimumCumulative)
-            return true;
+        if (velocityCurrent < velocityMinimumCumulative)
+            return Constraint::SPEED_LOSS;
+
+        if (velocityCurrent < velocityMinimumImmediate)
+            return Constraint::SPEED_BLEED;
     }
     else
     {
@@ -244,8 +297,10 @@ bool ConstraintsViolated(SimulationManager@ sim)
 
     if (varNoWallbang)
     {
+        // The bool version does not always go to true despite a collision, yet the time still updates.
+        // Unfortunately I cannot find the replay in which this happened anymore...
         if (svc.HasAnyLateralContact || svc.LastHasAnyLateralContactTime != lastHasAnyLateralContactTime)
-            return true;
+            return Constraint::WALLBANG;
     }
 
     if (varNoSlide)
@@ -253,10 +308,10 @@ bool ConstraintsViolated(SimulationManager@ sim)
         // Ask Dona to also add the timed slide fields,
         // maybe this field has the same issue where the bool does not always go to true...
         if (svc.IsSliding)
-            return true;
+            return Constraint::SLIDE;
     }
 
-    return false;
+    return Constraint::NONE;
 }
 
 

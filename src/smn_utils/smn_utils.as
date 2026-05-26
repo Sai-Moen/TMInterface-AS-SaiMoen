@@ -1164,6 +1164,7 @@ int RoundAway(const float magnitude, const Sign direction)
 
 Features:
 - String reference class.
+- String interpolation.
 - String array helpers.
 - String helpers.
 - Character helpers.
@@ -1175,17 +1176,78 @@ Features:
 // in cases where return references do not suffice.
 class String
 {
-    protected string str;
+    string _string;
 
     String() const {}
 
-    String(const string &in s) { str = s; }
+    String(const string &in s) { _string = s; }
 
-    const string& opConv()     const { return str; }
-          string& opConv()           { return str; }
-    const string& opImplConv() const { return str; }
-          string& opImplConv()       { return str; }
+    const string& opConv()     const { return _string; }
+          string& opConv()           { return _string; }
+    const string& opImplConv() const { return _string; }
+          string& opImplConv()       { return _string; }
 }
+
+
+String@ StringInterpolate(const string &in format, const array<const String@> &in arguments = {})
+{
+    const uint length = format.Length;
+    if (length == 0)
+        return String();
+
+    string builder;
+    uint argIndex = 0;
+    const uint argsLen = arguments.Length;
+
+    // Might need to look ahead by a character, so adding an extra byte at the end.
+    const string f = format + "\0";
+    bool interpolating = false;
+    for (uint i = 0; i < length; ++i)
+    {
+        if (interpolating)
+        {
+            switch (f[i])
+            {
+            case '}':
+                builder += arguments[argIndex++];
+                interpolating = false;
+            break;
+            default:
+                {
+                    string warning = "Unexpected character in string interpolation: '\0";
+                    warning[warning.Length - 1] = f[i];
+                    warning += "' (ASCII: ";
+                    warning += f[i];
+                    warning += ")";
+                    log(warning, Severity::Warning);
+                }
+            break;
+            }
+        }
+        else if (f[i] == '{' && f[i + 1] != '{')
+        {
+            if (argIndex == argsLen)
+            {
+                log("Incorrect format string, or too few arguments passed to StringInterpolate!", Severity::Error);
+                break;
+            }
+
+            interpolating = true;
+        }
+        else
+        {
+            const uint index = builder.Length;
+            builder.Resize(index + 1);
+            builder[index] = f[i];
+        }
+    }
+
+    if (argIndex != argsLen)
+        log("Incorrect format string, or too many arguments passed to StringInterpolate!", Severity::Error);
+
+    return builder;
+}
+
 
 uint StringArrayCombinedLength(const array<string>@ strings)
 {
