@@ -364,6 +364,7 @@ bool ParseTime(const string &in raceTime, ms &out value)
 IEB = TM::InputEventBuffer.
 
 Features:
+- IEB helpers.
 - IEB helpers (ums).
 - IEB helpers (ms).
 - EventIndices helpers.
@@ -379,6 +380,77 @@ ms time = timestamp - 100010.
 
 
 const ums IEB_TIME_OFFSET = 100010;
+
+
+// - IEB
+
+// Removes the range of input events from 'lower' to 'upper' (exclusive).
+// If lower > upper, it will throw an exception (it will not try to add dummy input events).
+void IEBRemoveRange(TM::InputEventBuffer@ ieb, const uint lower, const uint upper)
+{
+    // NOTE: this if-statement is only needed due to an edge case in TMInterface (as of writing).
+    // != is chosen so we do not hide correctness issues in the caller's code.
+    if (upper != lower)
+        ieb.RemoveAt(lower, upper - lower);
+}
+
+// Attempts to lower 'ieb.Length' to 'index'.
+// If index > ieb.Length, it will throw an exception (it will not try to add dummy input events).
+void IEBRemoveFromIndex(TM::InputEventBuffer@ ieb, const uint index)
+{
+    IEBRemoveRange(ieb, index, ieb.Length);
+}
+
+void IEBRemoveEventIndex(TM::InputEventBuffer@ ieb, const int eventIndex)
+{
+    uint i = 0;
+    const uint len = ieb.Length;
+    uint index = len;
+
+    for (; i < len; ++i)
+    {
+        if (ieb[i].Value.EventIndex == eventIndex)
+        {
+            index = i++;
+            break;
+        }
+    }
+
+    for (; i < len; ++i)
+    {
+        const TM::InputEvent inputEvent = ieb[i];
+        if (inputEvent.Value.EventIndex != eventIndex)
+            ieb[index++] = inputEvent;
+    }
+
+    IEBRemoveFromIndex(ieb, index);
+}
+
+void IEBRemoveInputType(TM::InputEventBuffer@ ieb, const InputType inputType)
+{
+    const int eventIndex = EventIndicesEncode(ieb.EventIndices, inputType);
+    IEBRemoveEventIndex(ieb, eventIndex);
+}
+
+// NOTE: indices must be sorted in ascending order (getting indices from a linear search like Find, does this automatically).
+void IEBRemoveIndices(TM::InputEventBuffer@ ieb, const array<uint>@ indices, const uint indicesBase = 0)
+{
+    const uint indicesLen = indices.Length;
+    if (indicesBase >= indicesLen)
+        return;
+
+    uint indicesIndex = indicesBase;
+    uint index = indices[indicesIndex++];
+    const uint iebLen = ieb.Length;
+    for (uint i = index + 1; i < iebLen; ++i)
+    {
+        if (indicesIndex < indicesLen && i == indices[indicesIndex])
+            ++indicesIndex;
+        else
+            ieb[index++] = ieb[i];
+    }
+    IEBRemoveFromIndex(ieb, index);
+}
 
 
 // - IEB (ums)
@@ -502,78 +574,9 @@ array<uint>@ IEBFindInTimestampRange(
     return IEBFindInTimestampRange(ieb, timestampFrom, timestampTo, mask);
 }
 
-// Removes the range of input events from 'lower' to 'upper' (exclusive).
-// If lower > upper, it will throw an exception (it will not try to add dummy input events).
-void IEBRemoveRange(TM::InputEventBuffer@ ieb, const uint lower, const uint upper)
-{
-    // NOTE: this if-statement is only needed due to an edge case in TMInterface (as of writing).
-    // != is chosen so we do not hide correctness issues in the caller's code.
-    if (upper != lower)
-        ieb.RemoveAt(lower, upper - lower);
-}
-
-// Attempts to lower 'ieb.Length' to 'index'.
-// If index > ieb.Length, it will throw an exception (it will not try to add dummy input events).
-void IEBRemoveFromIndex(TM::InputEventBuffer@ ieb, const uint index)
-{
-    IEBRemoveRange(ieb, index, ieb.Length);
-}
-
-void IEBRemoveEventIndex(TM::InputEventBuffer@ ieb, const int eventIndex)
-{
-    uint i = 0;
-    const uint len = ieb.Length;
-    uint index = len;
-
-    for (; i < len; ++i)
-    {
-        if (ieb[i].Value.EventIndex == eventIndex)
-        {
-            index = i++;
-            break;
-        }
-    }
-
-    for (; i < len; ++i)
-    {
-        const TM::InputEvent inputEvent = ieb[i];
-        if (inputEvent.Value.EventIndex != eventIndex)
-            ieb[index++] = inputEvent;
-    }
-
-    IEBRemoveFromIndex(ieb, index);
-}
-
-void IEBRemoveInputType(TM::InputEventBuffer@ ieb, const InputType inputType)
-{
-    const int eventIndex = EventIndicesEncode(ieb.EventIndices, inputType);
-    IEBRemoveEventIndex(ieb, eventIndex);
-}
-
-// NOTE: indices must be sorted in ascending order (getting indices from a linear search like Find, does this automatically).
-void IEBRemoveIndices(TM::InputEventBuffer@ ieb, const array<uint>@ indices, const uint indicesBase = 0)
-{
-    const uint indicesLen = indices.Length;
-    if (indicesBase >= indicesLen)
-        return;
-
-    uint indicesIndex = indicesBase;
-    uint index = indices[indicesIndex++];
-    const uint iebLen = ieb.Length;
-    for (uint i = index + 1; i < iebLen; ++i)
-    {
-        if (indicesIndex < indicesLen && i == indices[indicesIndex])
-            ++indicesIndex;
-        else
-            ieb[index++] = ieb[i];
-    }
-    IEBRemoveFromIndex(ieb, index);
-}
-
 // Removes input events with the given timestamp and event index, after 'index'.
 // The input event at 'index' is expected (and asserted) to be the first input event in the IEB with those properties.
-void IEBRemoveDuplicatesAtTimestamp(
-    TM::InputEventBuffer@ ieb, const ums timestamp, const int eventIndex, const uint index)
+void IEBRemoveDuplicatesAtTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const int eventIndex, const uint index)
 {
     Assert(ieb[index].Time == timestamp && ieb[index].Value.EventIndex == eventIndex);
 
@@ -601,6 +604,14 @@ void IEBRemoveDuplicatesAtTimestamp(
 
     if (lower != 0)
         IEBRemoveRange(ieb, lower, upper);
+}
+
+// Removes input events with the given timestamp and input type, after 'index'.
+// The input event at 'index' is expected (and asserted) to be the first input event in the IEB with those properties.
+void IEBRemoveDuplicatesAtTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const InputType inputType, const uint index)
+{
+    const int eventIndex = EventIndicesEncode(ieb.EventIndices, inputType);
+    IEBRemoveDuplicatesAtTimestamp(ieb, timestamp, eventIndex, index);
 }
 
 void IEBRemoveOneAtTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const int eventIndex)
@@ -696,7 +707,7 @@ int IEBFindTime(const TM::InputEventBuffer@ ieb, const ms time, const int direct
 }
 
 // Returns: non-null handle to an array of indices of input events in the timerange matching the mask.
-array<uint>@ IEBFindInTimerange(
+array<uint>@ IEBFindInTimeRange(
     TM::InputEventBuffer@ ieb, const ms timeFrom, const ms timeTo, const uint mask)
 {
     if (timeFrom > timeTo)
@@ -704,18 +715,35 @@ array<uint>@ IEBFindInTimerange(
 
     const ums timestampFrom = IEB_TIME_OFFSET + timeFrom;
     const ums timestampTo   = IEB_TIME_OFFSET + timeTo;
-    return IEBFindInTimerange(ieb, timestampFrom, timestampTo, mask);
+    return IEBFindInTimestampRange(ieb, timestampFrom, timestampTo, mask);
 }
 
 // Returns: non-null handle to an array of indices of input events in the timerange of a type from inputTypes.
-array<uint>@ IEBFindInTimerange(
+array<uint>@ IEBFindInTimeRange(
     TM::InputEventBuffer@ ieb, const ms timeFrom, const ms timeTo, const array<InputType>@ inputTypes)
 {
     if (timeFrom > timeTo)
         return {};
 
+    const ums timestampFrom = IEB_TIME_OFFSET + timeFrom;
+    const ums timestampTo   = IEB_TIME_OFFSET + timeTo;
     const uint mask = EventIndicesMakeInputTypesBitmask(ieb.EventIndices, inputTypes);
-    return IEBFindInTimerange(ieb, timeFrom, timeTo, mask);
+    return IEBFindInTimestampRange(ieb, timestampFrom, timestampTo, mask);
+}
+
+// Removes input events with the given time and event index, after 'index'.
+// The input event at 'index' is expected (and asserted) to be the first input event in the IEB with those properties.
+void IEBRemoveDuplicatesAtTime(TM::InputEventBuffer@ ieb, const ms time, const int eventIndex, const uint index)
+{
+    IEBRemoveDuplicatesAtTimestamp(ieb, IEB_TIME_OFFSET + time, eventIndex, index);
+}
+
+// Removes input events with the given time and input type, after 'index'.
+// The input event at 'index' is expected (and asserted) to be the first input event in the IEB with those properties.
+void IEBRemoveDuplicatesAtTime(TM::InputEventBuffer@ ieb, const ms time, const InputType inputType, const uint index)
+{
+    const int eventIndex = EventIndicesEncode(ieb.EventIndices, inputType);
+    IEBRemoveDuplicatesAtTimestamp(ieb, IEB_TIME_OFFSET + time, eventIndex, index);
 }
 
 void IEBRemoveOneAtTime(TM::InputEventBuffer@ ieb, const ms time, const int eventIndex)
@@ -1164,6 +1192,7 @@ int RoundAway(const float magnitude, const Sign direction)
 
 Features:
 - String reference class.
+- String interpolation.
 - String array helpers.
 - String helpers.
 - Character helpers.
@@ -1186,6 +1215,67 @@ class String
     const string& opImplConv() const { return _string; }
           string& opImplConv()       { return _string; }
 }
+
+
+String@ StringInterpolate(const string &in format, const array<const String@> &in arguments = {})
+{
+    const uint length = format.Length;
+    if (length == 0)
+        return String();
+
+    string builder;
+    uint argIndex = 0;
+    const uint argsLen = arguments.Length;
+
+    // Might need to look ahead by a character, so adding an extra byte at the end.
+    const string f = format + "\0";
+    bool interpolating = false;
+    for (uint i = 0; i < length; ++i)
+    {
+        if (interpolating)
+        {
+            switch (f[i])
+            {
+            case '}':
+                builder += arguments[argIndex++];
+                interpolating = false;
+            break;
+            default:
+                {
+                    string warning = "Unexpected character in string interpolation: '\0";
+                    warning[warning.Length - 1] = f[i];
+                    warning += "' (ASCII: ";
+                    warning += f[i];
+                    warning += ")";
+                    log(warning, Severity::Warning);
+                }
+            break;
+            }
+        }
+        else if (f[i] == '{' && f[i + 1] != '{')
+        {
+            if (argIndex == argsLen)
+            {
+                log("Incorrect format string, or too few arguments passed to StringInterpolate!", Severity::Error);
+                break;
+            }
+
+            interpolating = true;
+        }
+        else
+        {
+            const uint index = builder.Length;
+            builder.Resize(index + 1);
+            builder[index] = f[i];
+        }
+    }
+
+    if (argIndex != argsLen)
+        log("Incorrect format string, or too many arguments passed to StringInterpolate!", Severity::Error);
+
+    return builder;
+}
+
 
 uint StringArrayCombinedLength(const array<string>@ strings)
 {

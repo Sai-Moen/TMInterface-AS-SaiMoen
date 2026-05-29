@@ -248,17 +248,24 @@ void Step(SimulationManager@ sim)
         stepState = StepState::STEP;
     // fallthrough
     case StepState::STEP:
-        if (tInput <= tLimit)
         {
             const ms time = sim.TickTime;
-            if (time < tInput)
+            if (tInput <= tLimit)
+            {
+                if (time < tInput)
+                    break;
+
+                if (time == tInput)
+                    @inputState = sim.SaveState();
+
+                mode.step(sim);
                 break;
+            }
 
-            if (time == tInput)
-                @inputState = sim.SaveState();
-
-            mode.step(sim);
-            break;
+            const ms checkTime = tLimit + 20;
+            Assert(time <= checkTime);
+            if (time != checkTime)
+                break;
         }
 
         print();
@@ -270,6 +277,9 @@ void Step(SimulationManager@ sim)
             Iteration(sim);
             break;
         }
+
+        // We should call Finish, but it also wrong for 'handleFinish' to be false here, two birds with one stone.
+        Assert(handleFinish);
     // fallthrough
     case StepState::FINISH:
         if (handleFinish)
@@ -488,7 +498,6 @@ void InputSet(SimulationManager@ sim, const ms time, const InputType type, const
     }
     else
     {
-        // If we didn't find anything the first time around, then there cannot be any duplicates.
         IEBRemoveDuplicatesAtTimestamp(ieb, timestamp, eventIndex, index);
     }
 

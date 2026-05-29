@@ -136,8 +136,26 @@ enum IncCommitState
 
 class IncCommitContext
 {
+    protected ms advance;
     protected array<IncCommitState> states;
     protected array<int> analog;
+
+    ms Advance
+    {
+        get const
+        {
+            if (advance == 0)
+                return 10;
+
+            return advance;
+        }
+
+        set
+        {
+            Assert(value % 10 == 0);
+            advance = value;
+        }
+    }
 
     // 'states' is monotonically longer than 'analog'.
     uint Length { get const { return states.Length; } }
@@ -149,7 +167,10 @@ class IncCommitContext
             return IncCommitState::NONE;
 
         const uint index = inputType;
-        const IncCommitState state = index < states.Length ? states[index] : IncCommitState::NONE;
+        if (index >= states.Length)
+            return IncCommitState::NONE;
+
+        const IncCommitState state = states[index];
         if (state == IncCommitState::SET)
             analogValue = analog[index];
         return state;
@@ -188,8 +209,9 @@ class IncCommitContext
         states[index] = IncCommitState::REMOVE;
     }
 
-    void Clear()
+    void Reset()
     {
+        advance = 0;
         states.Clear();
         analog.Clear();
     }
@@ -198,7 +220,7 @@ class IncCommitContext
 void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitContext())
 {
     const ms time = Core::tInput;
-    Core::tInput += 10;
+    Core::tInput += ctx.Advance;
 
     Rewind(sim, Core::inputState, RewindFlags::REMOVE);
     Core::PostInitInputEventsAdvance(sim.InputEvents);
@@ -222,11 +244,7 @@ void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitCo
     {
         const InputType type = InputType(i);
         int value;
-        const IncCommitState state = ctx.Get(type, value);
-        if (state == IncCommitState::NONE)
-            continue;
-
-        switch (state)
+        switch (ctx.Get(type, value))
         {
         case IncCommitState::NONE:
             // Do nothing.

@@ -512,7 +512,7 @@ void Commit(SimulationManager@ sim)
         ctx.Set(InputType::Steer, preservedInputSteer);
 
     IncCommit(sim, ctx);
-    ctx.Clear();
+    ctx.Reset();
 }
 
 
