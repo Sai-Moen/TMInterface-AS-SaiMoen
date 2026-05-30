@@ -11,7 +11,6 @@ void Main()
     @mode.draw = Draw;
     @mode.begin = Begin;
     @mode.step = Step;
-    @mode.end = End;
     IncRegisterMode("SteerMax", mode);
 }
 
@@ -19,7 +18,8 @@ const string VAR = ::Core::VAR + "sm_";
 
 const string VAR_TIMEOUT       = VAR + "timeout";
 const string VAR_LOOKAHEAD     = VAR + "lookahead";
-const string VAR_INITIAL_STEER = VAR + "initial_steer";
+const string VAR_STEER_TOWARDS = VAR + "steer_towards";
+const string VAR_STEER_AWAY    = VAR + "steer_away";
 const string VAR_STEER_OFFSET  = VAR + "steer_offset";
 
 const string VAR_MAX_SPEED_LOSS  = VAR + "max_speed_loss";
@@ -29,7 +29,8 @@ const string VAR_NO_SLIDE        = VAR + "no_slide";
 
 ms varTimeout;
 ms varLookahead;
-int varInitialSteer;
+int varSteerTowards;
+int varSteerAway;
 int varSteerOffset;
 
 float varMaxSpeedLoss;
@@ -41,7 +42,7 @@ void Register()
 {
     RegisterVariable(VAR_TIMEOUT, 200);
     RegisterVariable(VAR_LOOKAHEAD, 200);
-    RegisterVariable(VAR_INITIAL_STEER, 0x10000);
+    RegisterVariable(VAR_STEER_TOWARDS, 0x10000);
     RegisterVariable(VAR_STEER_OFFSET, 0);
 
     RegisterVariable(VAR_MAX_SPEED_LOSS, 36);
@@ -49,15 +50,16 @@ void Register()
     RegisterVariable(VAR_NO_WALLBANG, true);
     RegisterVariable(VAR_NO_SLIDE, true);
 
-    varTimeout = VarGetMs(VAR_TIMEOUT);
-    varLookahead = VarGetMs(VAR_LOOKAHEAD);
-    varInitialSteer = VarGetInt(VAR_INITIAL_STEER);
-    varSteerOffset = VarGetInt(VAR_STEER_OFFSET);
+    varTimeout      = VarGetMs(VAR_TIMEOUT);
+    varLookahead    = VarGetMs(VAR_LOOKAHEAD);
+    varSteerTowards = VarGetInt(VAR_STEER_TOWARDS);
+    varSteerAway    = VarGetInt(VAR_STEER_AWAY);
+    varSteerOffset  = VarGetInt(VAR_STEER_OFFSET);
 
-    varMaxSpeedLoss = VarGetFloat(VAR_MAX_SPEED_LOSS);
+    varMaxSpeedLoss  = VarGetFloat(VAR_MAX_SPEED_LOSS);
     varMaxSpeedBleed = VarGetFloat(VAR_MAX_SPEED_BLEED);
-    varNoWallbang = VarGetBool(VAR_NO_WALLBANG);
-    varNoSlide = VarGetBool(VAR_NO_SLIDE);
+    varNoWallbang    = VarGetBool(VAR_NO_WALLBANG);
+    varNoSlide       = VarGetBool(VAR_NO_SLIDE);
 }
 
 void Draw()
@@ -68,19 +70,33 @@ void Draw()
     varLookahead = UI::InputTimeVar("Lookahead", VAR_LOOKAHEAD, 10);
     // TODO: tooltip
 
-    varInitialSteer = UI::SliderInt("Initial Steer", varInitialSteer, STEER_MIN, STEER_MAX);
+    varSteerTowards = UI::SliderInt("Steer Towards", varSteerTowards, STEER_MIN, STEER_MAX);
     // TODO: tooltip
 
-    if (UI::Button("Left"))
-        varInitialSteer = STEER_MIN;
-    UI::SameLine();
-    if (UI::Button("Right"))
-        varInitialSteer = STEER_MAX;
+    varSteerAway = UI::SliderInt("Steer Away", varSteerAway, STEER_MIN, STEER_MAX);
+    // TODO: tooltip
 
-    varInitialSteer = ClampSteer(varInitialSteer);
-    if (varInitialSteer == 0)
-        varInitialSteer = 1;
-    VarSetInt(VAR_INITIAL_STEER, varInitialSteer);
+    const bool left = UI::Button("Left");
+    UI::SameLine();
+    const bool right = UI::Button("Right");
+
+    if (left)
+    {
+        varSteerTowards = STEER_MIN;
+        varSteerAway    = STEER_MAX;
+    }
+    else if (right)
+    {
+        varSteerTowards = STEER_MAX;
+        varSteerAway    = STEER_MIN;
+    }
+    else
+    {
+        varSteerTowards = ClampSteer(varSteerTowards);
+        varSteerAway    = ClampSteer(varSteerAway);
+    }
+    VarSetInt(VAR_STEER_TOWARDS, varSteerTowards);
+    VarSetInt(VAR_STEER_AWAY,    varSteerAway);
 
     varSteerOffset = UI::InputInt("Steer Offset", varSteerOffset);
     // TODO: tooltip
@@ -89,24 +105,28 @@ void Draw()
         varSteerOffset = 0;
     VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
 
+    UI::Separator();
+
     varMaxSpeedLoss = UI::InputFloatVar("Max Speed Loss", VAR_MAX_SPEED_LOSS);
     // TODO: tooltip
 
     varMaxSpeedBleed = UI::InputFloatVar("Max Speed Bleed", VAR_MAX_SPEED_BLEED);
     // TODO: tooltip
 
-    varNoWallbang = UI::CheckboxVar("No wallbang", VAR_NO_WALLBANG);
+    varNoWallbang = UI::CheckboxVar("No Wallbang", VAR_NO_WALLBANG);
     // TODO: tooltip
 
-    varNoSlide = UI::CheckboxVar("No slide", VAR_NO_SLIDE);
+    varNoSlide = UI::CheckboxVar("No Slide", VAR_NO_SLIDE);
     // TODO: tooltip
 }
 
 // Amount of time it takes for an input to change the state of the car.
 const ms CAUSALITY = 20;
 
-int initialSteerTowards;
 int initialSteerAway;
+int initialSteerTowards;
+int initialSteerStep;
+
 int steerOffset;
 
 float maxSpeedLoss;
@@ -126,27 +146,37 @@ void Begin(SimulationManager@)
         VarSetMs(VAR_LOOKAHEAD, varLookahead);
     }
 
+    // TODO: fix.
     const int clampedInitialSteer = ClampSteer(varInitialSteer);
     if (varInitialSteer != clampedInitialSteer)
     {
         varInitialSteer = clampedInitialSteer;
-        VarSetInt(VAR_INITIAL_STEER, varInitialSteer);
+        VarSetInt(VAR_STEER_TOWARDS, varInitialSteer);
     }
+    initialSteerAway    = -varInitialSteer;
     initialSteerTowards = varInitialSteer;
-    initialSteerAway = -varInitialSteer;
+    initialSteerStep    = (initialSteerAway - initialSteerTowards) / 2;
 
-    steerOffset = varSteerOffset * GetSign(clampedInitialSteer);
+    // TODO: fix.
+    steerOffset = varSteerOffset * GetSign(varInitialSteer);
 
-    maxSpeedLoss = varMaxSpeedLoss / 3.6;
+    maxSpeedLoss  = varMaxSpeedLoss  / 3.6;
     maxSpeedBleed = varMaxSpeedBleed / 3.6;
 
-    Reset();
+    stepState = StepState::SEARCH;
 }
 
 enum StepState
 {
+    // Find the earliest tInput on which the constraints are violated for initialSteer within 'timeout' ms.
+    // (also grab some information).
     SEARCH,
+
+    // Find the latest tick on which countersteering removes the constraint violations within 'lookahead' ms
+    // (starting from the countersteer tick, or maybe the constraint violation tick?).
     SCAN,
+
+    // Binary search for 'maximal' steering value on this tick, that does not violate the constraints.
     EVALUATE,
 }
 
@@ -180,14 +210,14 @@ String@ GenerateConstraintFailureMessage(const Constraint c)
         message += (velocityMinimumCumulative + maxSpeedLoss) - velocityCurrent;
         message += " exceeds ";
         message += maxSpeedLoss;
-        message += " m/s";
+        message += " (m/s)";
     break;
     case Constraint::SPEED_BLEED:
         message += "Speed Bleed: ";
         message += (velocityMinimumImmediate + maxSpeedBleed) - velocityCurrent;
         message += " exceeds ";
         message += maxSpeedBleed;
-        message += " m/s";
+        message += " (m/s)";
     break;
     case Constraint::WALLBANG:
         message = "Wallbang";
@@ -202,9 +232,13 @@ String@ GenerateConstraintFailureMessage(const Constraint c)
     return message;
 }
 
-int collider;
+ms steerAwayTime;
+ms targetTime;
+
 int steer;
-int avoider;
+int steerTowards;
+int steerAway;
+int steerStep;
 
 void Step(SimulationManager@ sim)
 {
@@ -217,8 +251,6 @@ void Step(SimulationManager@ sim)
 
     switch (stepState)
     {
-    // Phase 1: Search - Find the earliest tInput on which the constraints are violated for initialSteer within 'timeout' ms.
-    //                   (also grab some information).
     case StepState::SEARCH:
         if (time == 0)
         {
@@ -235,46 +267,92 @@ void Step(SimulationManager@ sim)
             }
 
             IncInputSet(sim, InputType::Steer, initialSteerTowards);
+            break;
         }
-        else if (ConstraintsCheck(sim) != Constraint::NONE)
+
         {
-            IncRewindPreserve(sim);
-            stepState = StepState::SCAN;
-            Step(sim);
+            const Constraint c = ConstraintsCheck(sim);
+            if (c != Constraint::NONE)
+            {
+                steerAwayTime = time - CAUSALITY;
+                targetTime = time + varLookahead;
+                if (steerAwayTime < 0)
+                {
+                    string s;
+                    s += "[SteerMax] Contraints violated before they can be avoided: ";
+                    s += GenerateConstraintFailureMessage(c);
+                    print(s, Severity::Error);
+                }
+
+                stepState = StepState::SCAN;
+                IncRewindPreserve(sim);
+                Step(sim);
+            }
+            else if (time == varTimeout)
+            {
+                IncCommitContext ctx;
+                ctx.Set(InputType::Steer, initialSteerTowards);
+                IncCommit(sim, ctx);
+            }
         }
-        else if (time == varTimeout)
+    break;
+    case StepState::SCAN:
+        if (time == steerAwayTime)
+        {
+            IncInputSet(sim, InputType::Steer, initialSteerAway);
+            break;
+        }
+
+        if (steerAwayTime >= 10)
+        {
+            if (ConstraintsCheck(sim) != Constraint::NONE)
+            {
+                steerAwayTime -= 10;
+                IncRewindPreserve(sim);
+                Step(sim);
+                break;
+            }
+
+            if (time != targetTime)
+                break;
+        }
+
+        // TODO: init (here because non-commit recurses into Step).
+
+        stepState = StepState::EVALUATE;
+        if (steerAwayTime >= 10)
         {
             IncCommitContext ctx;
+            ctx.Advance = steerAwayTime;
             ctx.Set(InputType::Steer, initialSteerTowards);
             IncCommit(sim, ctx);
         }
+        else
+        {
+            IncRewindRemove(sim);
+            Step(sim);
+        }
     break;
-    // Phase 2: Scan - Find the latest tick on which countersteering removes the constraint violations within 'lookahead' ms
-    //                 (starting from the countersteer tick, or maybe the constraint violation tick?).
-    case StepState::SCAN:
-        // TODO
-    break;
-    // Phase 3: Evaluate - Binary search for 'maximal' steering value on this tick, that does not violate the constraints.
     case StepState::EVALUATE:
-        // TODO
+        if (time == 0)
+        {
+            IncInputSet(sim, InputType::Steer, steer);
+            break;
+        }
+
+        if (ConstraintsCheck(sim) != Constraint::NONE)
+        {
+            // TODO
+        }
+        else if (time == targetTime)
+        {
+            // TODO
+        }
     break;
     default:
         Unreachable();
     break;
     }
-}
-
-void End(SimulationManager@)
-{
-    stepState = StepState::SEARCH;
-}
-
-void Reset()
-{
-    collider = initialSteerTowards;
-    avoider = initialSteerAway;
-
-    stepState = StepState::SEARCH;
 }
 
 Constraint ConstraintsCheck(SimulationManager@ sim)
