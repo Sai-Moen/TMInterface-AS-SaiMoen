@@ -77,6 +77,8 @@ void Draw()
     if (UI::CollapsingHeader("Modes"))
     {
         ComboSelectIndex("Mode", modeNames, modeIndex, ModeIndexCallback);
+
+        UI::Separator();
         UI::Separator();
 
         mode.draw();
@@ -91,7 +93,9 @@ void Draw()
         UI::Separator();
 
         UI::InputTimeVar("Replay Time", VAR_RUN_REPLAY_TIME);
-        TooltipOnHover("This is equivalent to the replay time in Simulation.");
+        TooltipOnHover(
+            "This is equivalent to the replay time in Simulation.\n"
+            "Inputs after this time will not be used.");
         if (UI::Button("Start Run-Mode Bruteforce"))
             runState = RunState::INIT1;
     }

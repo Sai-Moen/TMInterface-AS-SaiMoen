@@ -66,6 +66,18 @@ bool IncRegisterMode(const string &in modeName, IncMode@ mode)
     return true;
 }
 
+void IncTerminate()
+{
+    Core::Finish();
+}
+
+bool IncAssert(const bool condition)
+{
+    if (!condition)
+        Core::Finish();
+    return condition;
+}
+
 ms IncGetRelativeTime(SimulationManager@ sim)
 {
     return Core::GetRelativeTime(sim.TickTime);
