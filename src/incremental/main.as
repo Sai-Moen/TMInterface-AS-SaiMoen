@@ -113,7 +113,7 @@ void OnRunStep(SimulationManager@ sim)
         sim.GiveUp();
         contextMode = ContextMode::Run;
 
-        runReplayTime = VarGetMs(Core::VAR_RUN_REPLAY_TIME);
+        runReplayTime = VarGetTime(Core::VAR_RUN_REPLAY_TIME);
         Core::Initialize(runReplayTime);
         runState = RunState::INIT2;
     break;

@@ -4,67 +4,116 @@ namespace Core
 
 const string VAR = "incremental_";
 
-const string VAR_LOCK_TIMERANGE  = VAR + "lock_timerange";
-const string VAR_EVAL_ITER_BEGIN = VAR + "eval_iter_begin";
-const string VAR_EVAL_ITER_END   = VAR + "eval_iter_end";
-const string VAR_EVAL_END        = VAR + "eval_end";
+const string VAR_EVAL_ITER_BEGIN  = VAR + "eval_iter_begin";
+const string VAR_EVAL_ITER_END    = VAR + "eval_iter_end";
+const string VAR_EVAL_END         = VAR + "eval_end";
 
 const string VAR_USE_SAVE_STATE  = VAR + "use_save_state";
 const string VAR_SAVE_STATE_NAME = VAR + "save_state_name";
 
-const string VAR_SHOW_INFO       = VAR + "show_info";
-const string VAR_RUN_REPLAY_TIME = VAR + "run_replay_time";
-const string VAR_MODE            = VAR + "mode";
+const string VAR_PRINT_EXTRA_INFO          = VAR + "print_extra_info";
+const string VAR_TERMINAL_TITLE_INFO_LEVEL = VAR + "terminal_title_info_level";
+const string VAR_RUN_REPLAY_TIME           = VAR + "run_replay_time";
+const string VAR_MODE                      = VAR + "mode";
+
+uint varTerminalTitleInfoLevel;
 
 void Register()
 {
-    RegisterVariable(VAR_LOCK_TIMERANGE,  true);
     RegisterVariable(VAR_EVAL_ITER_BEGIN, 0);
-    RegisterVariable(VAR_EVAL_ITER_END,   0);
-    RegisterVariable(VAR_EVAL_END,        0);
+    RegisterVariable(VAR_EVAL_ITER_END, 0);
+    RegisterVariable(VAR_EVAL_END, 0);
 
-    RegisterVariable(VAR_USE_SAVE_STATE,  false);
+    RegisterVariable(VAR_USE_SAVE_STATE, false);
     RegisterVariable(VAR_SAVE_STATE_NAME, "");
 
-    RegisterVariable(VAR_SHOW_INFO,       true);
+    RegisterVariable(VAR_PRINT_EXTRA_INFO, true);
+    RegisterVariable(VAR_TERMINAL_TITLE_INFO_LEVEL, 0);
     RegisterVariable(VAR_RUN_REPLAY_TIME, 0);
-    RegisterVariable(VAR_MODE,            "");
+    RegisterVariable(VAR_MODE, "");
+
+    varTerminalTitleInfoLevel = VarGetUint(VAR_TERMINAL_TITLE_INFO_LEVEL);
+    if (varTerminalTitleInfoLevel >= TerminalTitleInfoLevel::COUNT)
+    {
+        varTerminalTitleInfoLevel = TerminalTitleInfoLevel::NONE;
+        VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
+    }
 }
+
+enum TerminalTitleInfoLevel
+{
+    NONE,
+    ITERATION,
+    COMMIT,
+
+    COUNT
+}
+
+const array<string> TERMINAL_TITLE_INFO_LEVEL_NAMES =
+{
+    "None",
+    "Iteration",
+    "Commit"
+};
 
 void Draw()
 {
+    if (modeIndex == 0)
+    {
+        const uint index = ModeIndexDetermineByName();
+        if (index != 0)
+        {
+            string s;
+            s += "Loading: ";
+            s += modeNames[modeIndex];
+            s += CharRepeat(Time::Now % 4, '.');
+            UI::TextWrapped(s);
+
+            ModeIndexTrySet(index);
+        }
+    }
+
     if (UI::CollapsingHeader("General"))
     {
         if (UI::Button("Reset timestamps to 0"))
         {
-            VarSetMs(VAR_EVAL_ITER_BEGIN, 0);
-            VarSetMs(VAR_EVAL_ITER_END, 0);
-            VarSetMs(VAR_EVAL_END, 0);
+            VarSetTime(VAR_EVAL_ITER_BEGIN, 0);
+            VarSetTime(VAR_EVAL_ITER_END, 0);
+            VarSetTime(VAR_EVAL_END, 0);
         }
 
         const ms evalIterBegin = UI::InputTimeVar("Evaluation Iteration Begin Time", VAR_EVAL_ITER_BEGIN);
+        TooltipOnHover("The lower bound (inclusive) of iteration times.");
+
         ms evalIterEnd;
         if (mode.singleIteration)
         {
-            VarSetMs(VAR_EVAL_ITER_END, evalIterEnd = evalIterBegin);
+            evalIterEnd = evalIterBegin;
+            VarSetTime(VAR_EVAL_ITER_END, evalIterEnd);
 
-            UI::BeginDisabled();
             UI::InputTime("Evaluation Iteration End Time", evalIterEnd);
             TooltipOnHover("The currently selected mode only supports a single iteration.");
-            UI::EndDisabled();
         }
         else
         {
             evalIterEnd = UI::InputTimeVar("Evaluation Iteration End Time", VAR_EVAL_ITER_END);
-            TooltipOnHover("Enabling this will set Evaluation Begin Stop Time equal to Evaluation Begin Start Time.");
-
             if (evalIterEnd < evalIterBegin)
-                VarSetMs(VAR_EVAL_ITER_END, evalIterEnd = evalIterBegin);
+            {
+                evalIterEnd = evalIterBegin;
+                VarSetTime(VAR_EVAL_ITER_END, evalIterEnd);
+            }
+            TooltipOnHover("The upper bound (inclusive) of iteration times.");
         }
 
         ms evalEnd = UI::InputTimeVar("Evaluation End Time", VAR_EVAL_END);
         if (evalEnd != 0 && evalEnd < evalIterEnd)
-            VarSetMs(VAR_EVAL_END, evalEnd = evalIterEnd);
+        {
+            evalEnd = evalIterEnd;
+            VarSetTime(VAR_EVAL_END, evalEnd);
+        }
+        TooltipOnHover(
+            "If the input time is beyond this time, a new iteration is started.\n"
+            "Set to 0 to have it be set to the events duration automatically.");
 
         UI::Separator();
 
@@ -94,48 +143,71 @@ void Draw()
 
         UI::InputTimeVar("Replay Time", VAR_RUN_REPLAY_TIME);
         TooltipOnHover(
-            "This is equivalent to the replay time in Simulation.\n"
+            "This is equivalent to the replay time (events duration) in Simulation.\n"
             "Inputs after this time will not be used.");
+
         if (UI::Button("Start Run-Mode Bruteforce"))
             runState = RunState::INIT1;
     }
 
     if (UI::CollapsingHeader("Misc"))
     {
-        UI::CheckboxVar("Show Info", VAR_SHOW_INFO);
-        TooltipOnHover("Show additional information about the simulation.");
+        UI::CheckboxVar("Print Extra Info", VAR_PRINT_EXTRA_INFO);
+        TooltipOnHover("Print additional information about the simulation to the bruteforce terminal.");
+
+        ComboSelectIndex(
+            "Terminal Title Info Level",
+            TERMINAL_TITLE_INFO_LEVEL_NAMES,
+            varTerminalTitleInfoLevel,
+            TerminalTitleInfoLevelCallback);
     }
+}
+
+void TerminalTitleInfoLevelCallback(const uint index)
+{
+    varTerminalTitleInfoLevel = index;
+    VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
+}
+
+void TerminalTitleInit(string& s)
+{
+    s += "Incremental";
+}
+
+void TerminalTitleAppendIterationInfo(string& s)
+{
+    s += " | Iteration: ";
+    s += resultIndex + 1;
+    s += " / ";
+    s += results.Length;
+}
+
+void TerminalTitleAppendCommitInfo(string& s)
+{
+    s += " | Commit: ";
+    s += tInput;
+    s += "ms / ";
+    s += tLimit;
+    s += "ms";
 }
 
 IncMode@ Home()
 {
     IncMode home;
-    @home.draw =
-        function()
-        {
-            UI::TextWrapped("Currently loaded modes:");
-
-            UI::Separator();
-
-            for (uint i = 0; i < modeNames.Length; ++i)
-                UI::TextWrapped(modeNames[i]);
-
-            UI::Separator();
-
-            const uint index = ModeIndexDetermineByName();
-            if (index != 0)
-            {
-                string s;
-                s += "Loading: ";
-                s += modeNames[modeIndex];
-                s += CharRepeat(Time::Now % 3 + 1, '.');
-                UI::TextWrapped(s);
-
-                ModeIndexTrySet(index);
-            }
-        }
-    ;
+    @home.draw = HomeDraw;
     return home;
+}
+
+void HomeDraw()
+{
+    UI::TextWrapped("Currently loaded modes:");
+
+    UI::Separator();
+
+    for (uint i = 0; i < modeNames.Length; ++i)
+        UI::TextWrapped(modeNames[i]);
+
+    UI::Separator();
 }
 
 
@@ -148,9 +220,16 @@ void Initialize(const ms alternativeTimeLimit)
         log("Mode resolved to Home...?", Severity::Warning);
     ModeIndexTrySet(index);
 
-    const ms evalIterBegin = VarGetMs(VAR_EVAL_ITER_BEGIN);
-    const ms evalIterEnd   = VarGetMs(VAR_EVAL_ITER_END);
-    const ms evalEnd       = VarGetMs(VAR_EVAL_END);
+    const ms evalIterBegin = VarGetTime(VAR_EVAL_ITER_BEGIN);
+    const ms evalIterEnd   = VarGetTime(VAR_EVAL_ITER_END);
+    const ms evalEnd       = VarGetTime(VAR_EVAL_END);
+
+    varTerminalTitleInfoLevel = VarGetUint(VAR_TERMINAL_TITLE_INFO_LEVEL);
+    if (varTerminalTitleInfoLevel >= TerminalTitleInfoLevel::COUNT)
+    {
+        varTerminalTitleInfoLevel = TerminalTitleInfoLevel::NONE;
+        VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
+    }
 
     tInit = evalIterBegin;
     tInput = -10; // Detecting uninitialized usage.
@@ -158,7 +237,7 @@ void Initialize(const ms alternativeTimeLimit)
     preservationIndex = uint(-1); // Detecting uninitialized usage.
 
     int timerange;
-    if (mode.singleIteration || VarGetBool(VAR_LOCK_TIMERANGE))
+    if (mode.singleIteration)
     {
         timerange = 1;
     }
@@ -178,6 +257,13 @@ void Initialize(const ms alternativeTimeLimit)
 
 void Begin(SimulationManager@ sim)
 {
+    if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::NONE)
+    {
+        string s;
+        TerminalTitleInit(s);
+        SetConsoleWindowTitle(s);
+    }
+
     string s;
     s += "\n\n  Incremental w/ ";
     s += modeNames[modeIndex];
@@ -192,6 +278,14 @@ void Iteration(SimulationManager@ sim)
     tInput = (tInit - 10) + (results.Length - resultIndex) * 10;
     preservationIndex = 0;
     PostInitInputEventsAdvance(sim.InputEvents);
+
+    if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::ITERATION)
+    {
+        string s;
+        TerminalTitleInit(s);
+        TerminalTitleAppendIterationInfo(s);
+        SetConsoleWindowTitle(s);
+    }
 
     mode.iteration(sim);
 }
@@ -282,7 +376,6 @@ void Step(SimulationManager@ sim)
             break;
         }
 
-        // We should call Finish, but it also wrong for 'handleFinish' to be false here, two birds with one stone.
         Assert(handleFinish);
     // fallthrough
     case StepState::FINISH:
@@ -300,14 +393,14 @@ void Step(SimulationManager@ sim)
 
 void End(SimulationManager@ sim)
 {
-    stepState = StepState::NONE;
-    preventSimulationFinish = false;
-    handleFinish = false;
-
     // Just for the GC.
     @initState = null;
     @inputState = null;
     postInitInputEvents.Clear();
+
+    stepState = StepState::NONE;
+    preventSimulationFinish = false;
+    handleFinish = false;
 
     CommandList script;
 

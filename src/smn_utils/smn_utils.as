@@ -40,24 +40,26 @@ Features:
 */
 
 
-bool    VarGetBool(  const string &in name) { return                 GetVariableBool(  name ); }
-uint    VarGetUint(  const string &in name) { return uint(           GetVariableDouble(name)); }
-uint64  VarGetUint64(const string &in name) { return uint64(         GetVariableDouble(name)); }
-int     VarGetInt(   const string &in name) { return int(            GetVariableDouble(name)); }
-int64   VarGetInt64( const string &in name) { return int64(          GetVariableDouble(name)); }
-ms      VarGetMs(    const string &in name) { return ms(             GetVariableDouble(name)); }
-float   VarGetFloat( const string &in name) { return float(          GetVariableDouble(name)); }
-double  VarGetDouble(const string &in name) { return                 GetVariableDouble(name ); }
-vec2    VarGetVec2(  const string &in name) { return Text::ParseVec2(GetVariableString(name)); }
-vec3    VarGetVec3(  const string &in name) { return Text::ParseVec3(GetVariableString(name)); }
-String@ VarGetString(const string &in name) { return                 GetVariableString(name ); }
+bool   VarGetBool(  const string &in name) { return                 GetVariableBool(  name ); }
+uint   VarGetUint(  const string &in name) { return uint(           GetVariableDouble(name)); }
+uint64 VarGetUint64(const string &in name) { return uint64(         GetVariableDouble(name)); }
+int    VarGetInt(   const string &in name) { return int(            GetVariableDouble(name)); }
+int64  VarGetInt64( const string &in name) { return int64(          GetVariableDouble(name)); }
+ms     VarGetTime(  const string &in name) { return ms(             GetVariableDouble(name)); }
+float  VarGetFloat( const string &in name) { return float(          GetVariableDouble(name)); }
+double VarGetDouble(const string &in name) { return                 GetVariableDouble(name ); }
+vec2   VarGetVec2(  const string &in name) { return Text::ParseVec2(GetVariableString(name)); }
+vec3   VarGetVec3(  const string &in name) { return Text::ParseVec3(GetVariableString(name)); }
+string VarGetString(const string &in name) { return                 GetVariableString(name ); }
+
+StringWrapper@ VarGetStringWrapper(const string &in name) { return GetVariableString(name); }
 
 bool VarSetBool(  const string &in name, const bool       value) { return SetVariable(name,        value);            }
 bool VarSetUint(  const string &in name, const uint       value) { return SetVariable(name, double(value));           }
 bool VarSetUint64(const string &in name, const uint64     value) { return SetVariable(name, double(value));           }
 bool VarSetInt(   const string &in name, const int        value) { return SetVariable(name, double(value));           }
 bool VarSetInt64( const string &in name, const int64      value) { return SetVariable(name, double(value));           }
-bool VarSetMs(    const string &in name, const ms         value) { return SetVariable(name, double(value));           }
+bool VarSetTime(  const string &in name, const ms         value) { return SetVariable(name, double(value));           }
 bool VarSetFloat( const string &in name, const float      value) { return SetVariable(name, double(value));           }
 bool VarSetDouble(const string &in name, const double     value) { return SetVariable(name,        value);            }
 bool VarSetVec2(  const string &in name, const vec2       value) { return SetVariable(name,        value.ToString()); }
@@ -288,12 +290,12 @@ bool ParseFloat(const string &in s, double &out value)
 }
 
 
-String@ FormatPrecise(const double value, const uint precision = 12)
+StringWrapper@ FormatPrecise(const double value, const uint precision = 12)
 {
     return Text::FormatFloat(value, " ", 0, precision);
 }
 
-String@ FormatPrecise(const vec2 &in value, const uint precision = 12)
+StringWrapper@ FormatPrecise(const vec2 &in value, const uint precision = 12)
 {
     const string x = FormatPrecise(value.x, precision);
     const string y = FormatPrecise(value.y, precision);
@@ -311,7 +313,7 @@ String@ FormatPrecise(const vec2 &in value, const uint precision = 12)
     return s;
 }
 
-String@ FormatPrecise(const vec3 &in value, const uint precision = 12)
+StringWrapper@ FormatPrecise(const vec3 &in value, const uint precision = 12)
 {
     const string x = FormatPrecise(value.x, precision);
     const string y = FormatPrecise(value.y, precision);
@@ -1191,7 +1193,7 @@ int RoundAway(const float magnitude, const Sign direction)
 # String
 
 Features:
-- String reference class.
+- StringWrapper class.
 - String interpolation.
 - String array helpers.
 - String helpers.
@@ -1202,13 +1204,13 @@ Features:
 
 // A reference type containing a 'string', which can be passed around by handle,
 // in cases where return references do not suffice.
-class String
+class StringWrapper
 {
     string _string;
 
-    String() const {}
+    StringWrapper() const {}
 
-    String(const string &in s) { _string = s; }
+    StringWrapper(const string &in s) { _string = s; }
 
     const string& opConv()     const { return _string; }
           string& opConv()           { return _string; }
@@ -1217,11 +1219,11 @@ class String
 }
 
 
-String@ StringInterpolate(const string &in format, const array<const String@> &in arguments = {})
+StringWrapper@ StringInterpolate(const string &in format, const array<const StringWrapper@> &in arguments = {})
 {
     const uint length = format.Length;
     if (length == 0)
-        return String();
+        return StringWrapper();
 
     string builder;
     uint argIndex = 0;
@@ -1302,7 +1304,7 @@ void StringPadLeft(string& s, const uint lengthNew, const uint8 c = ' ')
         s[i] = c;
 }
 
-String@ StringCopyPadLeft(String@ copy, const uint lengthNew, const uint8 c = ' ')
+StringWrapper@ StringCopyPadLeft(StringWrapper@ copy, const uint lengthNew, const uint8 c = ' ')
 {
     StringPadLeft(string(copy), lengthNew, c);
     return copy;
@@ -1313,7 +1315,7 @@ void StringPadLeftBy(string& s, const uint padBy, const uint8 c = ' ')
     StringPadLeft(s, s.Length + padBy, c);
 }
 
-String@ StringCopyPadLeftBy(String@ copy, const uint padBy, const uint8 c = ' ')
+StringWrapper@ StringCopyPadLeftBy(StringWrapper@ copy, const uint padBy, const uint8 c = ' ')
 {
     StringPadLeftBy(string(copy), padBy, c);
     return copy;
@@ -1332,7 +1334,7 @@ void StringPadRight(string& s, const uint lengthNew, const uint8 c = ' ')
         s[i] = c;
 }
 
-String@ StringCopyPadRight(String@ copy, const uint lengthNew, const uint8 c = ' ')
+StringWrapper@ StringCopyPadRight(StringWrapper@ copy, const uint lengthNew, const uint8 c = ' ')
 {
     StringPadRight(string(copy), lengthNew, c);
     return copy;
@@ -1343,7 +1345,7 @@ void StringPadRightBy(string& s, const uint padBy, const uint8 c = ' ')
     StringPadRight(s, s.Length + padBy, c);
 }
 
-String@ StringCopyPadRightBy(String@ copy, const uint padBy, const uint8 c = ' ')
+StringWrapper@ StringCopyPadRightBy(StringWrapper@ copy, const uint padBy, const uint8 c = ' ')
 {
     StringPadRightBy(string(copy), padBy, c);
     return copy;
@@ -1351,7 +1353,7 @@ String@ StringCopyPadRightBy(String@ copy, const uint padBy, const uint8 c = ' '
 
 // Could also do Join, but that is built-in already.
 
-String@ StringConcat(const array<string>@ strings, const uint extraLength = 0)
+StringWrapper@ StringConcat(const array<string>@ strings, const uint extraLength = 0)
 {
     string s;
     s.Resize(extraLength + StringArrayCombinedLength(strings));
@@ -1367,7 +1369,7 @@ String@ StringConcat(const array<string>@ strings, const uint extraLength = 0)
     return s;
 }
 
-String@ StringConcatWithPrefix(const array<string>@ strings, const string &in prefix, const uint extraLength = 0)
+StringWrapper@ StringConcatWithPrefix(const array<string>@ strings, const string &in prefix, const uint extraLength = 0)
 {
     string s;
 
@@ -1387,7 +1389,7 @@ String@ StringConcatWithPrefix(const array<string>@ strings, const string &in pr
     return s;
 }
 
-String@ StringConcatWithPostfix(const array<string>@ strings, const string &in postfix, const uint extraLength = 0)
+StringWrapper@ StringConcatWithPostfix(const array<string>@ strings, const string &in postfix, const uint extraLength = 0)
 {
     string s;
 
@@ -1428,7 +1430,7 @@ uint StringGetLastLineLength(const string &in s)
     return right - left;
 }
 
-String@ CharRepeat(const uint times, const uint8 c = ' ')
+StringWrapper@ CharRepeat(const uint times, const uint8 c = ' ')
 {
     string s;
     s.Resize(times);

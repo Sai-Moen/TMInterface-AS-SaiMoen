@@ -19,20 +19,28 @@ const string VAR = ::Core::VAR + "input_simplifier_";
 
 const string VAR_CONTEXT_TIMESPAN = VAR + "context_timespan";
 const ms DEF_CTX_TIMESPAN = 250;
-const string DEF_CTX_TIMESPAN_TEXT = "(default " + DEF_CTX_TIMESPAN + "ms)";
+
+const string VAR_AIR_MAGNITUDE  = VAR + "air_magnitude";
+const string VAR_MINIMIZE_BRAKE = VAR + "minimize_brake";
 
 const string VAR_ORDERED_STRATEGY_INDICES = VAR + "ordered_strategy_indices";
-array<Strategy> varOrderedStrategyIndices(ORDERED_STRATEGY_LEN);
 
-const string VAR_AIR_MAGNITUDE = VAR + "air_magnitude";
-const string VAR_MINIMIZE_BRAKE = VAR + "minimize_brake";
+ms varContextTimespan;
+int varAirMagnitude;
+bool varMinimizeBrake;
+
+array<Strategy> varOrderedStrategyIndices(ORDERED_STRATEGY_LEN);
 
 void Register()
 {
     RegisterVariable(VAR_CONTEXT_TIMESPAN, DEF_CTX_TIMESPAN);
-    RegisterVariable(VAR_ORDERED_STRATEGY_INDICES, "");
     RegisterVariable(VAR_AIR_MAGNITUDE, 0);
     RegisterVariable(VAR_MINIMIZE_BRAKE, false);
+    RegisterVariable(VAR_ORDERED_STRATEGY_INDICES, "");
+
+    varContextTimespan = VarGetTime(VAR_CONTEXT_TIMESPAN);
+    varAirMagnitude    = VarGetInt(VAR_AIR_MAGNITUDE);
+    varMinimizeBrake   = VarGetBool(VAR_MINIMIZE_BRAKE);
 
     if (!DeserializeStrategyIndicesFromVar())
     {
@@ -41,11 +49,11 @@ void Register()
     }
 }
 
-const string STRATEGY_SEP = ",";
+const string ORDERED_STRATEGY_SEP = ",";
 
 bool DeserializeStrategyIndicesFromVar()
 {
-    const auto@ const orderedStrategyIndices = GetVariableString(VAR_ORDERED_STRATEGY_INDICES).Split(STRATEGY_SEP);
+    const auto@ const orderedStrategyIndices = VarGetString(VAR_ORDERED_STRATEGY_INDICES).Split(ORDERED_STRATEGY_SEP);
     const uint len = orderedStrategyIndices.Length;
     if (len != ORDERED_STRATEGY_LEN)
         return false;
@@ -62,19 +70,24 @@ bool DeserializeStrategyIndicesFromVar()
     return true;
 }
 
+const ms CAUSALITY = 20;
+
 void Draw()
 {
-    UI::InputTimeVar("Context Timespan", VAR_CONTEXT_TIMESPAN, 10);
-    TooltipOnHover("Lower timespan is faster, but may desync in an unrecoverable way " + DEF_CTX_TIMESPAN_TEXT + ".");
+    varContextTimespan = UI::InputTime("Context Timespan", varContextTimespan, 10);
+    if (varContextTimespan < CAUSALITY)
+        varContextTimespan = CAUSALITY;
+    VarSetTime(VAR_CONTEXT_TIMESPAN, varContextTimespan);
+    TooltipOnHover("Lower timespan is faster, but may desync in an unrecoverable way (default " + DEF_CTX_TIMESPAN + "ms).");
 
-    int airMagnitude = UI::InputIntVar("Air Magnitude", VAR_AIR_MAGNITUDE);
-    airMagnitude = ClampSteer(airMagnitude);
-    VarSetInt(VAR_AIR_MAGNITUDE, airMagnitude);
+    varAirMagnitude = UI::InputInt("Air Magnitude", varAirMagnitude);
+    varAirMagnitude = ClampSteer(varAirMagnitude);
+    VarSetInt(VAR_AIR_MAGNITUDE, varAirMagnitude);
     TooltipOnHover(
         "This is the magnitude used by steering inputs in the air, where only input direction matters.\n"
         "Setting this to 0 will skip the air input strategy altogether.");
 
-    UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
+    varMinimizeBrake = UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
     TooltipOnHover(
         "If this is enabled, the amount of time spent braking will be made as small as possible.\n"
         "The trade-off is that this may introduce more brake inputs.");
@@ -92,7 +105,7 @@ void Draw()
         switch (strategy)
         {
         case Strategy::SIGN_MAGNITUDE:
-            if (airMagnitude == 0)
+            if (varAirMagnitude == 0)
             {
                 UI::TextDimmed(ORDERED_STRATEGY_NAMES[strategy]);
                 break;
@@ -120,7 +133,7 @@ void Draw()
         array<string> orderedStrategyIndices(ORDERED_STRATEGY_LEN);
         for (uint i = 0; i < ORDERED_STRATEGY_LEN; i++)
             orderedStrategyIndices[i] = Text::FormatUInt(varOrderedStrategyIndices[i]);
-        SetVariable(VAR_ORDERED_STRATEGY_INDICES, Text::Join(orderedStrategyIndices, STRATEGY_SEP));
+        SetVariable(VAR_ORDERED_STRATEGY_INDICES, Text::Join(orderedStrategyIndices, ORDERED_STRATEGY_SEP));
     }
 }
 
@@ -135,25 +148,27 @@ class Context
 
     void Init(const TM::HmsStateDyna@ const dyna)
     {
-        const iso4 location = dyna.Location;
-        position = location.Position;
-        rotation = location.Rotation;
-        linearSpeed = dyna.LinearSpeed;
-        angularSpeed = dyna.AngularSpeed;
-
+        if (initialized)
+        {
+            Assert(HasEquivalentState(dyna));
+            return;
+        }
         initialized = true;
+
+        position     = dyna.Location.Position;
+        rotation     = dyna.Location.Rotation;
+        linearSpeed  = dyna.LinearSpeed;
+        angularSpeed = dyna.AngularSpeed;
     }
 
-    bool HasEquivalentState(const TM::HmsStateDyna@ const other) const
+    bool HasEquivalentState(const TM::HmsStateDyna@ const dyna) const
     {
         Assert(initialized);
-
-        const iso4 location = other.Location;
         return
-            EqualsVec3(position, location.Position) &&
-            EqualsMat3(rotation, location.Rotation) &&
-            EqualsVec3(linearSpeed, other.LinearSpeed) &&
-            EqualsVec3(angularSpeed, other.AngularSpeed);
+            EqualsVec3(position,     dyna.Location.Position) &&
+            EqualsMat3(rotation,     dyna.Location.Rotation) &&
+            EqualsVec3(linearSpeed,  dyna.LinearSpeed)       &&
+            EqualsVec3(angularSpeed, dyna.AngularSpeed)      ;
     }
 }
 
@@ -162,7 +177,7 @@ bool EqualsMat3(const mat3 &in m1, const mat3 &in m2)
     return
         EqualsVec3(m1.x, m2.x) &&
         EqualsVec3(m1.y, m2.y) &&
-        EqualsVec3(m1.z, m2.z);
+        EqualsVec3(m1.z, m2.z) ;
 }
 
 bool EqualsVec3(const vec3 &in v1, const vec3 &in v2)
@@ -170,7 +185,7 @@ bool EqualsVec3(const vec3 &in v1, const vec3 &in v2)
     return
         v1.x == v2.x &&
         v1.y == v2.y &&
-        v1.z == v2.z;
+        v1.z == v2.z ;
 }
 
 array<Context> contexts;
@@ -208,20 +223,18 @@ const array<OnStep@> ORDERED_STRATEGY_CALLBACKS =
     StepRemoval
 };
 
-ms contextTimespan;
-
 array<OnStep@> steps;
 uint stepIndex;
 
-int varAirMagnitude;
-bool varMinimizeBrake;
-
 void Begin(SimulationManager@)
 {
-    contextTimespan = VarGetMs(VAR_CONTEXT_TIMESPAN);
-    if (contextTimespan < 20)
-        contextTimespan = 20;
-    contexts.Resize(contextTimespan / 10 - 1);
+    varContextTimespan = VarGetTime(VAR_CONTEXT_TIMESPAN);
+    if (varContextTimespan < CAUSALITY)
+    {
+        varContextTimespan = CAUSALITY;
+        VarSetTime(VAR_CONTEXT_TIMESPAN, varContextTimespan);
+    }
+    contexts.Resize(varContextTimespan / 10 - 1);
     contextIndex = 0;
 
     varAirMagnitude = VarGetInt(VAR_AIR_MAGNITUDE);
@@ -306,7 +319,6 @@ void StepScan(SimulationManager@ sim)
         // then we managed to change the steering input in the previous commit.
         // However, if we filled the steer while doing the previous commit,
         // we must use that steer on this commit, unless we find a better one.
-        preservedInputSteer = oldInputSteer;
         preserveSteer = fillSteer && preservedInputSteer != prevInputSteer;
         if (preserveSteer)
             IncInputSet(sim, InputType::Steer, preservedInputSteer);
@@ -332,22 +344,18 @@ void StepScan(SimulationManager@ sim)
         // we must fill it to avoid overriding the intended inputSteer (that tick 0 would otherwise accidentally change).
         fillSteer = !IncInputGet(sim, 10, InputType::Steer);
         if (fillSteer)
-            IncInputSet(sim, 10, InputType::Steer, oldInputSteer);
+        {
+            preservedInputSteer = oldInputSteer;
+            IncInputSet(sim, 10, InputType::Steer, preservedInputSteer);
+        }
     return;
     case 2:
         nextTurningRate = svc.TurningRate;
     break;
     }
 
-    const auto@ const dyna = sim.Dyna.RefStateCurrent;
-
-    Context@ const context = RelativeTickToContext(tick);
-    if (!context.initialized)
-        context.Init(dyna);
-    else
-        AssertPrint(context.HasEquivalentState(dyna), "[Input Simplifier] Ring buffer corruption!");
-
-    if (time == contextTimespan)
+    RelativeTickToContext(tick).Init(sim.Dyna.RefStateCurrent);
+    if (time == varContextTimespan)
         NextStep(sim);
 }
 
@@ -375,7 +383,7 @@ void StepMinimizeBrake(SimulationManager@ sim)
         IncInputSet(sim, InputType::Down, 1);
         NextStep(sim);
     }
-    else if (time == contextTimespan)
+    else if (time == varContextTimespan)
     {
         ctx.Set(InputType::Down, 0);
         NextStep(sim);
@@ -400,8 +408,8 @@ void StepTurningRate(SimulationManager@ sim)
 
     if (Desynced(sim, tick))
         NextStep(sim);
-    else if (time == contextTimespan)
-        AdvanceUnfill(sim);
+    else if (time == varContextTimespan)
+        CommitUnfill(sim);
 }
 
 void StepAir(SimulationManager@ sim)
@@ -411,7 +419,7 @@ void StepAir(SimulationManager@ sim)
     switch (tick)
     {
     case 0:
-        steer = Sign(oldInputSteer) * varAirMagnitude;
+        steer = GetSign(oldInputSteer) * varAirMagnitude;
         IncInputSet(sim, InputType::Steer, steer);
     return;
     case 1:
@@ -420,8 +428,8 @@ void StepAir(SimulationManager@ sim)
 
     if (Desynced(sim, tick))
         NextStep(sim);
-    else if (time == contextTimespan)
-        AdvanceUnfill(sim);
+    else if (time == varContextTimespan)
+        CommitUnfill(sim);
 }
 
 void StepRemoval(SimulationManager@ sim)
@@ -441,7 +449,7 @@ void StepRemoval(SimulationManager@ sim)
     {
         NextStep(sim);
     }
-    else if (time == contextTimespan)
+    else if (time == varContextTimespan)
     {
         ctx.Remove(InputType::Steer);
         Commit(sim);
@@ -450,7 +458,7 @@ void StepRemoval(SimulationManager@ sim)
 
 bool Desynced(SimulationManager@ sim, const uint relativeTick)
 {
-    Context@ const context = RelativeTickToContext(relativeTick);
+    const Context@ const context = RelativeTickToContext(relativeTick);
     return !context.HasEquivalentState(sim.Dyna.RefStateCurrent);
 }
 
@@ -476,7 +484,7 @@ void NextStep(SimulationManager@ sim)
     Step(sim);
 }
 
-void AdvanceUnfill(SimulationManager@ sim)
+void CommitUnfill(SimulationManager@ sim)
 {
     if (steer == prevInputSteer)
         ctx.Remove(InputType::Steer);
@@ -499,17 +507,34 @@ void Commit(SimulationManager@ sim)
             ctx.Set(InputType::Down, 1);
     break;
     case IncCommitState::SET:
-        Assert(brake == 1);
+        Assert(brake == 0);
         if (prevInputBrake == 0)
             ctx.Remove(InputType::Down);
     break;
+    case IncCommitState::REMOVE:
+        // Unreachable.
+    // fallthrough
     default:
         PanicPrint("[Input Simplifier] Unexpected state for brake!");
     break;
     }
 
-    if (preserveSteer && ctx.Get(InputType::Steer) == IncCommitState::NONE)
-        ctx.Set(InputType::Steer, preservedInputSteer);
+    switch (ctx.Get(InputType::Steer))
+    {
+    case IncCommitState::NONE:
+        if (preserveSteer)
+            ctx.Set(InputType::Steer, preservedInputSteer);
+    break;
+    case IncCommitState::SET:
+        // Possible; no-op.
+    break;
+    case IncCommitState::REMOVE:
+        // Possible; no-op.
+    break;
+    default:
+        PanicPrint("[Input Simplifier] Unexpected state for steer!");
+    break;
+    }
 
     IncCommit(sim, ctx);
     ctx.Reset();

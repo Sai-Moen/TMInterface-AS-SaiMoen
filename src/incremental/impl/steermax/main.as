@@ -51,8 +51,8 @@ void Register()
     RegisterVariable(VAR_NO_WALLBANG, true);
     RegisterVariable(VAR_NO_SLIDE, true);
 
-    varTimeout      = VarGetMs(VAR_TIMEOUT);
-    varLookahead    = VarGetMs(VAR_LOOKAHEAD);
+    varTimeout      = VarGetTime(VAR_TIMEOUT);
+    varLookahead    = VarGetTime(VAR_LOOKAHEAD);
     varSteerTowards = VarGetInt(VAR_STEER_TOWARDS);
     varSteerAway    = VarGetInt(VAR_STEER_AWAY);
     varSteerOffset  = VarGetInt(VAR_STEER_OFFSET);
@@ -65,17 +65,29 @@ void Register()
 
 void Draw()
 {
-    varTimeout = UI::InputTimeVar("Timeout", VAR_TIMEOUT, 10);
-    // TODO: tooltip
+    varTimeout = UI::InputTime("Timeout", varTimeout, 10);
+    if (varTimeout < CAUSALITY)
+        varTimeout = CAUSALITY;
+    VarSetTime(VAR_TIMEOUT, varTimeout);
+    TooltipOnHover("If the constraints hold for this amount of time, use maximum steering and go to the next tick.");
 
-    varLookahead = UI::InputTimeVar("Lookahead", VAR_LOOKAHEAD, 10);
-    // TODO: tooltip
+    varLookahead = UI::InputTime("Lookahead", varLookahead, 10);
+    if (varLookahead < CAUSALITY)
+        varLookahead = CAUSALITY;
+    VarSetTime(VAR_LOOKAHEAD, varLookahead);
+    TooltipOnHover(
+        "If the constraints did not hold, look ahead from the constraint failure time by this amount of time.\n"
+        "A new steering value will then be determined which does not fail before the lookahead.");
 
     varSteerTowards = UI::SliderInt("Steer Towards", varSteerTowards, STEER_MIN, STEER_MAX);
-    // TODO: tooltip
+    TooltipOnHover(
+        "The best steering value allowed.\n"
+        "Where 'best' means maximal (but not numerically, rather, 'optimal')");
 
     varSteerAway = UI::SliderInt("Steer Away", varSteerAway, STEER_MIN, STEER_MAX);
-    // TODO: tooltip
+    TooltipOnHover(
+        "The worst steering value allowed.\n"
+        "Where 'worst' means minimal (but not numerically, rather, 'pessimal')");
 
     const bool left = UI::Button("Left");
     UI::SameLine();
@@ -106,36 +118,46 @@ void Draw()
     VarSetInt(VAR_STEER_AWAY,    varSteerAway);
 
     varSteerOffset = UI::InputInt("Steer Offset", varSteerOffset);
-    // TODO: tooltip
-
     if (varSteerOffset < 0)
         varSteerOffset = 0;
     VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
+    TooltipOnHover(
+        "After determining a new steering value, offset it (up to) the given offset away.\n"
+        "Where 'away' means less maximal steering, i.e. Steer Away.\n"
+        "This will respect the steering bounds specified above, hence it may not be able to offset by the requested amount.");
 
     UI::Separator();
+    UI::Text("Constraints");
 
     varMaxSpeedLoss = UI::InputFloatVar("Max Speed Loss", VAR_MAX_SPEED_LOSS);
-    // TODO: tooltip
+    TooltipOnHover(
+        "The maximum cumulative speed loss allowed.\n"
+        "This is calculated based on the last time the speed increased, to the tick being measured.\n"
+        "Consider whether you will switch gears, and adjust accordingly.");
 
     varMaxSpeedBleed = UI::InputFloatVar("Max Speed Bleed", VAR_MAX_SPEED_BLEED);
-    // TODO: tooltip
+    TooltipOnHover(
+        "The maximum immediate (between two consecutive ticks) speed loss allowed.\n"
+        "Consider whether you will switch gears, and adjust accordingly.");
 
     varNoWallbang = UI::CheckboxVar("No Wallbang", VAR_NO_WALLBANG);
-    // TODO: tooltip
+    TooltipOnHover("Enabling this will count any lateral contact as an immediate failure.");
 
     varNoSlide = UI::CheckboxVar("No Slide", VAR_NO_SLIDE);
-    // TODO: tooltip
+    TooltipOnHover("Enabling this will count any sliding as an immediate failure.");
 }
 
 // Amount of time it takes for an input to change the state of the car.
 const ms CAUSALITY = 20;
 
+int steerMin;
+int steerMax;
+int initialSteer;
+int initialSteerStep;
+
 int steerOffset;
 float maxSpeedLoss;
 float maxSpeedBleed;
-
-int initialSteer;
-int initialSteerStep;
 
 enum StepState
 {
@@ -158,13 +180,13 @@ void Begin(SimulationManager@)
     if (varTimeout < CAUSALITY)
     {
         varTimeout = CAUSALITY;
-        VarSetMs(VAR_TIMEOUT, varTimeout);
+        VarSetTime(VAR_TIMEOUT, varTimeout);
     }
 
     if (varLookahead < CAUSALITY)
     {
         varLookahead = CAUSALITY;
-        VarSetMs(VAR_LOOKAHEAD, varLookahead);
+        VarSetTime(VAR_LOOKAHEAD, varLookahead);
     }
 
     const int clampedSteerTowards = ClampSteer(varSteerTowards);
@@ -181,13 +203,14 @@ void Begin(SimulationManager@)
         VarSetInt(VAR_STEER_AWAY, varSteerAway);
     }
 
-    const int min = Math::Min(varSteerTowards, varSteerAway);
-    const int max = Math::Max(varSteerTowards, varSteerAway);
+    steerMin = Math::Min(varSteerTowards, varSteerAway);
+    steerMax = Math::Max(varSteerTowards, varSteerAway);
 
-    initialSteer     = min + (max - min) / 2;
-    initialSteerStep = (varSteerAway - varSteerTowards) / 2;
+    const int diff   = varSteerAway - varSteerTowards;
+    initialSteer     = steerMin + (steerMax - steerMin) / 2;
+    initialSteerStep = diff / 2;
 
-    steerOffset      = varSteerOffset * GetSign(varSteerAway - varSteerTowards);
+    steerOffset   = varSteerOffset * GetSign(diff);
     maxSpeedLoss  = varMaxSpeedLoss  / 3.6;
     maxSpeedBleed = varMaxSpeedBleed / 3.6;
 
@@ -210,13 +233,13 @@ enum Constraint
     SLIDE,
 }
 
-String@ GenerateConstraintFailureMessage(const Constraint c)
+StringWrapper@ GenerateConstraintFailureMessage(const Constraint c)
 {
     string message;
     switch (c)
     {
     case Constraint::NONE:
-        return String();
+        return StringWrapper();
     case Constraint::SPEED_LOSS:
         message += "Speed Loss: ";
         message += (velocityMinimumCumulative + maxSpeedLoss) - velocityCurrent;
@@ -453,8 +476,10 @@ void SteerNextStep(SimulationManager@ sim)
         stepState = StepState::SEARCH;
 
         {
+            const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
+
             IncCommitContext ctx;
-            ctx.Set(InputType::Steer, steerAway);
+            ctx.Set(InputType::Steer, best);
             IncCommit(sim, ctx);
         }
 

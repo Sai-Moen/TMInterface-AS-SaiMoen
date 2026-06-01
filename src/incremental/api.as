@@ -237,11 +237,20 @@ void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitCo
     Rewind(sim, Core::inputState, RewindFlags::REMOVE);
     Core::PostInitInputEventsAdvance(sim.InputEvents);
 
+    if (Core::varTerminalTitleInfoLevel == Core::TerminalTitleInfoLevel::COMMIT)
+    {
+        string s;
+        Core::TerminalTitleInit(s);
+        Core::TerminalTitleAppendIterationInfo(s);
+        Core::TerminalTitleAppendCommitInfo(s);
+        SetConsoleWindowTitle(s);
+    }
+
     string s;
     s += time;
     s += ":\n";
 
-    if (VarGetBool(Core::VAR_SHOW_INFO))
+    if (VarGetBool(Core::VAR_PRINT_EXTRA_INFO))
     {
         // NOTE: since we already did a rewind to inputState on this tick, we can access SimulationManager directly for stuff.
         const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
