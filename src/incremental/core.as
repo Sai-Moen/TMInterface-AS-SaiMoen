@@ -16,9 +16,7 @@ const string VAR_TERMINAL_TITLE_INFO_LEVEL = VAR + "terminal_title_info_level";
 const string VAR_RUN_REPLAY_TIME           = VAR + "run_replay_time";
 const string VAR_MODE                      = VAR + "mode";
 
-uint varTerminalTitleInfoLevel;
-
-void Register()
+void VarsRegister()
 {
     RegisterVariable(VAR_EVAL_ITER_BEGIN, 0);
     RegisterVariable(VAR_EVAL_ITER_END, 0);
@@ -31,6 +29,40 @@ void Register()
     RegisterVariable(VAR_TERMINAL_TITLE_INFO_LEVEL, 0);
     RegisterVariable(VAR_RUN_REPLAY_TIME, 0);
     RegisterVariable(VAR_MODE, "");
+}
+
+ms varEvalIterBegin;
+ms varEvalIterEnd;
+ms varEvalEnd;
+
+bool varUseSaveState;
+string varSaveStateName;
+
+bool varPrintExtraInfo;
+uint varTerminalTitleInfoLevel;
+ms varRunReplayTime;
+
+void VarsInit()
+{
+    varEvalIterBegin = VarGetTime(VAR_EVAL_ITER_BEGIN);
+    varEvalIterEnd = VarGetTime(VAR_EVAL_ITER_END);
+    if (varEvalIterEnd < varEvalIterBegin)
+    {
+        varEvalIterEnd = varEvalIterBegin;
+        VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
+    }
+
+    varEvalEnd = VarGetTime(VAR_EVAL_END);
+    if (varEvalEnd != 0 && varEvalEnd < varEvalIterEnd)
+    {
+        varEvalEnd = varEvalIterEnd;
+        VarSetTime(VAR_EVAL_END, varEvalEnd);
+    }
+
+    varUseSaveState  = VarGetBool(VAR_USE_SAVE_STATE);
+    varSaveStateName = VarGetString(VAR_SAVE_STATE_NAME);
+
+    varPrintExtraInfo = VarGetBool(VAR_PRINT_EXTRA_INFO);
 
     varTerminalTitleInfoLevel = VarGetUint(VAR_TERMINAL_TITLE_INFO_LEVEL);
     if (varTerminalTitleInfoLevel >= TerminalTitleInfoLevel::COUNT)
@@ -38,6 +70,8 @@ void Register()
         varTerminalTitleInfoLevel = TerminalTitleInfoLevel::NONE;
         VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
     }
+
+    varRunReplayTime = VarGetTime(VAR_RUN_REPLAY_TIME);
 }
 
 enum TerminalTitleInfoLevel
@@ -77,49 +111,44 @@ void Draw()
     {
         if (UI::Button("Reset timestamps to 0"))
         {
-            VarSetTime(VAR_EVAL_ITER_BEGIN, 0);
-            VarSetTime(VAR_EVAL_ITER_END, 0);
-            VarSetTime(VAR_EVAL_END, 0);
+            VarSetTime(VAR_EVAL_ITER_BEGIN, varEvalIterBegin = 0);
+            VarSetTime(VAR_EVAL_ITER_END,   varEvalIterEnd   = 0);
+            VarSetTime(VAR_EVAL_END,        varEvalEnd       = 0);
         }
 
-        const ms evalIterBegin = UI::InputTimeVar("Evaluation Iteration Begin Time", VAR_EVAL_ITER_BEGIN);
+        varEvalIterBegin = UI::InputTimeVar("Evaluation Iteration Begin Time", VAR_EVAL_ITER_BEGIN);
         TooltipOnHover("The lower bound (inclusive) of iteration times.");
 
-        ms evalIterEnd;
         if (mode.singleIteration)
         {
-            evalIterEnd = evalIterBegin;
-            VarSetTime(VAR_EVAL_ITER_END, evalIterEnd);
+            varEvalIterEnd = varEvalIterBegin;
+            VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
 
-            UI::InputTime("Evaluation Iteration End Time", evalIterEnd);
+            UI::InputTime("Evaluation Iteration End Time", varEvalIterEnd);
             TooltipOnHover("The currently selected mode only supports a single iteration.");
         }
         else
         {
-            evalIterEnd = UI::InputTimeVar("Evaluation Iteration End Time", VAR_EVAL_ITER_END);
-            if (evalIterEnd < evalIterBegin)
-            {
-                evalIterEnd = evalIterBegin;
-                VarSetTime(VAR_EVAL_ITER_END, evalIterEnd);
-            }
+            varEvalIterEnd = UI::InputTime("Evaluation Iteration End Time", varEvalIterEnd);
+            if (varEvalIterEnd < varEvalIterBegin)
+                varEvalIterEnd = varEvalIterBegin;
+            VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
             TooltipOnHover("The upper bound (inclusive) of iteration times.");
         }
 
-        ms evalEnd = UI::InputTimeVar("Evaluation End Time", VAR_EVAL_END);
-        if (evalEnd != 0 && evalEnd < evalIterEnd)
-        {
-            evalEnd = evalIterEnd;
-            VarSetTime(VAR_EVAL_END, evalEnd);
-        }
+        varEvalEnd = UI::InputTime("Evaluation End Time", varEvalEnd);
+        if (varEvalEnd != 0 && varEvalEnd < varEvalIterEnd)
+            varEvalEnd = varEvalIterEnd;
+        VarSetTime(VAR_EVAL_END, varEvalEnd);
         TooltipOnHover(
             "If the input time is beyond this time, a new iteration is started.\n"
             "Set to 0 to have it be set to the events duration automatically.");
 
         UI::Separator();
 
-        const bool useSaveState = UI::CheckboxVar("Start from Save State", VAR_USE_SAVE_STATE);
-        UI::BeginDisabled(!useSaveState);
-        UI::InputTextVar("Save State name", VAR_SAVE_STATE_NAME);
+        varUseSaveState = UI::CheckboxVar("Start from Save State", VAR_USE_SAVE_STATE);
+        UI::BeginDisabled(!varUseSaveState);
+        varSaveStateName = UI::InputTextVar("Save State name", VAR_SAVE_STATE_NAME);
         UI::EndDisabled();
     }
 
@@ -163,34 +192,6 @@ void Draw()
     }
 }
 
-void TerminalTitleInfoLevelCallback(const uint index)
-{
-    varTerminalTitleInfoLevel = index;
-    VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
-}
-
-void TerminalTitleInit(string& s)
-{
-    s += "Incremental";
-}
-
-void TerminalTitleAppendIterationInfo(string& s)
-{
-    s += " | Iteration: ";
-    s += resultIndex + 1;
-    s += " / ";
-    s += results.Length;
-}
-
-void TerminalTitleAppendCommitInfo(string& s)
-{
-    s += " | Commit: ";
-    s += tInput;
-    s += "ms / ";
-    s += tLimit;
-    s += "ms";
-}
-
 IncMode@ Home()
 {
     IncMode home;
@@ -220,20 +221,11 @@ void Initialize(const ms alternativeTimeLimit)
         log("Mode resolved to Home...?", Severity::Warning);
     ModeIndexTrySet(index);
 
-    const ms evalIterBegin = VarGetTime(VAR_EVAL_ITER_BEGIN);
-    const ms evalIterEnd   = VarGetTime(VAR_EVAL_ITER_END);
-    const ms evalEnd       = VarGetTime(VAR_EVAL_END);
+    VarsInit();
 
-    varTerminalTitleInfoLevel = VarGetUint(VAR_TERMINAL_TITLE_INFO_LEVEL);
-    if (varTerminalTitleInfoLevel >= TerminalTitleInfoLevel::COUNT)
-    {
-        varTerminalTitleInfoLevel = TerminalTitleInfoLevel::NONE;
-        VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
-    }
-
-    tInit = evalIterBegin;
+    tInit = varEvalIterBegin;
     tInput = -10; // Detecting uninitialized usage.
-    tLimit = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
+    tLimit = varEvalEnd != 0 ? varEvalEnd : alternativeTimeLimit;
     preservationIndex = uint(-1); // Detecting uninitialized usage.
 
     int timerange;
@@ -243,14 +235,14 @@ void Initialize(const ms alternativeTimeLimit)
     }
     else
     {
-        timerange = (evalIterEnd - evalIterBegin) / 10 + 1;
+        timerange = (varEvalIterEnd - varEvalIterBegin) / 10 + 1;
         if (timerange < 1)
             timerange = 1;
     }
     results.Resize(timerange);
     resultIndex = 0;
 
-    stepState = VarGetBool(VAR_USE_SAVE_STATE) ? StepState::SAVE_STATE : StepState::INIT;
+    stepState = varUseSaveState ? StepState::SAVE_STATE : StepState::INIT;
     preventSimulationFinish = true;
     handleFinish = true;
 }
@@ -301,7 +293,7 @@ void Step(SimulationManager@ sim)
         {
             SimulationStateFile stateFile;
             string error;
-            if (!stateFile.Load(VarGetString(VAR_SAVE_STATE_NAME), error))
+            if (!stateFile.Load(varSaveStateName, error))
             {
                 string s;
                 s += "There was an error with the savestate:\n";
@@ -440,6 +432,35 @@ void Finish()
     stepState = StepState::FINISH;
     if (contextMode == ContextMode::Run)
         runState = RunState::END;
+}
+
+
+void TerminalTitleInfoLevelCallback(const uint index)
+{
+    varTerminalTitleInfoLevel = index;
+    VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
+}
+
+void TerminalTitleInit(string& s)
+{
+    s += "Incremental";
+}
+
+void TerminalTitleAppendIterationInfo(string& s)
+{
+    s += " | Iteration: ";
+    s += resultIndex + 1;
+    s += " / ";
+    s += results.Length;
+}
+
+void TerminalTitleAppendCommitInfo(string& s)
+{
+    s += " | Commit: ";
+    s += tInput;
+    s += "ms / ";
+    s += tLimit;
+    s += "ms";
 }
 
 

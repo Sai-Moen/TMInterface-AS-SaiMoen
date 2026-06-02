@@ -71,13 +71,6 @@ void IncTerminate()
     Core::Finish();
 }
 
-bool IncAssert(const bool condition)
-{
-    if (!condition)
-        Core::Finish();
-    return condition;
-}
-
 ms IncGetRelativeTime(SimulationManager@ sim)
 {
     return Core::GetRelativeTime(sim.TickTime);
@@ -164,7 +157,7 @@ class IncCommitContext
 
         set
         {
-            Assert(value % 10 == 0);
+            AssertLog(value % 10 == 0, "Advance time must be a multiple of 10ms.");
             advance = value;
         }
     }
@@ -250,7 +243,7 @@ void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitCo
     s += time;
     s += ":\n";
 
-    if (VarGetBool(Core::VAR_PRINT_EXTRA_INFO))
+    if (Core::varPrintExtraInfo)
     {
         // NOTE: since we already did a rewind to inputState on this tick, we can access SimulationManager directly for stuff.
         const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
@@ -269,7 +262,7 @@ void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitCo
         {
         case IncCommitState::NONE:
             // Do nothing.
-        continue;
+            continue;
         case IncCommitState::SET:
             Core::InputSet(sim, time, type, value);
             s += "+ ";

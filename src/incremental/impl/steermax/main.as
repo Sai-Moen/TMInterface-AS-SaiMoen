@@ -4,7 +4,8 @@ namespace SteerMax
 
 void Main()
 {
-    Register();
+    VarsRegister();
+    VarsInit();
 
     IncMode mode;
     mode.preservationExclusions = { InputType::Left, InputType::Right, InputType::Steer };
@@ -27,18 +28,7 @@ const string VAR_MAX_SPEED_BLEED = VAR + "max_speed_bleed";
 const string VAR_NO_WALLBANG     = VAR + "no_wallbang";
 const string VAR_NO_SLIDE        = VAR + "no_slide";
 
-ms varTimeout;
-ms varLookahead;
-int varSteerTowards;
-int varSteerAway;
-int varSteerOffset;
-
-float varMaxSpeedLoss;
-float varMaxSpeedBleed;
-bool varNoWallbang;
-bool varNoSlide;
-
-void Register()
+void VarsRegister()
 {
     RegisterVariable(VAR_TIMEOUT, 200);
     RegisterVariable(VAR_LOOKAHEAD, 200);
@@ -50,12 +40,59 @@ void Register()
     RegisterVariable(VAR_MAX_SPEED_BLEED, 0.1);
     RegisterVariable(VAR_NO_WALLBANG, true);
     RegisterVariable(VAR_NO_SLIDE, true);
+}
 
-    varTimeout      = VarGetTime(VAR_TIMEOUT);
-    varLookahead    = VarGetTime(VAR_LOOKAHEAD);
+const ms CAUSALITY = 20;
+
+ms varTimeout;
+ms varLookahead;
+int varSteerTowards;
+int varSteerAway;
+int varSteerOffset;
+
+float varMaxSpeedLoss;
+float varMaxSpeedBleed;
+bool varNoWallbang;
+bool varNoSlide;
+
+void VarsInit()
+{
+    varTimeout = VarGetTime(VAR_TIMEOUT);
+    if (varTimeout < CAUSALITY)
+    {
+        varTimeout = CAUSALITY;
+        VarSetTime(VAR_TIMEOUT, varTimeout);
+    }
+
+    varLookahead = VarGetTime(VAR_LOOKAHEAD);
+    if (varLookahead < CAUSALITY)
+    {
+        varLookahead = CAUSALITY;
+        VarSetTime(VAR_LOOKAHEAD, varLookahead);
+    }
+
     varSteerTowards = VarGetInt(VAR_STEER_TOWARDS);
-    varSteerAway    = VarGetInt(VAR_STEER_AWAY);
-    varSteerOffset  = VarGetInt(VAR_STEER_OFFSET);
+    const int clampedSteerTowards = ClampSteer(varSteerTowards);
+    if (varSteerTowards != clampedSteerTowards)
+    {
+        varSteerTowards = clampedSteerTowards;
+        VarSetInt(VAR_STEER_TOWARDS, varSteerTowards);
+    }
+
+    varSteerAway = VarGetInt(VAR_STEER_AWAY);
+    const int clampedSteerAway = ClampSteer(varSteerAway);
+    if (varSteerAway != clampedSteerAway)
+    {
+        varSteerAway = clampedSteerAway;
+        VarSetInt(VAR_STEER_AWAY, varSteerAway);
+    }
+
+    varSteerOffset = VarGetInt(VAR_STEER_OFFSET);
+    if (varSteerOffset < 0)
+    {
+        varSteerOffset = 0;
+        VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
+    }
 
     varMaxSpeedLoss  = VarGetFloat(VAR_MAX_SPEED_LOSS);
     varMaxSpeedBleed = VarGetFloat(VAR_MAX_SPEED_BLEED);
@@ -147,9 +184,6 @@ void Draw()
     TooltipOnHover("Enabling this will count any sliding as an immediate failure.");
 }
 
-// Amount of time it takes for an input to change the state of the car.
-const ms CAUSALITY = 20;
-
 int steerMin;
 int steerMax;
 int initialSteer;
@@ -177,31 +211,7 @@ StepState stepState;
 
 void Begin(SimulationManager@)
 {
-    if (varTimeout < CAUSALITY)
-    {
-        varTimeout = CAUSALITY;
-        VarSetTime(VAR_TIMEOUT, varTimeout);
-    }
-
-    if (varLookahead < CAUSALITY)
-    {
-        varLookahead = CAUSALITY;
-        VarSetTime(VAR_LOOKAHEAD, varLookahead);
-    }
-
-    const int clampedSteerTowards = ClampSteer(varSteerTowards);
-    if (varSteerTowards != clampedSteerTowards)
-    {
-        varSteerTowards = clampedSteerTowards;
-        VarSetInt(VAR_STEER_TOWARDS, varSteerTowards);
-    }
-
-    const int clampedSteerAway = ClampSteer(varSteerAway);
-    if (varSteerAway != clampedSteerAway)
-    {
-        varSteerAway = clampedSteerAway;
-        VarSetInt(VAR_STEER_AWAY, varSteerAway);
-    }
+    VarsInit();
 
     steerMin = Math::Min(varSteerTowards, varSteerAway);
     steerMax = Math::Max(varSteerTowards, varSteerAway);
@@ -352,7 +362,7 @@ void Step(SimulationManager@ sim)
                 break;
             }
 
-            IncAssert(time <= targetTime);
+            Assert(time <= targetTime);
             if (time != targetTime)
                 break;
         }

@@ -12,7 +12,8 @@ const string ID = "incremental";
 
 void Main()
 {
-    Core::Register();
+    Core::VarsRegister();
+    Core::VarsInit();
 
     IncMode@ const home = Core::Home();
     IncRegisterMode("Home", home);

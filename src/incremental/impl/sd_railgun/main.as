@@ -6,7 +6,8 @@ IncMode mode;
 
 void Main()
 {
-    Register();
+    VarsRegister();
+    VarsInit();
 
     mode.preservationExclusions = { InputType::Left, InputType::Right, InputType::Steer };
 
@@ -23,29 +24,47 @@ const string VAR_QUALITY_THRESHOLD = VAR + "quality_threshold";
 const string VAR_LOOKAHEAD_QUALITY = VAR + "lookahead_quality";
 const string VAR_LOOKAHEAD_NORMAL  = VAR + "lookahead_normal";
 
-float varQualityThreshold;
-ms varLookaheadQuality;
-ms varLookaheadNormal;
-
-void Register()
+void VarsRegister()
 {
     RegisterVariable(VAR_QUALITY_THRESHOLD, 0.25);
     RegisterVariable(VAR_LOOKAHEAD_QUALITY, 60);
     RegisterVariable(VAR_LOOKAHEAD_NORMAL, 120);
-
-    varQualityThreshold = VarGetFloat(VAR_QUALITY_THRESHOLD);
-    varLookaheadQuality = VarGetTime(VAR_LOOKAHEAD_QUALITY);
-    varLookaheadNormal  = VarGetTime(VAR_LOOKAHEAD_NORMAL);
 }
 
-// tick 0: input time
-// tick 1: input applied
-// tick 2: input's effect observed
 const ms CAUSALITY = 20;
+
+float varQualityThreshold;
+ms varLookaheadQuality;
+ms varLookaheadNormal;
+
+void VarsInit()
+{
+    varQualityThreshold = VarGetFloat(VAR_QUALITY_THRESHOLD);
+    const float clampedQualityThreshold = Math::Clamp(varQualityThreshold, 0.f, 1.f);
+    if (varQualityThreshold != clampedQualityThreshold)
+    {
+        varQualityThreshold = clampedQualityThreshold;
+        VarSetFloat(VAR_QUALITY_THRESHOLD, varQualityThreshold);
+    }
+
+    varLookaheadQuality = VarGetTime(VAR_LOOKAHEAD_QUALITY);
+    if (varLookaheadQuality < CAUSALITY)
+    {
+        varLookaheadQuality = CAUSALITY;
+        VarSetTime(VAR_LOOKAHEAD_QUALITY, varLookaheadQuality);
+    }
+
+    varLookaheadNormal = VarGetTime(VAR_LOOKAHEAD_NORMAL);
+    if (varLookaheadNormal < CAUSALITY)
+    {
+        varLookaheadNormal = CAUSALITY;
+        VarSetTime(VAR_LOOKAHEAD_NORMAL, varLookaheadNormal);
+    }
+}
 
 void Draw()
 {
-    varQualityThreshold = UI::SliderFloatVar("Quality Threshold", VAR_QUALITY_THRESHOLD, 0, 1);
+    varQualityThreshold = UI::SliderFloatVar("Quality Threshold", VAR_QUALITY_THRESHOLD, 0.f, 1.f);
     TooltipOnHover(
         "Represents the maximum allowed deviation from a perfect SD, 0.25 by default.\n"
         "0: Never use SD Quality\n"
@@ -53,7 +72,7 @@ void Draw()
         "For anything in between, use Quality first.\n"
         "If the quality deviation exceeds the given threshold, use velocity as a fallback.");
 
-    UI::BeginDisabled(varQualityThreshold == 0);
+    UI::BeginDisabled(varQualityThreshold == 0.f);
 
     varLookaheadQuality = UI::InputTime("Quality lookahead time", varLookaheadQuality, 10);
     TooltipOnHover("Can be set as low as 20ms, but it's a bit shaky, 60ms by default.");
@@ -74,25 +93,7 @@ void Draw()
 
 void Begin(SimulationManager@ sim)
 {
-    const float clampedQualityThreshold = Math::Clamp(varQualityThreshold, 0.f, 1.f);
-    if (varQualityThreshold != clampedQualityThreshold)
-    {
-        varQualityThreshold = clampedQualityThreshold;
-        VarSetFloat(VAR_QUALITY_THRESHOLD, varQualityThreshold);
-    }
-
-    if (varLookaheadQuality < CAUSALITY)
-    {
-        varLookaheadQuality = CAUSALITY;
-        VarSetTime(VAR_LOOKAHEAD_QUALITY, varLookaheadQuality);
-    }
-
-    if (varLookaheadNormal < CAUSALITY)
-    {
-        varLookaheadNormal = CAUSALITY;
-        VarSetTime(VAR_LOOKAHEAD_NORMAL, varLookaheadNormal);
-    }
-
+    VarsInit();
     @mode.step = StepInit;
 }
 
@@ -227,6 +228,7 @@ void Evaluate(SimulationManager@ sim)
         print("[SD Railgun] steerStep == 0", Severity::Error);
         IncTerminate();
 
+        // Using COMMIT to exit as fast as possible.
         evalState = EvalState::COMMIT;
     break;
     case 1:
