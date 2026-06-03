@@ -193,7 +193,7 @@ int steerOffset;
 float maxSpeedLoss;
 float maxSpeedBleed;
 
-enum StepState
+enum EvalState
 {
     // Find the earliest tInput on which the constraints are violated for initialSteer within 'timeout' ms.
     // (also grab some information).
@@ -207,7 +207,7 @@ enum StepState
     EVALUATE,
 }
 
-StepState stepState;
+EvalState evalState;
 
 void Begin(SimulationManager@)
 {
@@ -224,7 +224,7 @@ void Begin(SimulationManager@)
     maxSpeedLoss  = varMaxSpeedLoss  / 3.6;
     maxSpeedBleed = varMaxSpeedBleed / 3.6;
 
-    stepState = StepState::SEARCH;
+    evalState = EvalState::SEARCH;
 }
 
 uint lastHasAnyLateralContactTime;
@@ -294,9 +294,9 @@ void Step(SimulationManager@ sim)
     velocityCurrent = dyna.RefStateCurrent.LinearSpeed.Length();
     velocityMinimumImmediate = velocityPrevious - maxSpeedBleed;
 
-    switch (stepState)
+    switch (evalState)
     {
-    case StepState::SEARCH:
+    case EvalState::SEARCH:
         if (time == 0)
         {
             lastHasAnyLateralContactTime = sim.SceneVehicleCar.LastHasAnyLateralContactTime;
@@ -309,6 +309,7 @@ void Step(SimulationManager@ sim)
                 s += "[SteerMax] Constraints already violated at input time: ";
                 s += GenerateConstraintFailureMessage(c);
                 print(s, Severity::Error);
+
                 IncTerminate();
                 break;
             }
@@ -328,12 +329,16 @@ void Step(SimulationManager@ sim)
                     string s;
                     s += "[SteerMax] Contraints violated before they can be avoided: ";
                     s += GenerateConstraintFailureMessage(c);
+                    s += " at relative time ";
+                    s += time;
+                    s += "ms";
                     print(s, Severity::Error);
+
                     IncTerminate();
                     break;
                 }
 
-                stepState = StepState::SCAN;
+                evalState = EvalState::SCAN;
                 IncRewindPreserve(sim);
                 Step(sim);
             }
@@ -345,7 +350,7 @@ void Step(SimulationManager@ sim)
             }
         }
     break;
-    case StepState::SCAN:
+    case EvalState::SCAN:
         if (time == steerAwayTime)
         {
             IncInputSet(sim, InputType::Steer, varSteerAway);
@@ -372,7 +377,7 @@ void Step(SimulationManager@ sim)
         steerTowards = varSteerTowards;
         steerAway    = varSteerAway;
 
-        stepState = StepState::EVALUATE;
+        evalState = EvalState::EVALUATE;
         if (steerAwayTime >= 10)
         {
             IncCommitContext ctx;
@@ -386,7 +391,7 @@ void Step(SimulationManager@ sim)
             Step(sim);
         }
     break;
-    case StepState::EVALUATE:
+    case EvalState::EVALUATE:
         if (time == 0)
         {
             IncInputSet(sim, InputType::Steer, steer);
@@ -483,7 +488,7 @@ void SteerNextStep(SimulationManager@ sim)
     switch (Math::Abs(steerStep))
     {
     case 0:
-        stepState = StepState::SEARCH;
+        evalState = EvalState::SEARCH;
 
         {
             const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);

@@ -250,36 +250,76 @@ void Initialize(const ms alternativeTimeLimit)
 void Begin(SimulationManager@ sim)
 {
     if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::NONE)
-    {
-        string s;
-        TerminalTitleInit(s);
-        SetConsoleWindowTitle(s);
-    }
+        SetConsoleWindowTitle(TERMINAL_TITLE_TAG);
 
     string s;
-    s += "\n\n  Incremental w/ ";
+    s += "\n\n-------- Incremental w/ ";
     s += modeNames[modeIndex];
-    s += "\n\n";
+    s += "\n";
+
+    s += "Init Time: "; s += tInit; s += "ms\n";
+    s += "Limit Time: "; s += tLimit; s += "ms\n";
+    s += "Iterations: "; s += results.Length; s += "\n\n";
+
+    s += "Use Save State: "; s += varUseSaveState; s += "\n";
+    if (varUseSaveState)
+    {
+        s += "Save State Name: "; s += varSaveStateName; s += "\n";
+    }
+    s += "Print Extra Info: "; s += varPrintExtraInfo; s += "\n";
+    s += "Terminal Title Info Level: "; s += TERMINAL_TITLE_INFO_LEVEL_NAMES[varTerminalTitleInfoLevel]; s += "\n";
+
+    s += "\n";
     print(s);
 
-    mode.begin(sim);
+    try
+    {
+        mode.begin(sim);
+    }
+    catch
+    {
+        PrintException("mode.begin");
+        Finish();
+    }
 }
 
 void Iteration(SimulationManager@ sim)
 {
-    tInput = (tInit - 10) + (results.Length - resultIndex) * 10;
+    tInput = tInit + resultIndex * 10;
     preservationIndex = 0;
     PostInitInputEventsAdvance(sim.InputEvents);
 
     if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::ITERATION)
     {
-        string s;
-        TerminalTitleInit(s);
+        string s = TERMINAL_TITLE_TAG;
         TerminalTitleAppendIterationInfo(s);
         SetConsoleWindowTitle(s);
     }
 
-    mode.iteration(sim);
+    string s;
+    s += "\n---- Iteration ";
+    s += resultIndex + 1;
+    s += " / ";
+    s += results.Length;
+    s += "\n";
+
+    s += tInput;
+    s += "ms -> ";
+    s += tLimit;
+    s += "ms\n";
+
+    s += "\n";
+    print(s);
+
+    try
+    {
+        mode.iteration(sim);
+    }
+    catch
+    {
+        PrintException("mode.iteration");
+        Finish();
+    }
 }
 
 void Step(SimulationManager@ sim)
@@ -333,7 +373,9 @@ void Step(SimulationManager@ sim)
             Assert(time == tInit);
         }
 
-        @initState = sim.SaveState();
+        if (results.Length > 1)
+            @initState = sim.SaveState();
+
         Iteration(sim);
         stepState = StepState::STEP;
     // fallthrough
@@ -348,7 +390,16 @@ void Step(SimulationManager@ sim)
                 if (time == tInput)
                     @inputState = sim.SaveState();
 
-                mode.step(sim);
+                try
+                {
+                    mode.step(sim);
+                }
+                catch
+                {
+                    PrintException("mode.step");
+                    Finish();
+                }
+
                 break;
             }
 
@@ -357,8 +408,6 @@ void Step(SimulationManager@ sim)
             if (time != checkTime)
                 break;
         }
-
-        print();
 
         @results[resultIndex++] = Result(sim);
         if (resultIndex != results.Length)
@@ -423,7 +472,15 @@ void End(SimulationManager@ sim)
     else
         print("Inputs not saved! Filename: " + filename, Severity::Error);
 
-    mode.end(sim);
+    try
+    {
+        mode.end(sim);
+    }
+    catch
+    {
+        PrintException("mode.end");
+        // NOTE: calling Finish here would mess up the state we just reset.
+    }
 }
 
 void Finish()
@@ -434,6 +491,75 @@ void Finish()
         runState = RunState::END;
 }
 
+void PrintException(const string &in identifier)
+{
+    print("[Incremental] Exception caught: " + identifier, Severity::Error);
+}
+
+void Commit(SimulationManager@ sim, const IncCommitContext@ ctx)
+{
+    const ms time = tInput;
+    tInput += ctx.Advance;
+
+    Rewind(sim, inputState, RewindFlags::REMOVE);
+    PostInitInputEventsAdvance(sim.InputEvents);
+
+    if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::COMMIT)
+    {
+        string s = TERMINAL_TITLE_TAG;
+        TerminalTitleAppendIterationInfo(s);
+        TerminalTitleAppendCommitInfo(s);
+        SetConsoleWindowTitle(s);
+    }
+
+    string s;
+    s += time;
+    s += "ms\n";
+
+    if (varPrintExtraInfo)
+    {
+        // NOTE: since we already did a rewind to inputState on this tick, we can access SimulationManager directly for stuff.
+        const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
+
+        s += "Speed (km/h): ";
+        s += FormatPrecise(mps * 3.6);
+        s += "\n";
+    }
+
+    const uint len = ctx.Length;
+    for (uint i = 0; i < len; ++i)
+    {
+        const InputType type = InputType(i);
+        int value;
+        switch (ctx.Get(type, value))
+        {
+        case IncCommitState::NONE:
+            // Do nothing.
+            continue;
+        case IncCommitState::SET:
+            InputSet(sim, time, type, value);
+            s += "+ ";
+        break;
+        case IncCommitState::REMOVE:
+            InputRemove(sim, time, type);
+            s += "- ";
+        break;
+        default:
+            Unreachable();
+        break;
+        }
+
+        InputCommand cmd;
+        cmd.Timestamp = time;
+        cmd.Type = type;
+        cmd.State = value;
+        s += cmd.ToString();
+        s += "\n";
+    }
+
+    print(s);
+}
+
 
 void TerminalTitleInfoLevelCallback(const uint index)
 {
@@ -441,10 +567,7 @@ void TerminalTitleInfoLevelCallback(const uint index)
     VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
 }
 
-void TerminalTitleInit(string& s)
-{
-    s += "Incremental";
-}
+const string TERMINAL_TITLE_TAG = "Incremental";
 
 void TerminalTitleAppendIterationInfo(string& s)
 {

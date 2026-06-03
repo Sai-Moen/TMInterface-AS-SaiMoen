@@ -28,7 +28,7 @@ void Main()
 
 void OnSimulationBegin(SimulationManager@ sim)
 {
-    if (ID != GetVariableString("controller"))
+    if (ID != VarGetString("controller"))
         return;
 
     sim.RemoveStateValidation();
@@ -97,7 +97,6 @@ enum RunState
 
 RunState runState;
 
-ms runReplayTime;
 CommandList@ userCommandList;
 array<TM::InputEvent> preInitInputEvents;
 
@@ -114,8 +113,7 @@ void OnRunStep(SimulationManager@ sim)
         sim.GiveUp();
         contextMode = ContextMode::Run;
 
-        runReplayTime = VarGetTime(Core::VAR_RUN_REPLAY_TIME);
-        Core::Initialize(runReplayTime);
+        Core::Initialize(Core::varRunReplayTime);
         runState = RunState::INIT2;
     break;
     case RunState::INIT2:
@@ -124,7 +122,7 @@ void OnRunStep(SimulationManager@ sim)
         runState = RunState::COLLECT;
     break;
     case RunState::COLLECT:
-        if (time <= runReplayTime)
+        if (time <= Core::varRunReplayTime)
             break;
 
         @userCommandList = GetCurrentCommandList();

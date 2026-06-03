@@ -84,8 +84,8 @@ void Draw()
 
     varLookaheadNormal = UI::InputTime("Normal lookahead time", varLookaheadNormal, 10);
     TooltipOnHover(
-        "Can be set as low as 20ms, but depending on speed you might want up to 130ms-140ms "
-        "(lowest working in a test was 50ms-60ms at close to speed cap), 120ms by default.");
+        "Can be set as low as 20ms, but depending on speed you might want up to 130ms-140ms"
+        " (lowest working in a test was 50ms-60ms at close to speed cap), 120ms by default.");
     if (varLookaheadNormal < CAUSALITY)
         varLookaheadNormal = CAUSALITY;
     VarSetTime(VAR_LOOKAHEAD_NORMAL, varLookaheadNormal);
@@ -100,6 +100,9 @@ void Begin(SimulationManager@ sim)
 void End(SimulationManager@)
 {
     steerHistory.Clear();
+
+    evalState = EvalState::NONE;
+    haveTurningRates = false;
 }
 
 const int RANGE_SIZE = 4;
@@ -113,12 +116,12 @@ enum EvalState
     FALLBACK,
 }
 
+EvalState evalState;
+bool useQuality;
+
 bool haveTurningRates;
 float turningRate0;
 float turningRate1;
-
-EvalState evalState;
-bool useQuality;
 
 int bestSteer;
 int steer;
