@@ -227,11 +227,11 @@ void Begin(SimulationManager@)
     evalState = EvalState::SEARCH;
 }
 
-uint lastHasAnyLateralContactTime;
 float velocityPrevious;
 float velocityCurrent;
 float velocityMinimumImmediate;
 float velocityMinimumCumulative;
+uint lastHasAnyLateralContactTime;
 
 enum Constraint
 {
@@ -287,12 +287,14 @@ int steerAway;
 
 void Step(SimulationManager@ sim)
 {
-    const ms time = IncGetRelativeTime(sim);
+    const ms time = IncTimeGetRelative(sim);
 
     const auto@ const dyna = sim.Dyna;
     velocityPrevious = dyna.RefStatePrevious.LinearSpeed.Length();
     velocityCurrent = dyna.RefStateCurrent.LinearSpeed.Length();
     velocityMinimumImmediate = velocityPrevious - maxSpeedBleed;
+    if (time == 0)
+        velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
 
     switch (evalState)
     {
@@ -300,17 +302,16 @@ void Step(SimulationManager@ sim)
         if (time == 0)
         {
             lastHasAnyLateralContactTime = sim.SceneVehicleCar.LastHasAnyLateralContactTime;
-            velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
 
-            const Constraint c = ConstraintsCheck(sim);
-            if (c != Constraint::NONE)
+            const Constraint constraint = ConstraintsCheck(sim);
+            if (constraint != Constraint::NONE)
             {
                 string s;
                 s += "[SteerMax] Constraints already violated at input time: ";
-                s += GenerateConstraintFailureMessage(c);
+                s += GenerateConstraintFailureMessage(constraint);
                 print(s, Severity::Error);
 
-                IncTerminate();
+                IncTerminate(sim);
                 break;
             }
 
@@ -319,8 +320,8 @@ void Step(SimulationManager@ sim)
         }
 
         {
-            const Constraint c = ConstraintsCheck(sim);
-            if (c != Constraint::NONE)
+            const Constraint constraint = ConstraintsCheck(sim);
+            if (constraint != Constraint::NONE)
             {
                 steerAwayTime = time - CAUSALITY;
                 targetTime = time + varLookahead;
@@ -328,13 +329,13 @@ void Step(SimulationManager@ sim)
                 {
                     string s;
                     s += "[SteerMax] Contraints violated before they can be avoided: ";
-                    s += GenerateConstraintFailureMessage(c);
+                    s += GenerateConstraintFailureMessage(constraint);
                     s += " at relative time ";
                     s += time;
                     s += "ms";
                     print(s, Severity::Error);
 
-                    IncTerminate();
+                    IncTerminate(sim);
                     break;
                 }
 
@@ -344,9 +345,8 @@ void Step(SimulationManager@ sim)
             }
             else if (time == varTimeout)
             {
-                IncCommitContext ctx;
-                ctx.Set(InputType::Steer, varSteerTowards);
-                IncCommit(sim, ctx);
+                IncStageSet(InputType::Steer, varSteerTowards);
+                IncCommit(sim);
             }
         }
     break;
@@ -380,10 +380,9 @@ void Step(SimulationManager@ sim)
         evalState = EvalState::EVALUATE;
         if (steerAwayTime >= 10)
         {
-            IncCommitContext ctx;
-            ctx.Advance = steerAwayTime;
-            ctx.Set(InputType::Steer, varSteerTowards);
-            IncCommit(sim, ctx);
+            IncStageSet(InputType::Steer, varSteerTowards);
+            IncCommit(sim, steerAwayTime);
+            targetTime -= steerAwayTime;
         }
         else
         {
@@ -492,10 +491,8 @@ void SteerNextStep(SimulationManager@ sim)
 
         {
             const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
-
-            IncCommitContext ctx;
-            ctx.Set(InputType::Steer, best);
-            IncCommit(sim, ctx);
+            IncStageSet(InputType::Steer, best);
+            IncCommit(sim);
         }
 
         return;

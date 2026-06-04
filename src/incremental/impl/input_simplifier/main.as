@@ -19,7 +19,7 @@ void Main()
 const string VAR = ::Core::VAR + "input_simplifier_";
 
 const string VAR_CONTEXT_TIMESPAN = VAR + "context_timespan";
-const ms DEF_CTX_TIMESPAN = 250;
+const ms DEF_CONTEXT_TIMESPAN = 250;
 
 const string VAR_AIR_MAGNITUDE  = VAR + "air_magnitude";
 const string VAR_MINIMIZE_BRAKE = VAR + "minimize_brake";
@@ -28,7 +28,7 @@ const string VAR_ORDERED_STRATEGY_INDICES = VAR + "ordered_strategy_indices";
 
 void VarsRegister()
 {
-    RegisterVariable(VAR_CONTEXT_TIMESPAN, DEF_CTX_TIMESPAN);
+    RegisterVariable(VAR_CONTEXT_TIMESPAN, DEF_CONTEXT_TIMESPAN);
     RegisterVariable(VAR_AIR_MAGNITUDE, 0);
     RegisterVariable(VAR_MINIMIZE_BRAKE, false);
     RegisterVariable(VAR_ORDERED_STRATEGY_INDICES, "");
@@ -88,7 +88,8 @@ void Draw()
     if (varContextTimespan < CAUSALITY)
         varContextTimespan = CAUSALITY;
     VarSetTime(VAR_CONTEXT_TIMESPAN, varContextTimespan);
-    TooltipOnHover("Lower timespan is faster, but may desync in an unrecoverable way (default " + DEF_CTX_TIMESPAN + "ms).");
+    TooltipOnHover(
+        "Lower timespan is faster, but may desync in an unrecoverable way (default " + DEF_CONTEXT_TIMESPAN + "ms).");
 
     varAirMagnitude = UI::InputInt("Air Magnitude", varAirMagnitude);
     varAirMagnitude = ClampSteer(varAirMagnitude);
@@ -274,8 +275,6 @@ void End(SimulationManager@ sim)
     contexts.Clear();
     steps.Clear();
 
-    ctx.Reset();
-
     // Variables that directly or indirectly cause uninitialized variables to be used incorrectly.
     fillSteer = false;
     fillBrake = false;
@@ -290,8 +289,6 @@ float turningRate1;
 
 float turningRate2;
 
-IncCommitContext ctx;
-
 bool minimizeBrake;
 bool fillBrake;
 bool preserveBrake;
@@ -304,7 +301,7 @@ void StepScan(SimulationManager@ sim)
 {
     const auto@ const svc = sim.SceneVehicleCar;
 
-    const ms time = IncGetRelativeTime(sim);
+    const ms time = IncTimeGetRelative(sim);
     const uint tick = time / 10;
     switch (tick)
     {
@@ -332,20 +329,20 @@ void StepScan(SimulationManager@ sim)
         minimizeBrake = varMinimizeBrake && brake1 == 1;
         if (minimizeBrake)
         {
-            fillBrake = !IncInputGet(sim, 10, InputType::Down);
+            fillBrake = !IncInputGet(sim, InputType::Down);
             if (fillBrake)
-                IncInputSet(sim, 10, InputType::Down, 1);
+                IncInputSet(sim, InputType::Down, 1);
         }
         else
         {
             fillBrake = false;
         }
 
-        fillSteer = !IncInputGet(sim, 10, InputType::Steer);
+        fillSteer = !IncInputGet(sim, InputType::Steer);
         if (fillSteer)
         {
             preservedSteer = steer1;
-            IncInputSet(sim, 10, InputType::Steer, preservedSteer);
+            IncInputSet(sim, InputType::Steer, preservedSteer);
         }
 
         return;
@@ -367,7 +364,7 @@ void StepMinimizeBrake(SimulationManager@ sim)
         return;
     }
 
-    const ms time = IncGetRelativeTime(sim);
+    const ms time = IncTimeGetRelative(sim);
     const uint tick = time / 10;
     switch (tick)
     {
@@ -380,12 +377,12 @@ void StepMinimizeBrake(SimulationManager@ sim)
 
     if (Desynced(sim, tick))
     {
-        IncInputSet(sim, InputType::Down, 1);
+        IncInputSetRelative(sim, 0, InputType::Down, 1);
         NextStep(sim);
     }
     else if (time == varContextTimespan)
     {
-        ctx.Set(InputType::Down, 0);
+        IncStageSet(InputType::Down, 0);
         NextStep(sim);
     }
 }
@@ -394,7 +391,7 @@ int steer;
 
 void StepTurningRate(SimulationManager@ sim)
 {
-    const ms time = IncGetRelativeTime(sim);
+    const ms time = IncTimeGetRelative(sim);
     const uint tick = time / 10;
     switch (tick)
     {
@@ -412,14 +409,14 @@ void StepTurningRate(SimulationManager@ sim)
     }
     else if (time == varContextTimespan)
     {
-        ctx.Set(InputType::Steer, steer);
+        IncStageSet(InputType::Steer, steer);
         Commit(sim);
     }
 }
 
 void StepAir(SimulationManager@ sim)
 {
-    const ms time = IncGetRelativeTime(sim);
+    const ms time = IncTimeGetRelative(sim);
     const uint tick = time / 10;
     switch (tick)
     {
@@ -437,14 +434,14 @@ void StepAir(SimulationManager@ sim)
     }
     else if (time == varContextTimespan)
     {
-        ctx.Set(InputType::Steer, steer);
+        IncStageSet(InputType::Steer, steer);
         Commit(sim);
     }
 }
 
 void StepRemoval(SimulationManager@ sim)
 {
-    const ms time = IncGetRelativeTime(sim);
+    const ms time = IncTimeGetRelative(sim);
     const uint tick = time / 10;
     switch (tick)
     {
@@ -461,7 +458,7 @@ void StepRemoval(SimulationManager@ sim)
     }
     else if (time == varContextTimespan)
     {
-        ctx.Remove(InputType::Steer);
+        IncStageRemove(InputType::Steer);
         Commit(sim);
     }
 }
@@ -503,48 +500,47 @@ void Commit(SimulationManager@ sim)
     stepIndex = 0;
 
     int brake;
-    switch (ctx.Get(InputType::Down, brake))
+    switch (IncStageGet(InputType::Down, brake))
     {
     case IncCommitState::NONE:
         if (preserveBrake)
-            ctx.Set(InputType::Down, 1);
+            IncStageSet(InputType::Down, 1);
     break;
     case IncCommitState::SET:
         Assert(brake == 0);
         if (brake0 == 0)
-            ctx.Remove(InputType::Down);
+            IncStageRemove(InputType::Down);
     break;
     case IncCommitState::REMOVE:
         // Unreachable.
     // fallthrough
     default:
         print("[Input Simplifier] Unexpected state for brake!", Severity::Error);
-        IncTerminate();
+        IncTerminate(sim);
         return;
     }
 
     int steer;
-    switch (ctx.Get(InputType::Steer, steer))
+    switch (IncStageGet(InputType::Steer, steer))
     {
     case IncCommitState::NONE:
         if (preserveSteer)
-            ctx.Set(InputType::Steer, preservedSteer);
+            IncStageSet(InputType::Steer, preservedSteer);
     break;
     case IncCommitState::SET:
         if (steer == steer0)
-            ctx.Remove(InputType::Steer);
+            IncStageRemove(InputType::Steer);
     break;
     case IncCommitState::REMOVE:
         // Possible; no-op.
     break;
     default:
         print("[Input Simplifier] Unexpected state for steer!", Severity::Error);
-        IncTerminate();
+        IncTerminate(sim);
         return;
     }
 
-    IncCommit(sim, ctx);
-    ctx.Reset();
+    IncCommit(sim);
 }
 
 

@@ -169,7 +169,7 @@ void StepInit(SimulationManager@ sim)
 
 void StepMain(SimulationManager@ sim)
 {
-    const ms time = IncGetRelativeTime(sim);
+    const ms time = IncTimeGetRelative(sim);
     if (time == 0)
     {
         while (steer <= steerBound)
@@ -214,9 +214,8 @@ void Evaluate(SimulationManager@ sim)
         }
         else
         {
-            IncCommitContext ctx;
-            ctx.Set(InputType::Steer, bestSteer);
-            IncCommit(sim, ctx);
+            IncStageSet(InputType::Steer, bestSteer);
+            IncCommit(sim);
             evalState = EvalState::COMMIT;
         }
 
@@ -229,7 +228,7 @@ void Evaluate(SimulationManager@ sim)
     {
     case 0:
         print("[SD Railgun] steerStep == 0", Severity::Error);
-        IncTerminate();
+        IncTerminate(sim);
 
         // Using COMMIT to exit as fast as possible.
         evalState = EvalState::COMMIT;

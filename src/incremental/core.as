@@ -74,6 +74,7 @@ void VarsInit()
     varRunReplayTime = VarGetTime(VAR_RUN_REPLAY_TIME);
 }
 
+
 enum TerminalTitleInfoLevel
 {
     NONE,
@@ -89,6 +90,32 @@ const array<string> TERMINAL_TITLE_INFO_LEVEL_NAMES =
     "Iteration",
     "Commit"
 };
+
+void TerminalTitleInfoLevelCallback(const uint index)
+{
+    varTerminalTitleInfoLevel = index;
+    VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
+}
+
+const string TERMINAL_TITLE_TAG = "Incremental";
+
+void TerminalTitleAppendIterationInfo(string& s)
+{
+    s += " | Iteration: ";
+    s += resultIndex + 1;
+    s += " / ";
+    s += results.Length;
+}
+
+void TerminalTitleAppendCommitInfo(string& s)
+{
+    s += " | Commit: ";
+    s += tInput;
+    s += "ms / ";
+    s += tLimit;
+    s += "ms";
+}
+
 
 void Draw()
 {
@@ -279,7 +306,7 @@ void Begin(SimulationManager@ sim)
     catch
     {
         PrintException("mode.begin");
-        Finish();
+        Finish(sim);
     }
 }
 
@@ -318,7 +345,7 @@ void Iteration(SimulationManager@ sim)
     catch
     {
         PrintException("mode.iteration");
-        Finish();
+        Finish(sim);
     }
 }
 
@@ -340,7 +367,7 @@ void Step(SimulationManager@ sim)
                 s += error;
                 print(s, Severity::Error);
 
-                Finish();
+                Finish(sim);
                 break;
             }
 
@@ -354,7 +381,7 @@ void Step(SimulationManager@ sim)
                 s += Time::Format(tInit);
                 print(s, Severity::Error);
 
-                Finish();
+                Finish(sim);
                 break;
             }
 
@@ -397,7 +424,7 @@ void Step(SimulationManager@ sim)
                 catch
                 {
                     PrintException("mode.step");
-                    Finish();
+                    Finish(sim);
                 }
 
                 break;
@@ -421,7 +448,7 @@ void Step(SimulationManager@ sim)
     // fallthrough
     case StepState::FINISH:
         if (handleFinish)
-            Finish();
+            Finish(sim);
 
         if (contextMode == ContextMode::Simulation)
             sim.ForceFinish();
@@ -434,10 +461,11 @@ void Step(SimulationManager@ sim)
 
 void End(SimulationManager@ sim)
 {
-    // Just for the GC.
     @initState = null;
     @inputState = null;
     postInitInputEvents.Clear();
+    commitStates.Clear();
+    commitAnalog.Clear();
 
     stepState = StepState::NONE;
     preventSimulationFinish = false;
@@ -483,107 +511,21 @@ void End(SimulationManager@ sim)
     }
 }
 
-void Finish()
+void Finish(SimulationManager@ sim)
 {
     handleFinish = false;
+
     stepState = StepState::FINISH;
     if (contextMode == ContextMode::Run)
         runState = RunState::END;
+
+    if (results.Length == 1 && results[0] is null)
+        @results[0] = Result(sim);
 }
 
 void PrintException(const string &in identifier)
 {
     print("[Incremental] Exception caught: " + identifier, Severity::Error);
-}
-
-void Commit(SimulationManager@ sim, const IncCommitContext@ ctx)
-{
-    const ms time = tInput;
-    tInput += ctx.Advance;
-
-    Rewind(sim, inputState, RewindFlags::REMOVE);
-    PostInitInputEventsAdvance(sim.InputEvents);
-
-    if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::COMMIT)
-    {
-        string s = TERMINAL_TITLE_TAG;
-        TerminalTitleAppendIterationInfo(s);
-        TerminalTitleAppendCommitInfo(s);
-        SetConsoleWindowTitle(s);
-    }
-
-    string s;
-    s += time;
-    s += "ms\n";
-
-    if (varPrintExtraInfo)
-    {
-        // NOTE: since we already did a rewind to inputState on this tick, we can access SimulationManager directly for stuff.
-        const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
-
-        s += "Speed (km/h): ";
-        s += FormatPrecise(mps * 3.6);
-        s += "\n";
-    }
-
-    const uint len = ctx.Length;
-    for (uint i = 0; i < len; ++i)
-    {
-        const InputType type = InputType(i);
-        int value;
-        switch (ctx.Get(type, value))
-        {
-        case IncCommitState::NONE:
-            // Do nothing.
-            continue;
-        case IncCommitState::SET:
-            InputSet(sim, time, type, value);
-            s += "+ ";
-        break;
-        case IncCommitState::REMOVE:
-            InputRemove(sim, time, type);
-            s += "- ";
-        break;
-        default:
-            Unreachable();
-        break;
-        }
-
-        InputCommand cmd;
-        cmd.Timestamp = time;
-        cmd.Type = type;
-        cmd.State = value;
-        s += cmd.ToString();
-        s += "\n";
-    }
-
-    print(s);
-}
-
-
-void TerminalTitleInfoLevelCallback(const uint index)
-{
-    varTerminalTitleInfoLevel = index;
-    VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
-}
-
-const string TERMINAL_TITLE_TAG = "Incremental";
-
-void TerminalTitleAppendIterationInfo(string& s)
-{
-    s += " | Iteration: ";
-    s += resultIndex + 1;
-    s += " / ";
-    s += results.Length;
-}
-
-void TerminalTitleAppendCommitInfo(string& s)
-{
-    s += " | Commit: ";
-    s += tInput;
-    s += "ms / ";
-    s += tLimit;
-    s += "ms";
 }
 
 
@@ -634,16 +576,6 @@ SimulationState@ inputState;
 
 array<TM::InputEvent> postInitInputEvents;
 uint preservationIndex;
-
-ms GetRelativeTime(const ms absoluteTime)
-{
-    return absoluteTime - tInput;
-}
-
-ms GetAbsoluteTime(const ms relativeTime)
-{
-    return tInput + relativeTime;
-}
 
 void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb)
 {
@@ -748,6 +680,129 @@ void InputSet(SimulationManager@ sim, const ms time, const InputType type, const
 void InputRemove(SimulationManager@ sim, const ms time, const InputType type)
 {
     IEBRemoveOneAtTime(sim.InputEvents, time, type);
+}
+
+
+// NOTE: 'commitStates' is monotonically longer than 'commitAnalog'.
+array<IncCommitState> commitStates;
+array<int> commitAnalog;
+
+IncCommitState StageGet(const InputType inputType, int &out analogValue)
+{
+    analogValue = 0;
+    if (inputType == InputType::None)
+        return IncCommitState::NONE;
+
+    const uint index = inputType;
+    if (index >= commitStates.Length)
+        return IncCommitState::NONE;
+
+    const IncCommitState state = commitStates[index];
+    if (state == IncCommitState::SET)
+        analogValue = commitAnalog[index];
+    return state;
+}
+
+void StageSet(const InputType inputType, const int analogValue)
+{
+    if (inputType == InputType::None)
+        return;
+
+    AssertLog(inputType >= 0, "Tried to allocate a few GiB, do not pass negative values for inputType.");
+
+    const uint index = inputType;
+    if (index >= commitAnalog.Length)
+    {
+        commitAnalog.Resize(index + 1);
+        if (index >= commitStates.Length)
+            commitStates.Resize(index + 1);
+    }
+
+    commitStates[index] = IncCommitState::SET;
+    commitAnalog[index] = analogValue;
+}
+
+void StageRemove(const InputType inputType)
+{
+    if (inputType == InputType::None)
+        return;
+
+    AssertLog(inputType >= 0, "Tried to allocate a few GiB, do not pass negative values for inputType.");
+
+    const uint index = inputType;
+    if (index >= commitStates.Length)
+        commitStates.Resize(index + 1);
+
+    commitStates[index] = IncCommitState::REMOVE;
+}
+
+void Commit(SimulationManager@ sim, const ms advance)
+{
+    AssertLog(advance % 10 == 0 && advance > 0, "Advance time must be a multiple of 10 greater than 0.");
+
+    const ms time = tInput;
+    tInput += advance;
+
+    Rewind(sim, inputState, RewindFlags::REMOVE);
+    PostInitInputEventsAdvance(sim.InputEvents);
+
+    if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::COMMIT)
+    {
+        string s = TERMINAL_TITLE_TAG;
+        TerminalTitleAppendIterationInfo(s);
+        TerminalTitleAppendCommitInfo(s);
+        SetConsoleWindowTitle(s);
+    }
+
+    string s;
+    s += time;
+    s += "ms\n";
+
+    if (varPrintExtraInfo)
+    {
+        // NOTE: since we already did a rewind to inputState on this tick, we can access SimulationManager directly for stuff.
+        const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
+
+        s += "Speed (km/h): ";
+        s += FormatPrecise(mps * 3.6);
+        s += "\n";
+    }
+
+    const uint len = commitStates.Length;
+    for (uint i = 0; i < len; ++i)
+    {
+        const InputType type = InputType(i);
+        int value;
+        switch (StageGet(type, value))
+        {
+        case IncCommitState::NONE:
+            // Do nothing.
+            continue;
+        case IncCommitState::SET:
+            InputSet(sim, time, type, value);
+            s += "+ ";
+        break;
+        case IncCommitState::REMOVE:
+            InputRemove(sim, time, type);
+            s += "- ";
+        break;
+        default:
+            Unreachable();
+        break;
+        }
+
+        InputCommand cmd;
+        cmd.Timestamp = time;
+        cmd.Type = type;
+        cmd.State = value;
+        s += cmd.ToString();
+        s += "\n";
+    }
+
+    print(s);
+
+    commitStates.Clear();
+    commitAnalog.Clear();
 }
 
 

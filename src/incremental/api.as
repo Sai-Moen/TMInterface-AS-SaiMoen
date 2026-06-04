@@ -66,60 +66,81 @@ bool IncRegisterMode(const string &in modeName, IncMode@ mode)
     return true;
 }
 
-void IncTerminate()
+
+void IncTerminate(SimulationManager@ sim)
 {
-    Core::Finish();
+    Core::Finish(sim);
 }
 
-ms IncGetRelativeTime(SimulationManager@ sim)
+
+ms IncTimeGetAbsolute(SimulationManager@ sim)
 {
-    return Core::GetRelativeTime(sim.TickTime);
+    return sim.TickTime;
 }
 
-ms IncGetRelativeTime(ms absoluteTime)
+ms IncTimeGetRelative(SimulationManager@ sim)
 {
-    return Core::GetRelativeTime(absoluteTime);
+    return sim.TickTime - Core::tInput;
 }
 
-ms IncGetAbsoluteTime(ms relativeTime)
+ms IncTimeAbsoluteFromRelative(ms relativeTime)
 {
-    return Core::GetAbsoluteTime(relativeTime);
+    return relativeTime + Core::tInput;
 }
+
+ms IncTimeRelativeFromAbsolute(ms absoluteTime)
+{
+    return absoluteTime - Core::tInput;
+}
+
 
 bool IncInputGet(SimulationManager@ sim, InputType type, int &out value = void)
 {
-    return Core::InputGet(sim, Core::tInput, type, value);
+    return Core::InputGet(sim, sim.TickTime, type, value);
 }
 
-bool IncInputGet(SimulationManager@ sim, ms relativeTime, InputType type, int &out value = void)
+bool IncInputGetAbsolute(SimulationManager@ sim, ms absoluteTime, InputType type, int &out value = void)
 {
-    return Core::InputGet(sim, Core::GetAbsoluteTime(relativeTime), type, value);
+    return Core::InputGet(sim, absoluteTime, type, value);
 }
+
+bool IncInputGetRelative(SimulationManager@ sim, ms relativeTime, InputType type, int &out value = void)
+{
+    return Core::InputGet(sim, Core::tInput + relativeTime, type, value);
+}
+
 
 void IncInputSet(SimulationManager@ sim, InputType type, int value)
 {
-    Core::InputSet(sim, Core::tInput, type, value);
+    Core::InputSet(sim, sim.TickTime, type, value);
 }
 
-void IncInputSet(SimulationManager@ sim, ms relativeTime, InputType type, int value)
+void IncInputSetAbsolute(SimulationManager@ sim, ms absoluteTime, InputType type, int value)
 {
-    Core::InputSet(sim, Core::GetAbsoluteTime(relativeTime), type, value);
+    Core::InputSet(sim, absoluteTime, type, value);
 }
+
+void IncInputSetRelative(SimulationManager@ sim, ms relativeTime, InputType type, int value)
+{
+    Core::InputSet(sim, Core::tInput + relativeTime, type, value);
+}
+
 
 void IncInputRemove(SimulationManager@ sim, InputType type)
 {
-    Core::InputRemove(sim, Core::tInput, type);
+    Core::InputRemove(sim, sim.TickTime, type);
 }
 
-void IncInputRemove(SimulationManager@ sim, ms relativeTime, InputType type)
+void IncInputRemoveAbsolute(SimulationManager@ sim, ms absoluteTime, InputType type)
 {
-    Core::InputRemove(sim, Core::GetAbsoluteTime(relativeTime), type);
+    Core::InputRemove(sim, absoluteTime, type);
 }
 
-SimulationState@ IncGetInputState()
+void IncInputRemoveRelative(SimulationManager@ sim, ms relativeTime, InputType type)
 {
-    return Core::inputState;
+    Core::InputRemove(sim, Core::tInput + relativeTime, type);
 }
+
 
 void IncRewindRemove(SimulationManager@ sim)
 {
@@ -132,6 +153,7 @@ void IncRewindPreserve(SimulationManager@ sim)
     Rewind(sim, Core::inputState, RewindFlags::PRESERVE);
 }
 
+
 enum IncCommitState
 {
     NONE,   // No particular change is requested (default).
@@ -139,90 +161,22 @@ enum IncCommitState
     REMOVE, // Removes (all) input event(s) with the given type at input time.
 }
 
-class IncCommitContext
+IncCommitState IncStageGet(InputType inputType, int &out analogValue = void)
 {
-    protected ms advance;
-    protected array<IncCommitState> states;
-    protected array<int> analog;
-
-    ms Advance
-    {
-        get const
-        {
-            if (advance == 0)
-                return 10;
-
-            return advance;
-        }
-
-        set
-        {
-            AssertLog(value % 10 == 0, "Advance time must be a multiple of 10ms.");
-            advance = value;
-        }
-    }
-
-    // 'states' is monotonically longer than 'analog'.
-    uint Length { get const { return states.Length; } }
-
-    IncCommitState Get(InputType inputType, int &out analogValue = void) const
-    {
-        analogValue = 0;
-        if (inputType == InputType::None)
-            return IncCommitState::NONE;
-
-        const uint index = inputType;
-        if (index >= states.Length)
-            return IncCommitState::NONE;
-
-        const IncCommitState state = states[index];
-        if (state == IncCommitState::SET)
-            analogValue = analog[index];
-        return state;
-    }
-
-    void Set(InputType inputType, const int analogValue)
-    {
-        if (inputType == InputType::None)
-            return;
-
-        AssertLog(inputType >= 0, "Tried to allocate a few GiB, do not pass negative values for inputType.");
-
-        const uint index = inputType;
-        if (index >= analog.Length)
-        {
-            analog.Resize(index + 1);
-            if (index >= states.Length)
-                states.Resize(index + 1);
-        }
-
-        states[index] = IncCommitState::SET;
-        analog[index] = analogValue;
-    }
-
-    void Remove(InputType inputType)
-    {
-        if (inputType == InputType::None)
-            return;
-
-        AssertLog(inputType >= 0, "Tried to allocate a few GiB, do not pass negative values for inputType.");
-
-        const uint index = inputType;
-        if (index >= states.Length)
-            states.Resize(index + 1);
-
-        states[index] = IncCommitState::REMOVE;
-    }
-
-    void Reset()
-    {
-        advance = 0;
-        states.Clear();
-        analog.Clear();
-    }
+    return Core::StageGet(inputType, analogValue);
 }
 
-void IncCommit(SimulationManager@ sim, const IncCommitContext@ ctx = IncCommitContext())
+void IncStageSet(InputType inputType, int analogValue)
 {
-    Core::Commit(sim, ctx);
+    Core::StageSet(inputType, analogValue);
+}
+
+void IncStageRemove(InputType inputType)
+{
+    Core::StageRemove(inputType);
+}
+
+void IncCommit(SimulationManager@ sim, ms advance = 10)
+{
+    Core::Commit(sim, advance);
 }
