@@ -99,7 +99,7 @@ void Begin(SimulationManager@ sim)
 
 void End(SimulationManager@)
 {
-    steerHistory.Clear();
+    steerHistory.Reset();
 
     evalState = EvalState::NONE;
     haveTurningRates = false;
@@ -125,7 +125,7 @@ float turningRate1;
 
 int bestSteer;
 int steer;
-array<int> steerHistory;
+IntHashSet steerHistory;
 
 double bestResult;
 double result;
@@ -175,9 +175,8 @@ void StepMain(SimulationManager@ sim)
         while (steer <= steerBound)
         {
             steer += steerStep;
-            if (steerHistory.Find(steer) == -1)
+            if (steerHistory.Add(steer))
             {
-                steerHistory.Add(steer);
                 IncInputSet(sim, InputType::Steer, steer);
                 break;
             }
@@ -219,7 +218,7 @@ void Evaluate(SimulationManager@ sim)
             evalState = EvalState::COMMIT;
         }
 
-        steerHistory.Clear();
+        steerHistory.Reset();
         @mode.step = StepInit;
         return;
     }

@@ -1133,6 +1133,7 @@ Features:
 - Constants.
 - Conversion, Clamping.
 - Sign, Rounding.
+- HashSet.
 
 */
 
@@ -1152,6 +1153,7 @@ int ClampSteer(const int steer)
 {
     return Math::Clamp(steer, STEER_MIN, STEER_MAX);
 }
+
 
 enum Sign
 {
@@ -1183,6 +1185,135 @@ int RoundAway(const float magnitude, const Sign direction)
     case Sign::Zero:     return int(magnitude);
     case Sign::Positive: return int(Math::Ceil(magnitude));
     default:             return 0; // unreachable
+    }
+}
+
+
+uint HashAnalog(uint h)
+{
+    // Expecting a value in [-65536, 65536].
+    // 65536 takes 17 significant bits, therefore we rotate right by 17 bits.
+    h = (h << 15) | (h >> 17);
+
+    // Some arbitrary prime operations.
+    h ^= 2971215073;
+    h *= 433494437;
+    return h;
+}
+
+// Linear-probing hash set for 'int' (specifically, analog values).
+class IntHashSet
+{
+    protected uint initialLength;
+
+    IntHashSet(const uint minimumInitialLength = 127)
+    {
+        initialLength = 0;
+        while (initialLength < minimumInitialLength)
+        {
+            const uint next = initialLength * 2 + 1;
+            Assert(next > initialLength);
+            initialLength = next;
+        }
+    }
+
+    protected bool hasZero; // We skip initializing arrays with a nonzero sentinel constantly, at the cost of branching.
+    protected array<int>@ values;
+    protected uint load;
+
+    protected bool AddInternal(const int value)
+    {
+        if (value == 0)
+        {
+            const bool added = !hasZero;
+            hasZero = true;
+            return added;
+        }
+
+        if (values is null)
+            @values = array<int>(initialLength);
+
+        uint len = values.Length;
+        if (len <= load)
+        {
+            const uint oldLen = len;
+            const array<int>@ const oldValues = values;
+
+            len = len * 2 + 1;
+            @values = array<int>(len);
+            Assert(oldLen == oldValues.Length);
+
+            for (uint i = 0; i < oldLen; ++i)
+            {
+                const int v = oldValues[i];
+                if (v != 0)
+                {
+                    const bool added = AddInternal(v);
+                    Assert(added);
+                }
+            }
+            // Not expecting double-realloc here...
+            Assert(len == values.Length);
+        }
+
+        for (uint i = HashAnalog(value); ; ++i)
+        {
+            i %= len;
+
+            const int v = values[i];
+            if (v == 0)
+            {
+                values[i] = value;
+                return true;
+            }
+
+            if (v == value)
+                break;
+        }
+
+        return false;
+    }
+
+    bool Add(const int value)
+    {
+        const bool added = AddInternal(value);
+        if (value != 0 && added)
+            load += 2;
+        return added;
+    }
+
+    bool Contains(const int value) const
+    {
+        if (value == 0)
+            return hasZero;
+
+        if (values is null)
+            return false;
+
+        const uint len = values.Length;
+        if (len == 0)
+            return false;
+
+        for (uint i = HashAnalog(value); ; ++i)
+        {
+            i %= len;
+
+            const int v = values[i];
+            if (v == 0)
+                return false;
+
+            if (v == value)
+                break;
+        }
+
+        return true;
+    }
+
+    void Reset()
+    {
+        hasZero = false;
+        @values = null;
+        load = 0;
     }
 }
 

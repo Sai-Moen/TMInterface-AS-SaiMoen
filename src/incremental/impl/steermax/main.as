@@ -30,16 +30,16 @@ const string VAR_NO_SLIDE        = VAR + "no_slide";
 
 void VarsRegister()
 {
-    RegisterVariable(VAR_TIMEOUT, 200);
-    RegisterVariable(VAR_LOOKAHEAD, 200);
+    RegisterVariable(VAR_TIMEOUT,       200);
+    RegisterVariable(VAR_LOOKAHEAD,     200);
     RegisterVariable(VAR_STEER_TOWARDS, STEER_MAX);
-    RegisterVariable(VAR_STEER_AWAY, STEER_MIN);
-    RegisterVariable(VAR_STEER_OFFSET, 0);
+    RegisterVariable(VAR_STEER_AWAY,    STEER_MIN);
+    RegisterVariable(VAR_STEER_OFFSET,  800);
 
-    RegisterVariable(VAR_MAX_SPEED_LOSS, 36);
+    RegisterVariable(VAR_MAX_SPEED_LOSS,  36);
     RegisterVariable(VAR_MAX_SPEED_BLEED, 0.1);
-    RegisterVariable(VAR_NO_WALLBANG, true);
-    RegisterVariable(VAR_NO_SLIDE, true);
+    RegisterVariable(VAR_NO_WALLBANG,     true);
+    RegisterVariable(VAR_NO_SLIDE,        true);
 }
 
 const ms CAUSALITY = 20;
@@ -121,14 +121,16 @@ void Draw()
         "The best steering value allowed.\n"
         "Where 'best' means maximal (but not numerically, rather, 'optimal')");
 
+    const bool left = UI::Button("Left");
+    UI::SameLine();
+    const bool right = UI::Button("Right");
+
     varSteerAway = UI::SliderInt("Steer Away", varSteerAway, STEER_MIN, STEER_MAX);
     TooltipOnHover(
         "The worst steering value allowed.\n"
         "Where 'worst' means minimal (but not numerically, rather, 'pessimal')");
 
-    const bool left = UI::Button("Left");
-    UI::SameLine();
-    const bool right = UI::Button("Right");
+    const bool zero = UI::Button("Zero");
 
     if (left)
     {
@@ -142,6 +144,9 @@ void Draw()
     }
     else
     {
+        if (zero)
+            varSteerAway = 0;
+
         if (varSteerTowards == varSteerAway)
         {
             ++varSteerTowards;
@@ -187,7 +192,6 @@ void Draw()
 int steerMin;
 int steerMax;
 int initialSteer;
-int initialSteerStep;
 
 int steerOffset;
 float maxSpeedLoss;
@@ -195,15 +199,7 @@ float maxSpeedBleed;
 
 enum EvalState
 {
-    // Find the earliest tInput on which the constraints are violated for initialSteer within 'timeout' ms.
-    // (also grab some information).
     SEARCH,
-
-    // Find the latest tick on which countersteering removes the constraint violations within 'lookahead' ms
-    // (starting from the countersteer tick, or maybe the constraint violation tick?).
-    SCAN,
-
-    // Binary search for 'maximal' steering value on this tick, that does not violate the constraints.
     EVALUATE,
 }
 
@@ -215,12 +211,9 @@ void Begin(SimulationManager@)
 
     steerMin = Math::Min(varSteerTowards, varSteerAway);
     steerMax = Math::Max(varSteerTowards, varSteerAway);
+    initialSteer = steerMin + (steerMax - steerMin) / 2;
 
-    const int diff   = varSteerAway - varSteerTowards;
-    initialSteer     = steerMin + (steerMax - steerMin) / 2;
-    initialSteerStep = diff / 2;
-
-    steerOffset   = varSteerOffset * GetSign(diff);
+    steerOffset   = varSteerOffset * GetSign(varSteerAway - varSteerTowards);
     maxSpeedLoss  = varMaxSpeedLoss  / 3.6;
     maxSpeedBleed = varMaxSpeedBleed / 3.6;
 
@@ -277,11 +270,9 @@ StringWrapper@ GenerateConstraintFailureMessage(const Constraint c)
     return message;
 }
 
-ms steerAwayTime;
 ms targetTime;
 
 int steer;
-int steerStep;
 int steerTowards;
 int steerAway;
 
@@ -319,124 +310,61 @@ void Step(SimulationManager@ sim)
             break;
         }
 
+        if (ConstraintsCheck(sim) != Constraint::NONE)
         {
-            const Constraint constraint = ConstraintsCheck(sim);
-            if (constraint != Constraint::NONE)
-            {
-                steerAwayTime = time - CAUSALITY;
-                targetTime = time + varLookahead;
-                if (steerAwayTime < 0)
-                {
-                    string s;
-                    s += "[SteerMax] Contraints violated before they can be avoided: ";
-                    s += GenerateConstraintFailureMessage(constraint);
-                    s += " at relative time ";
-                    s += time;
-                    s += "ms";
-                    print(s, Severity::Error);
+            targetTime = time + varLookahead;
 
-                    IncTerminate(sim);
-                    break;
-                }
+            steerTowards = varSteerTowards;
+            steerAway    = varSteerAway;
 
-                evalState = EvalState::SCAN;
-                IncRewindPreserve(sim);
-                Step(sim);
-            }
-            else if (time == varTimeout)
-            {
-                IncStageSet(InputType::Steer, varSteerTowards);
-                IncCommit(sim);
-            }
+            evalState = EvalState::EVALUATE;
+            IncRewindPreserve(sim);
+            Step(sim);
         }
-    break;
-    case EvalState::SCAN:
-        if (time == steerAwayTime)
-        {
-            IncInputSet(sim, InputType::Steer, varSteerAway);
-            break;
-        }
-
-        if (steerAwayTime >= 10)
-        {
-            if (ConstraintsCheck(sim) != Constraint::NONE)
-            {
-                steerAwayTime -= 10;
-                IncRewindPreserve(sim);
-                Step(sim);
-                break;
-            }
-
-            Assert(time <= targetTime);
-            if (time != targetTime)
-                break;
-        }
-
-        steer        = initialSteer;
-        steerStep    = initialSteerStep;
-        steerTowards = varSteerTowards;
-        steerAway    = varSteerAway;
-
-        evalState = EvalState::EVALUATE;
-        if (steerAwayTime >= 10)
+        else if (time == varTimeout)
         {
             IncStageSet(InputType::Steer, varSteerTowards);
-            IncCommit(sim, steerAwayTime);
-            targetTime -= steerAwayTime;
-        }
-        else
-        {
-            IncRewindRemove(sim);
-            Step(sim);
+            IncCommit(sim);
         }
     break;
     case EvalState::EVALUATE:
         if (time == 0)
         {
+            const int min = Math::Min(steerTowards, steerAway);
+            const int max = Math::Max(steerTowards, steerAway);
+
+            const int diff = max - min;
+            if (diff < 2)
+            {
+                evalState = EvalState::SEARCH;
+
+                const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
+                IncStageSet(InputType::Steer, best);
+                IncCommit(sim);
+                break;
+            }
+
+            steer = min + diff / 2;
             IncInputSet(sim, InputType::Steer, steer);
             break;
         }
 
+        if (ConstraintsCheck(sim) != Constraint::NONE)
         {
-            const Constraint constraint = ConstraintsCheck(sim);
-            const bool lastStep = Math::Abs(steerStep) == 1;
-
-            if (constraint != Constraint::NONE)
-            {
-                if (lastStep)
-                {
-                    SteerNextStep(sim);
-                    break;
-                }
-
-                steerTowards = steer;
-                steer += steerStep;
-                if (steer <= varSteerTowards && steer <= steerAway || steer >= varSteerTowards && steer >= steerAway)
-                {
-                    SteerNextStep(sim);
-                    break;
-                }
-            }
-
-            if (time == targetTime)
-            {
-                const bool inbounds =
-                    steer <= varSteerTowards && steer > steerAway ||
-                    steer >= varSteerTowards && steer < steerAway;
-                if (constraint == Constraint::NONE && inbounds)
-                {
-                    steerAway = steer;
-                    if (lastStep)
-                    {
-                        steer += steerStep;
-                        IncRewindPreserve(sim);
-                        Step(sim);
-                        break;
-                    }
-                }
-                SteerNextStep(sim);
-            }
+            steerTowards = steer;
         }
+        else if (time == targetTime)
+        {
+            steerAway = steer;
+            steerTowards = varSteerTowards;
+        }
+        else
+        {
+            break;
+        }
+
+        IncRewindPreserve(sim);
+        Step(sim);
     break;
     default:
         Unreachable();
@@ -479,33 +407,6 @@ Constraint ConstraintsCheck(SimulationManager@ sim)
     }
 
     return Constraint::NONE;
-}
-
-void SteerNextStep(SimulationManager@ sim)
-{
-    steerStep /= 2;
-    switch (Math::Abs(steerStep))
-    {
-    case 0:
-        evalState = EvalState::SEARCH;
-
-        {
-            const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
-            IncStageSet(InputType::Steer, best);
-            IncCommit(sim);
-        }
-
-        return;
-    case 1:
-        steer = steerAway;
-    break;
-    default:
-        steer = steerTowards - steerStep / 2;
-    break;
-    }
-
-    IncRewindPreserve(sim);
-    Step(sim);
 }
 
 
