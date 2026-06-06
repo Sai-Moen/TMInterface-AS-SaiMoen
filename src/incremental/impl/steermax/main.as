@@ -8,7 +8,7 @@ void Main()
     VarsInit();
 
     IncMode mode;
-    mode.preservationExclusions = { InputType::Left, InputType::Right, InputType::Steer };
+    mode.excludedInputTypes = { InputType::Left, InputType::Right, InputType::Steer };
     @mode.draw = Draw;
     @mode.begin = Begin;
     @mode.step = Step;
@@ -173,13 +173,13 @@ void Draw()
 
     varMaxSpeedLoss = UI::InputFloatVar("Max Speed Loss", VAR_MAX_SPEED_LOSS);
     TooltipOnHover(
-        "The maximum cumulative speed loss allowed.\n"
+        "The maximum cumulative speed loss allowed (default: 36 km/h).\n"
         "This is calculated based on the last time the speed increased, to the tick being measured.\n"
         "Consider whether you will switch gears, and adjust accordingly.");
 
     varMaxSpeedBleed = UI::InputFloatVar("Max Speed Bleed", VAR_MAX_SPEED_BLEED);
     TooltipOnHover(
-        "The maximum immediate (between two consecutive ticks) speed loss allowed.\n"
+        "The maximum immediate (between two consecutive ticks) speed loss allowed (default: 0.1 km/h).\n"
         "Consider whether you will switch gears, and adjust accordingly.");
 
     varNoWallbang = UI::CheckboxVar("No Wallbang", VAR_NO_WALLBANG);
@@ -191,7 +191,6 @@ void Draw()
 
 int steerMin;
 int steerMax;
-int initialSteer;
 
 int steerOffset;
 float maxSpeedLoss;
@@ -199,6 +198,8 @@ float maxSpeedBleed;
 
 enum EvalState
 {
+    NONE,
+
     SEARCH,
     EVALUATE,
 }
@@ -211,7 +212,6 @@ void Begin(SimulationManager@)
 
     steerMin = Math::Min(varSteerTowards, varSteerAway);
     steerMax = Math::Max(varSteerTowards, varSteerAway);
-    initialSteer = steerMin + (steerMax - steerMin) / 2;
 
     steerOffset   = varSteerOffset * GetSign(varSteerAway - varSteerTowards);
     maxSpeedLoss  = varMaxSpeedLoss  / 3.6;
@@ -236,13 +236,11 @@ enum Constraint
     SLIDE,
 }
 
-StringWrapper@ GenerateConstraintFailureMessage(const Constraint c)
+string GenerateConstraintFailureMessage(const Constraint constraint)
 {
     string message;
-    switch (c)
+    switch (constraint)
     {
-    case Constraint::NONE:
-        return StringWrapper();
     case Constraint::SPEED_LOSS:
         message += "Speed Loss: ";
         message += (velocityMinimumCumulative + maxSpeedLoss) - velocityCurrent;
@@ -303,14 +301,12 @@ void Step(SimulationManager@ sim)
                 print(s, Severity::Error);
 
                 IncTerminate(sim);
-                break;
+                return;
             }
 
             IncInputSet(sim, InputType::Steer, varSteerTowards);
-            break;
         }
-
-        if (ConstraintsCheck(sim) != Constraint::NONE)
+        else if (ConstraintsCheck(sim) != Constraint::NONE)
         {
             targetTime = time + varLookahead;
 
@@ -334,37 +330,39 @@ void Step(SimulationManager@ sim)
             const int max = Math::Max(steerTowards, steerAway);
 
             const int diff = max - min;
-            if (diff < 2)
+            if (diff >= 2)
+            {
+                steer = min + diff / 2;
+                IncInputSet(sim, InputType::Steer, steer);
+            }
+            else
             {
                 evalState = EvalState::SEARCH;
 
                 const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
                 IncStageSet(InputType::Steer, best);
                 IncCommit(sim);
-                break;
             }
-
-            steer = min + diff / 2;
-            IncInputSet(sim, InputType::Steer, steer);
-            break;
         }
-
-        if (ConstraintsCheck(sim) != Constraint::NONE)
+        else if (ConstraintsCheck(sim) != Constraint::NONE)
         {
             steerTowards = steer;
+
+            IncRewindPreserve(sim);
+            Step(sim);
         }
         else if (time == targetTime)
         {
             steerAway = steer;
-            steerTowards = varSteerTowards;
-        }
-        else
-        {
-            break;
-        }
 
-        IncRewindPreserve(sim);
-        Step(sim);
+            // To try more steering values, we also reset steerTowards here.
+            // This should not repeatedly test the same values, as we stop resetting and commit when steerAway stops moving,
+            // so we might do a couple duplicate attempts at the end in the worst case (not enough to throw in an IntHashSet).
+            steerTowards = varSteerTowards;
+
+            IncRewindPreserve(sim);
+            Step(sim);
+        }
     break;
     default:
         Unreachable();

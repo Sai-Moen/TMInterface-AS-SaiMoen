@@ -2,18 +2,17 @@ namespace SpeedDrift
 {
 
 
-IncMode mode;
-
 void Main()
 {
     VarsRegister();
     VarsInit();
 
-    mode.preservationExclusions = { InputType::Left, InputType::Right, InputType::Steer };
+    IncMode mode;
+    mode.excludedInputTypes = { InputType::Left, InputType::Right, InputType::Steer };
 
     @mode.draw = Draw;
     @mode.begin = Begin;
-    @mode.step = StepInit;
+    @mode.step = Step;
     @mode.end = End;
     IncRegisterMode("SD Railgun", mode);
 }
@@ -91,17 +90,16 @@ void Draw()
     VarSetTime(VAR_LOOKAHEAD_NORMAL, varLookaheadNormal);
 }
 
-void Begin(SimulationManager@ sim)
+void Begin(SimulationManager@)
 {
     VarsInit();
-    @mode.step = StepInit;
+    evalState = EvalState::INIT;
 }
 
 void End(SimulationManager@)
 {
-    steerHistory.Reset();
-
-    evalState = EvalState::NONE;
+    fallback = false;
+    last = false;
     haveTurningRates = false;
 }
 
@@ -111,150 +109,142 @@ const int STEP_LAST_DEVIATION = RANGE_SIZE / 2;
 enum EvalState
 {
     NONE,
-    LAST,
-    COMMIT,
-    FALLBACK,
+
+    INIT,
+    EVALUATE,
 }
 
 EvalState evalState;
-bool useQuality;
+
+bool fallback;
+bool last;
 
 bool haveTurningRates;
 float turningRate0;
 float turningRate1;
 
+bool useQuality;
+
 int bestSteer;
-int steer;
-IntHashSet steerHistory;
-
-double bestResult;
-double result;
-
+float bestResult;
 ms lookahead;
+
+int steer;
 int steerStep;
 int steerBound;
 
-// NOTE: right now the steering on the input time is nuked too early, so the turning rates will just be the same.
-// Will look again if/when we get API's with more control over the input event buffer in different context modes.
-// E.g. RewindToState not removing input events in run mode (and actually playing them without needing SetInputState).
-void StepInit(SimulationManager@ sim)
+bool rewinding;
+
+void Step(SimulationManager@ sim)
 {
-    if (evalState != EvalState::FALLBACK)
+    do
     {
-        const float turningRate = sim.SceneVehicleCar.TurningRate;
-        if (!haveTurningRates)
+        rewinding = false;
+
+        const ms time = IncTimeGetRelative(sim);
+        switch (evalState)
         {
-            turningRate0 = turningRate;
-            haveTurningRates = true;
-            return;
-        }
-        turningRate1 = turningRate;
-        haveTurningRates = false;
-        IncRewindPreserve(sim);
+        case EvalState::INIT:
+            if (!fallback)
+            {
+                // TODO: right now the steering on the input time is nuked too early,
+                // so the turning rates will just be the same.
+                const float turningRate = sim.SceneVehicleCar.TurningRate;
+                if (!haveTurningRates)
+                {
+                    haveTurningRates = true;
+                    turningRate0 = turningRate;
+                    return;
+                }
+                haveTurningRates = false;
+                turningRate1 = turningRate;
 
-        useQuality = varQualityThreshold != 0;
-    }
-    evalState = EvalState::NONE;
+                Rewind(sim);
 
-    bestSteer  = RoundAway(turningRate1 * STEER_FULL, turningRate1 - turningRate0);
-    bestResult = useQuality ? 1 : -1;
+                useQuality = varQualityThreshold != 0;
+            }
+            fallback = false;
+            evalState = EvalState::EVALUATE;
 
-    lookahead = useQuality ? varLookaheadQuality : varLookaheadNormal;
-    steerStep = 0x8000 / RANGE_SIZE;
-    SetSteerBounds();
+            bestSteer  = RoundAway(turningRate1 * STEER_FULL, turningRate1 - turningRate0);
+            bestResult = useQuality ? 1 : -1;
+            lookahead = useQuality ? varLookaheadQuality : varLookaheadNormal;
 
-    @mode.step = StepMain;
-    StepMain(sim);
-}
-
-void StepMain(SimulationManager@ sim)
-{
-    const ms time = IncTimeGetRelative(sim);
-    if (time == 0)
-    {
-        while (steer <= steerBound)
-        {
-            steer += steerStep;
-            if (steerHistory.Add(steer))
+            steerStep = 0x8000 / RANGE_SIZE;
+            SetSteerBounds();
+        break;
+        case EvalState::EVALUATE:
+            if (time == 0)
             {
                 IncInputSet(sim, InputType::Steer, steer);
                 break;
             }
+
+            Assert(time <= lookahead);
+            if (time != lookahead)
+                break;
+
+            {
+                float result;
+                bool isBetter;
+                if (useQuality)
+                {
+                    result = Math::Abs(1 - ComputeSpeedslideQualityForStadiumCar(sim));
+                    isBetter = result < bestResult;
+                }
+                else
+                {
+                    result = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
+                    isBetter = result > bestResult;
+                }
+
+                if (isBetter)
+                {
+                    bestResult = result;
+                    bestSteer = steer;
+                }
+            }
+
+            if (last)
+            {
+                last = false;
+                evalState = EvalState::INIT;
+                if (!useQuality || bestResult <= varQualityThreshold)
+                {
+                    IncStageSet(InputType::Steer, bestSteer);
+                    IncCommit(sim);
+                    return;
+                }
+
+                useQuality = false;
+                fallback = true;
+            }
+            else
+            {
+                steer += steerStep;
+                if (steer > steerBound)
+                {
+                    steerStep >>= 1;
+                    last = steerStep == 0;
+                    if (last)
+                    {
+                        steerStep = 1;
+                        SetSteerBoundsWithOffset(STEP_LAST_DEVIATION);
+                    }
+                    else
+                    {
+                        SetSteerBounds();
+                    }
+                }
+            }
+
+            Rewind(sim);
+        break;
+        default:
+            Unreachable();
+        break;
         }
-    }
-    else if (time == lookahead)
-    {
-        Evaluate(sim);
-        if (evalState == EvalState::COMMIT)
-            return;
-
-        IncRewindPreserve(sim);
-        mode.step(sim);
-    }
-}
-
-void Evaluate(SimulationManager@ sim)
-{
-    if (IsBetter(sim))
-    {
-        bestResult = result;
-        bestSteer = steer;
-    }
-
-    if (steer <= steerBound)
-        return;
-
-    if (evalState == EvalState::LAST)
-    {
-        if (useQuality && bestResult > varQualityThreshold)
-        {
-            useQuality = false;
-            evalState = EvalState::FALLBACK;
-        }
-        else
-        {
-            IncStageSet(InputType::Steer, bestSteer);
-            IncCommit(sim);
-            evalState = EvalState::COMMIT;
-        }
-
-        steerHistory.Reset();
-        @mode.step = StepInit;
-        return;
-    }
-
-    switch (steerStep)
-    {
-    case 0:
-        print("[SD Railgun] steerStep == 0", Severity::Error);
-        IncTerminate(sim);
-
-        // Using COMMIT to exit as fast as possible.
-        evalState = EvalState::COMMIT;
-    break;
-    case 1:
-        SetSteerBoundsWithOffset(STEP_LAST_DEVIATION);
-        evalState = EvalState::LAST;
-    break;
-    default:
-        steerStep >>= 1;
-        SetSteerBounds();
-    break;
-    }
-}
-
-bool IsBetter(SimulationManager@ sim)
-{
-    if (useQuality)
-    {
-        result = Math::Abs(1 - ComputeSpeedslideQualityForStadiumCar(sim));
-        return result < bestResult;
-    }
-    else
-    {
-        result = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
-        return result > bestResult;
-    }
+    } while (rewinding);
 }
 
 void SetSteerBounds()
@@ -266,6 +256,12 @@ void SetSteerBoundsWithOffset(const int offset)
 {
     steer      = ClampSteer(bestSteer - offset);
     steerBound = ClampSteer(bestSteer + offset);
+}
+
+void Rewind(SimulationManager@ sim)
+{
+    IncRewindPreserve(sim);
+    rewinding = true;
 }
 
 

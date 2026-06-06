@@ -36,8 +36,12 @@ void OnSimulationBegin(SimulationManager@ sim)
     auto@ const ieb = sim.InputEvents;
     IEBRemoveEventIndex(ieb, ieb.EventIndices.FinishLineId);
 
-    Core::Initialize(sim.EventsDuration);
-    Core::PostInitInputEventsInitialize(ieb);
+    Core::Initialize(sim, sim.EventsDuration);
+
+    const uint iebIndex = IEBSearchTime(ieb, Core::tInit);
+    Core::PostInitInputEventsInitialize(ieb, iebIndex);
+    IEBRemoveFromIndex(ieb, iebIndex);
+
     Core::Begin(sim);
 
     handleEnd = true;
@@ -113,7 +117,7 @@ void OnRunStep(SimulationManager@ sim)
         sim.GiveUp();
         contextMode = ContextMode::Run;
 
-        Core::Initialize(Core::varRunReplayTime);
+        Core::Initialize(sim, Core::varRunReplayTime);
         runState = RunState::INIT2;
     break;
     case RunState::INIT2:
@@ -150,8 +154,6 @@ void OnRunStep(SimulationManager@ sim)
             for (uint i = 0; i < length; ++i)
                 ieb.Add(preInitInputEvents[i]);
             preInitInputEvents.Clear();
-
-            Core::PostInitInputEventsCopyToIEB(ieb);
         }
 
         sim.SimulationOnly = true;

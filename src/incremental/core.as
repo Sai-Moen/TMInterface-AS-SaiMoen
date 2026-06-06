@@ -4,6 +4,7 @@ namespace Core
 
 const string VAR = "incremental_";
 
+const string VAR_EVAL_FULL_REPLAY = VAR + "eval_full_replay";
 const string VAR_EVAL_ITER_BEGIN  = VAR + "eval_iter_begin";
 const string VAR_EVAL_ITER_END    = VAR + "eval_iter_end";
 const string VAR_EVAL_END         = VAR + "eval_end";
@@ -18,6 +19,7 @@ const string VAR_MODE                      = VAR + "mode";
 
 void VarsRegister()
 {
+    RegisterVariable(VAR_EVAL_FULL_REPLAY, false);
     RegisterVariable(VAR_EVAL_ITER_BEGIN, 0);
     RegisterVariable(VAR_EVAL_ITER_END, 0);
     RegisterVariable(VAR_EVAL_END, 0);
@@ -31,6 +33,7 @@ void VarsRegister()
     RegisterVariable(VAR_MODE, "");
 }
 
+bool varEvalFullReplay;
 ms varEvalIterBegin;
 ms varEvalIterEnd;
 ms varEvalEnd;
@@ -44,6 +47,7 @@ ms varRunReplayTime;
 
 void VarsInit()
 {
+    varEvalFullReplay = VarGetBool(VAR_EVAL_FULL_REPLAY);
     varEvalIterBegin = VarGetTime(VAR_EVAL_ITER_BEGIN);
     varEvalIterEnd = VarGetTime(VAR_EVAL_ITER_END);
     if (varEvalIterEnd < varEvalIterBegin)
@@ -122,26 +126,24 @@ void Draw()
     if (modeIndex == 0)
     {
         const uint index = ModeIndexDetermineByName();
-        if (index != 0)
+        if (index != 0 && !ModeIndexTrySet(index))
         {
             string s;
             s += "Loading: ";
-            s += modeNames[modeIndex];
+            s += modeNames[index];
             s += CharRepeat(Time::Now % 4, '.');
             UI::TextWrapped(s);
-
-            ModeIndexTrySet(index);
         }
     }
 
     if (UI::CollapsingHeader("General"))
     {
-        if (UI::Button("Reset timestamps to 0"))
-        {
-            VarSetTime(VAR_EVAL_ITER_BEGIN, varEvalIterBegin = 0);
-            VarSetTime(VAR_EVAL_ITER_END,   varEvalIterEnd   = 0);
-            VarSetTime(VAR_EVAL_END,        varEvalEnd       = 0);
-        }
+        varEvalFullReplay = UI::CheckboxVar("Evaluate Full Replay", VAR_EVAL_FULL_REPLAY);
+        TooltipOnHover(
+            "Use the replay time (events duration) to determine the evaluation end time.\n"
+            "This is mostly useful for e.g. Input Simplifier, where it makes sense to evaluate the full replay.");
+
+        UI::BeginDisabled(varEvalFullReplay);
 
         varEvalIterBegin = UI::InputTimeVar("Evaluation Iteration Begin Time", VAR_EVAL_ITER_BEGIN);
         TooltipOnHover("The lower bound (inclusive) of iteration times.");
@@ -170,6 +172,8 @@ void Draw()
         TooltipOnHover(
             "If the input time is beyond this time, a new iteration is started.\n"
             "Set to 0 to have it be set to the events duration automatically.");
+
+        UI::EndDisabled();
 
         UI::Separator();
 
@@ -241,32 +245,44 @@ void HomeDraw()
 
 bool handleFinish;
 
-void Initialize(const ms alternativeTimeLimit)
+void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
 {
     const uint index = ModeIndexDetermineByName();
     if (index == 0)
         log("Mode resolved to Home...?", Severity::Warning);
     ModeIndexTrySet(index);
 
+    excludedInputTypesMask = EventIndicesMakeInputTypesBitmask(sim.InputEvents.EventIndices, mode.excludedInputTypes);
+
     VarsInit();
 
-    tInit = varEvalIterBegin;
-    tInput = -10; // Detecting uninitialized usage.
-    tLimit = varEvalEnd != 0 ? varEvalEnd : alternativeTimeLimit;
-    preservationIndex = uint(-1); // Detecting uninitialized usage.
+    ms evalIterBegin = 0;
+    ms evalIterEnd   = 0;
+    ms evalEnd       = 0;
+    if (!varEvalFullReplay)
+    {
+        evalIterBegin = varEvalIterBegin;
+        evalIterEnd   = varEvalIterEnd;
+        evalEnd       = varEvalEnd;
+    }
 
-    int timerange;
+    tInit = evalIterBegin;
+    tInput = -10; // Detecting uninitialized usage.
+    tLimit = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
+    postInitIndex = uint(-1); // Detecting uninitialized usage.
+
+    int resultsLen;
     if (mode.singleIteration)
     {
-        timerange = 1;
+        resultsLen = 1;
     }
     else
     {
-        timerange = (varEvalIterEnd - varEvalIterBegin) / 10 + 1;
-        if (timerange < 1)
-            timerange = 1;
+        resultsLen = (evalIterEnd - evalIterBegin) / 10 + 1;
+        if (resultsLen < 1)
+            resultsLen = 1;
     }
-    results.Resize(timerange);
+    results.Resize(resultsLen);
     resultIndex = 0;
 
     stepState = varUseSaveState ? StepState::SAVE_STATE : StepState::INIT;
@@ -313,7 +329,7 @@ void Begin(SimulationManager@ sim)
 void Iteration(SimulationManager@ sim)
 {
     tInput = tInit + resultIndex * 10;
-    preservationIndex = 0;
+    postInitIndex = 0;
     PostInitInputEventsAdvance(sim.InputEvents);
 
     if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::ITERATION)
@@ -575,52 +591,47 @@ SimulationState@ initState;
 SimulationState@ inputState;
 
 array<TM::InputEvent> postInitInputEvents;
-uint preservationIndex;
+uint postInitIndex;
+uint excludedInputTypesMask;
 
-void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb)
-{
-    PostInitInputEventsInitialize(ieb, IEBSearchTime(ieb, tInit));
-}
-
+// Collect input events from IEB starting at the given index.
 void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint iebIndex)
 {
     const uint iebLen = ieb.Length;
     Assert(iebLen >= iebIndex);
 
-    uint index = 0;
     postInitInputEvents.Resize(iebLen - iebIndex);
-    const uint mask = EventIndicesMakeInputTypesBitmask(ieb.EventIndices, mode.preservationExclusions);
     for (uint i = iebIndex; i < iebLen; ++i)
-    {
-        const TM::InputEvent inputEvent = ieb[i];
-        if (mask & 1 << inputEvent.Value.EventIndex == 0)
-            postInitInputEvents[index++] = inputEvent;
-    }
-    postInitInputEvents.Resize(index);
+        postInitInputEvents[i - iebIndex] = ieb[i];
 }
 
-void PostInitInputEventsCopyToIEB(TM::InputEventBuffer@ ieb)
+// Add input events that are not excluded from the remainder of 'postInitInputEvents'.
+void PostInitInputEventsFill(TM::InputEventBuffer@ ieb)
 {
     const uint len = postInitInputEvents.Length;
-    for (uint i = preservationIndex; i < len; ++i)
-        ieb.Add(postInitInputEvents[i]);
-}
-
-void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
-{
-    const ums timestamp = IEB_TIME_OFFSET + tInput;
-    uint i;
-    const uint len = postInitInputEvents.Length;
-    for (i = preservationIndex; i < len; ++i)
+    for (uint i = postInitIndex; i < len; ++i)
     {
         const TM::InputEvent inputEvent = postInitInputEvents[i];
+        if (excludedInputTypesMask & 1 << inputEvent.Value.EventIndex == 0)
+            ieb.Add(inputEvent);
+    }
+}
+
+// Move 'postInitIndex' up to (but not including) input events < tInput, and adds those input events (without exclusion).
+// Any input events >= tInput are filled like normal.
+void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
+{
+    const uint len = postInitInputEvents.Length;
+    const ums timestamp = IEB_TIME_OFFSET + tInput;
+    for (; postInitIndex < len; ++postInitIndex)
+    {
+        const TM::InputEvent inputEvent = postInitInputEvents[postInitIndex];
         if (inputEvent.Time >= timestamp)
             break;
 
         ieb.Add(inputEvent);
     }
-    preservationIndex = i;
-    PostInitInputEventsCopyToIEB(ieb);
+    PostInitInputEventsFill(ieb);
 }
 
 

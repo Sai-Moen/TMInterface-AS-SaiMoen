@@ -1,7 +1,7 @@
 interface IncIMode
 {
     bool SingleIteration { get; }
-    array<InputType> PreservationExclusions { get; }
+    array<InputType> ExcludedInputTypes { get; }
 
     void Draw();
 
@@ -21,7 +21,7 @@ funcdef void OnEnd(SimulationManager@);
 class IncMode
 {
     bool singleIteration;
-    array<InputType> preservationExclusions;
+    array<InputType> excludedInputTypes;
 
     OnDraw@ draw;
 
@@ -35,8 +35,8 @@ bool IncRegisterMode(const string &in modeName, IncIMode@ imode)
 {
     IncMode mode;
 
-    mode.singleIteration        = imode.SingleIteration;
-    mode.preservationExclusions = imode.PreservationExclusions;
+    mode.singleIteration    = imode.SingleIteration;
+    mode.excludedInputTypes = imode.ExcludedInputTypes;
 
     @mode.draw = OnDraw(imode.Draw);
 
@@ -145,7 +145,7 @@ void IncInputRemoveRelative(SimulationManager@ sim, ms relativeTime, InputType t
 void IncRewindRemove(SimulationManager@ sim)
 {
     Rewind(sim, Core::inputState, RewindFlags::REMOVE);
-    Core::PostInitInputEventsCopyToIEB(sim.InputEvents);
+    Core::PostInitInputEventsFill(sim.InputEvents);
 }
 
 void IncRewindPreserve(SimulationManager@ sim)
