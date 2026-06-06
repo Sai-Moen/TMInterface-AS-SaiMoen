@@ -66,6 +66,11 @@ bool VarSetVec2(  const string &in name, const vec2       value) { return SetVar
 bool VarSetVec3(  const string &in name, const vec3       value) { return SetVariable(name,        value.ToString()); }
 bool VarSetString(const string &in name, const string &in value) { return SetVariable(name,        value);            }
 
+void DrawGame(const bool value)
+{
+    SetVariable("draw_game", value);
+}
+
 
 void log() { log(""); }
 
@@ -107,9 +112,10 @@ void print(const vec4 value, Severity severity = Severity::Info) { print(value.T
 void print(const quat value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
 
 
-void DrawGame(const bool value)
+CommandList@ CommandListOpen(const string &in filename)
 {
-    SetVariable("draw_game", value);
+    CommandList cmdlist(filename);
+    return cmdlist;
 }
 
 
@@ -1142,14 +1148,22 @@ const int STEER_FULL = 0x10000;
 const int STEER_MIN  = -STEER_FULL;
 const int STEER_MAX  =  STEER_FULL;
 
-const int STEER_HALF = STEER_FULL / 2;
-
-int ToSteer(const float small)
+float SteerScaleUnit(const float unit)
 {
-    return int(small * STEER_FULL);
+    return unit * STEER_FULL;
 }
 
-int ClampSteer(const int steer)
+int SteerFromUnit(const float unit)
+{
+    return int(SteerScaleUnit(unit));
+}
+
+int SteerFromUnit(const float unit, const float direction)
+{
+    return RoundAway(SteerScaleUnit(unit), direction);
+}
+
+int SteerClamp(const int steer)
 {
     return Math::Clamp(steer, STEER_MIN, STEER_MAX);
 }
@@ -1184,8 +1198,10 @@ int RoundAway(const float magnitude, const Sign direction)
     case Sign::Negative: return int(Math::Floor(magnitude));
     case Sign::Zero:     return int(magnitude);
     case Sign::Positive: return int(Math::Ceil(magnitude));
-    default:             return 0; // unreachable
     }
+
+    Unreachable();
+    return 0;
 }
 
 

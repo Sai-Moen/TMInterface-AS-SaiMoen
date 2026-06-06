@@ -19,7 +19,7 @@ void Main()
 const string VAR = ::Core::VAR + "input_simplifier_";
 
 const string VAR_CONTEXT_TIMESPAN = VAR + "context_timespan";
-const ms DEF_CONTEXT_TIMESPAN = 250;
+const ms DEF_CONTEXT_TIMESPAN = 400;
 
 const string VAR_AIR_MAGNITUDE  = VAR + "air_magnitude";
 const string VAR_MINIMIZE_BRAKE = VAR + "minimize_brake";
@@ -51,8 +51,15 @@ void VarsInit()
         VarSetTime(VAR_CONTEXT_TIMESPAN, varContextTimespan);
     }
 
-    varAirMagnitude    = VarGetInt(VAR_AIR_MAGNITUDE);
-    varMinimizeBrake   = VarGetBool(VAR_MINIMIZE_BRAKE);
+    varMinimizeBrake = VarGetBool(VAR_MINIMIZE_BRAKE);
+
+    varAirMagnitude = VarGetInt(VAR_AIR_MAGNITUDE);
+    const int clampedAirMagnitude = Math::Abs(SteerClamp(varAirMagnitude));
+    if (varAirMagnitude != clampedAirMagnitude)
+    {
+        varAirMagnitude = clampedAirMagnitude;
+        VarSetInt(VAR_AIR_MAGNITUDE, varAirMagnitude);
+    }
 
     if (!DeserializeStrategyIndicesFromVar())
     {
@@ -91,17 +98,17 @@ void Draw()
     TooltipOnHover(
         "Lower timespan is faster, but may desync in an unrecoverable way (default " + DEF_CONTEXT_TIMESPAN + "ms).");
 
-    varAirMagnitude = UI::InputInt("Air Magnitude", varAirMagnitude);
-    varAirMagnitude = ClampSteer(varAirMagnitude);
-    VarSetInt(VAR_AIR_MAGNITUDE, varAirMagnitude);
-    TooltipOnHover(
-        "This is the magnitude used by steering inputs in the air, where only input direction matters.\n"
-        "Setting this to 0 will skip the air input strategy altogether.");
-
     varMinimizeBrake = UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
     TooltipOnHover(
         "If this is enabled, the amount of time spent braking will be made as small as possible.\n"
         "The trade-off is that this may introduce more brake inputs.");
+
+    varAirMagnitude = UI::InputInt("Air Magnitude", varAirMagnitude);
+    varAirMagnitude = Math::Abs(SteerClamp(varAirMagnitude));
+    VarSetInt(VAR_AIR_MAGNITUDE, varAirMagnitude);
+    TooltipOnHover(
+        "This is the magnitude used by steering inputs in the air, where only input direction matters.\n"
+        "Setting this to 0 will skip the air input strategy altogether.");
 
     UI::Separator();
 
@@ -242,7 +249,6 @@ void Begin(SimulationManager@)
     VarsInit();
 
     contexts.Resize(varContextTimespan / 10 - 1);
-    contextIndex = 0;
 
     steps.Add(StepScan);
     if (varMinimizeBrake)
@@ -262,7 +268,6 @@ void Begin(SimulationManager@)
 
         steps.Add(ORDERED_STRATEGY_CALLBACKS[strategy]);
     }
-    stepIndex = 0;
 }
 
 void Step(SimulationManager@ sim)
@@ -270,10 +275,12 @@ void Step(SimulationManager@ sim)
     steps[stepIndex](sim);
 }
 
-void End(SimulationManager@ sim)
+void End(SimulationManager@)
 {
     contexts.Clear();
     steps.Clear();
+    contextIndex = 0;
+    stepIndex = 0;
 
     // Variables that directly or indirectly cause uninitialized variables to be used incorrectly.
     fillSteer = false;
@@ -307,23 +314,23 @@ void StepScan(SimulationManager@ sim)
     {
     case 0:
         brake0 = int(svc.InputBrake);
-        steer0 = ToSteer(svc.InputSteer);
+        steer0 = SteerFromUnit(svc.InputSteer);
 
-        preserveBrake = fillBrake && brake0 == 0;
+        preserveBrake = fillBrake && brake0 != 1;
         if (preserveBrake)
         {
             Assert(minimizeBrake);
             IncInputSet(sim, InputType::Down, 1);
         }
 
-        preserveSteer = fillSteer && preservedSteer != steer0;
+        preserveSteer = fillSteer && steer0 != preservedSteer;
         if (preserveSteer)
             IncInputSet(sim, InputType::Steer, preservedSteer);
 
         return;
     case 1:
-        brake1  = int(svc.InputBrake);
-        steer1  = ToSteer(svc.InputSteer);
+        brake1       = int(svc.InputBrake);
+        steer1       = SteerFromUnit(svc.InputSteer);
         turningRate1 = svc.TurningRate;
 
         minimizeBrake = varMinimizeBrake && brake1 == 1;
@@ -396,7 +403,7 @@ void StepTurningRate(SimulationManager@ sim)
     switch (tick)
     {
     case 0:
-        steer = RoundAway(turningRate2 * STEER_FULL, turningRate2 - turningRate1);
+        steer = SteerFromUnit(turningRate2, turningRate2 - turningRate1);
         IncInputSet(sim, InputType::Steer, steer);
     // fallthrough
     case 1:
@@ -528,7 +535,7 @@ void Commit(SimulationManager@ sim)
             IncStageSet(InputType::Steer, preservedSteer);
     break;
     case IncCommitState::SET:
-        if (steer == steer0)
+        if (steer0 == steer)
             IncStageRemove(InputType::Steer);
     break;
     case IncCommitState::REMOVE:

@@ -14,8 +14,11 @@ const string VAR_SAVE_STATE_NAME = VAR + "save_state_name";
 
 const string VAR_PRINT_EXTRA_INFO          = VAR + "print_extra_info";
 const string VAR_TERMINAL_TITLE_INFO_LEVEL = VAR + "terminal_title_info_level";
-const string VAR_RUN_REPLAY_TIME           = VAR + "run_replay_time";
-const string VAR_MODE                      = VAR + "mode";
+
+const string VAR_RUN_REPLAY_TIME  = VAR + "run_replay_time";
+const string VAR_OPEN_RESULT_FILE = VAR + "open_result_file";
+
+const string VAR_MODE = VAR + "mode";
 
 void VarsRegister()
 {
@@ -29,7 +32,10 @@ void VarsRegister()
 
     RegisterVariable(VAR_PRINT_EXTRA_INFO, true);
     RegisterVariable(VAR_TERMINAL_TITLE_INFO_LEVEL, 0);
+
+    RegisterVariable(VAR_OPEN_RESULT_FILE, false);
     RegisterVariable(VAR_RUN_REPLAY_TIME, 0);
+
     RegisterVariable(VAR_MODE, "");
 }
 
@@ -43,7 +49,9 @@ string varSaveStateName;
 
 bool varPrintExtraInfo;
 uint varTerminalTitleInfoLevel;
+
 ms varRunReplayTime;
+bool varOpenResultFile;
 
 void VarsInit()
 {
@@ -76,6 +84,7 @@ void VarsInit()
     }
 
     varRunReplayTime = VarGetTime(VAR_RUN_REPLAY_TIME);
+    varOpenResultFile = VarGetBool(VAR_OPEN_RESULT_FILE);
 }
 
 
@@ -153,6 +162,7 @@ void Draw()
             varEvalIterEnd = varEvalIterBegin;
             VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
 
+            // Discard return value, just showing actual value.
             UI::InputTime("Evaluation Iteration End Time", varEvalIterEnd);
             TooltipOnHover("The currently selected mode only supports a single iteration.");
         }
@@ -197,14 +207,21 @@ void Draw()
     {
         UI::TextWrapped(
             "Run-Mode Bruteforce is an alternative to Simulation,"
-            " where the plugin runs during a race rather than on a replay file");
+            " where the plugin runs during a race rather than on a replay file.\n"
+            "You should have your inputs loaded when using this.");
 
         UI::Separator();
 
-        UI::InputTimeVar("Replay Time", VAR_RUN_REPLAY_TIME);
+        varRunReplayTime = UI::InputTimeVar("Replay Time", VAR_RUN_REPLAY_TIME);
         TooltipOnHover(
             "This is equivalent to the replay time (events duration) in Simulation.\n"
-            "Inputs after this time will not be used.");
+            "Inputs after this time will not be used!");
+
+        varOpenResultFile = UI::CheckboxVar("Open Result File", VAR_OPEN_RESULT_FILE);
+        TooltipOnHover(
+            "Normally, the same script that was loaded before,"
+            " will be re-loaded after the Run-Mode Bruteforce finished running.\n"
+            "By enabling this setting, the result file will be loaded instead (if possible).");
 
         if (UI::Button("Start Run-Mode Bruteforce"))
             runState = RunState::INIT1;
@@ -212,7 +229,7 @@ void Draw()
 
     if (UI::CollapsingHeader("Misc"))
     {
-        UI::CheckboxVar("Print Extra Info", VAR_PRINT_EXTRA_INFO);
+        varPrintExtraInfo = UI::CheckboxVar("Print Extra Info", VAR_PRINT_EXTRA_INFO);
         TooltipOnHover("Print additional information about the simulation to the bruteforce terminal.");
 
         ComboSelectIndex(
@@ -252,8 +269,6 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
         log("Mode resolved to Home...?", Severity::Warning);
     ModeIndexTrySet(index);
 
-    excludedInputTypesMask = EventIndicesMakeInputTypesBitmask(sim.InputEvents.EventIndices, mode.excludedInputTypes);
-
     VarsInit();
 
     ms evalIterBegin = 0;
@@ -269,7 +284,13 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
     tInit = evalIterBegin;
     tInput = -10; // Detecting uninitialized usage.
     tLimit = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
+
+    stepState = varUseSaveState ? StepState::SAVE_STATE : StepState::INIT;
+    preventSimulationFinish = true;
+    handleFinish = true;
+
     postInitIndex = uint(-1); // Detecting uninitialized usage.
+    excludedEventIndicesMask = EventIndicesMakeInputTypesBitmask(sim.InputEvents.EventIndices, mode.excludedInputTypes);
 
     int resultsLen;
     if (mode.singleIteration)
@@ -283,11 +304,6 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
             resultsLen = 1;
     }
     results.Resize(resultsLen);
-    resultIndex = 0;
-
-    stepState = varUseSaveState ? StepState::SAVE_STATE : StepState::INIT;
-    preventSimulationFinish = true;
-    handleFinish = true;
 }
 
 void Begin(SimulationManager@ sim)
@@ -311,8 +327,6 @@ void Begin(SimulationManager@ sim)
     }
     s += "Print Extra Info: "; s += varPrintExtraInfo; s += "\n";
     s += "Terminal Title Info Level: "; s += TERMINAL_TITLE_INFO_LEVEL_NAMES[varTerminalTitleInfoLevel]; s += "\n";
-
-    s += "\n";
     print(s);
 
     try
@@ -423,15 +437,21 @@ void Step(SimulationManager@ sim)
         stepState = StepState::STEP;
     // fallthrough
     case StepState::STEP:
+        for (;;)
         {
             const ms time = sim.TickTime;
             if (tInput <= tLimit)
             {
                 if (time < tInput)
-                    break;
+                    return;
 
                 if (time == tInput)
+                {
+                    if (sim.PlayerInfo.RaceFinished)
+                        break;
+
                     @inputState = sim.SaveState();
+                }
 
                 try
                 {
@@ -443,13 +463,16 @@ void Step(SimulationManager@ sim)
                     Finish(sim);
                 }
 
-                break;
+                return;
             }
 
             const ms checkTime = tLimit + 20;
             Assert(time <= checkTime);
             if (time != checkTime)
-                break;
+                return;
+
+            // mfw no labelled blocks...
+            break;
         }
 
         @results[resultIndex++] = Result(sim);
@@ -503,12 +526,13 @@ void End(SimulationManager@ sim)
             if (result is null)
                 break;
 
-            if (bestResult.metric < result.metric)
+            if (bestResult.time > result.time || bestResult.metric < result.metric)
                 @bestResult = result;
         }
         script.Content = bestResult.inputs;
     }
     results.Clear();
+    resultIndex = 0;
 
     const string filename = VarGetString("bf_result_filename");
     if (script.Save(filename))
@@ -535,6 +559,7 @@ void Finish(SimulationManager@ sim)
     if (contextMode == ContextMode::Run)
         runState = RunState::END;
 
+    // As a failsafe, if we didn't get to the end of a single iteration run, just save the inputs.
     if (results.Length == 1 && results[0] is null)
         @results[0] = Result(sim);
 }
@@ -592,7 +617,7 @@ SimulationState@ inputState;
 
 array<TM::InputEvent> postInitInputEvents;
 uint postInitIndex;
-uint excludedInputTypesMask;
+uint excludedEventIndicesMask;
 
 // Collect input events from IEB starting at the given index.
 void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint iebIndex)
@@ -605,20 +630,8 @@ void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint i
         postInitInputEvents[i - iebIndex] = ieb[i];
 }
 
-// Add input events that are not excluded from the remainder of 'postInitInputEvents'.
-void PostInitInputEventsFill(TM::InputEventBuffer@ ieb)
-{
-    const uint len = postInitInputEvents.Length;
-    for (uint i = postInitIndex; i < len; ++i)
-    {
-        const TM::InputEvent inputEvent = postInitInputEvents[i];
-        if (excludedInputTypesMask & 1 << inputEvent.Value.EventIndex == 0)
-            ieb.Add(inputEvent);
-    }
-}
-
-// Move 'postInitIndex' up to (but not including) input events < tInput, and adds those input events (without exclusion).
-// Any input events >= tInput are filled like normal.
+// Move 'postInitIndex' up to and including input events where time < tInput, and adds those input events (without exclusion).
+// Any input events where time >= tInput are filled like normal.
 void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
 {
     const uint len = postInitInputEvents.Length;
@@ -632,6 +645,18 @@ void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
         ieb.Add(inputEvent);
     }
     PostInitInputEventsFill(ieb);
+}
+
+// Add input events that are not excluded, from the remainder of 'postInitInputEvents' (>= tInput).
+void PostInitInputEventsFill(TM::InputEventBuffer@ ieb)
+{
+    const uint len = postInitInputEvents.Length;
+    for (uint i = postInitIndex; i < len; ++i)
+    {
+        const TM::InputEvent inputEvent = postInitInputEvents[i];
+        if (excludedEventIndicesMask & 1 << inputEvent.Value.EventIndex == 0)
+            ieb.Add(inputEvent);
+    }
 }
 
 
@@ -819,11 +844,13 @@ void Commit(SimulationManager@ sim, const ms advance)
 
 class Result
 {
+    ms time;
     string inputs;
     float metric;
 
     Result(SimulationManager@ sim)
     {
+        time = tInput;
         inputs = sim.InputEvents.ToCommandsText();
         metric = sim.Dyna.RefStateCurrent.LinearSpeed.LengthSquared();
     }

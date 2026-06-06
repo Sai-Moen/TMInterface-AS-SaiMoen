@@ -147,8 +147,6 @@ void Step(SimulationManager@ sim)
         case EvalState::INIT:
             if (!fallback)
             {
-                // TODO: right now the steering on the input time is nuked too early,
-                // so the turning rates will just be the same.
                 const float turningRate = sim.SceneVehicleCar.TurningRate;
                 if (!haveTurningRates)
                 {
@@ -166,7 +164,7 @@ void Step(SimulationManager@ sim)
             fallback = false;
             evalState = EvalState::EVALUATE;
 
-            bestSteer  = RoundAway(turningRate1 * STEER_FULL, turningRate1 - turningRate0);
+            bestSteer = SteerFromUnit(turningRate1, turningRate1 - turningRate0);
             bestResult = useQuality ? 1 : -1;
             lookahead = useQuality ? varLookaheadQuality : varLookaheadNormal;
 
@@ -254,8 +252,8 @@ void SetSteerBounds()
 
 void SetSteerBoundsWithOffset(const int offset)
 {
-    steer      = ClampSteer(bestSteer - offset);
-    steerBound = ClampSteer(bestSteer + offset);
+    steer      = SteerClamp(bestSteer - offset);
+    steerBound = SteerClamp(bestSteer + offset);
 }
 
 void Rewind(SimulationManager@ sim)

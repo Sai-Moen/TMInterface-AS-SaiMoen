@@ -23,7 +23,7 @@ void Main()
     SpeedDrift::Main();
     SteerMax::Main();
 
-    RegisterValidationHandler(ID, "Incremental Controller", Core::Draw);
+    RegisterValidationHandler(ID, "Incremental", Core::Draw);
 }
 
 void OnSimulationBegin(SimulationManager@ sim)
@@ -117,6 +117,7 @@ void OnRunStep(SimulationManager@ sim)
         sim.GiveUp();
         contextMode = ContextMode::Run;
 
+        Core::varRunReplayTime = VarGetTime(Core::VAR_RUN_REPLAY_TIME);
         Core::Initialize(sim, Core::varRunReplayTime);
         runState = RunState::INIT2;
     break;
@@ -175,8 +176,21 @@ void OnRunStep(SimulationManager@ sim)
         Core::End(sim);
         sim.SimulationOnly = false;
 
-        SetCurrentCommandList(userCommandList);
-        @userCommandList = null;
+        {
+            CommandList@ commandList = userCommandList;
+            if (Core::varOpenResultFile)
+            {
+                const string filename = VarGetString("bf_result_filename");
+                CommandList@ const resultCommandList = CommandListOpen(filename);
+                if (resultCommandList !is null)
+                {
+                    resultCommandList.Process();
+                    @commandList = resultCommandList;
+                }
+            }
+            SetCurrentCommandList(commandList);
+            @userCommandList = null;
+        }
 
         contextMode = ContextMode::Simulation;
         DrawGame(true);
