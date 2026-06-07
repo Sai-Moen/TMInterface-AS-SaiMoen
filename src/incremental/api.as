@@ -80,17 +80,17 @@ ms IncTimeGetAbsolute(SimulationManager@ sim)
 
 ms IncTimeGetRelative(SimulationManager@ sim)
 {
-    return sim.TickTime - Core::tInput;
+    return sim.TickTime - Core::inputTime;
 }
 
 ms IncTimeAbsoluteFromRelative(ms relativeTime)
 {
-    return relativeTime + Core::tInput;
+    return relativeTime + Core::inputTime;
 }
 
 ms IncTimeRelativeFromAbsolute(ms absoluteTime)
 {
-    return absoluteTime - Core::tInput;
+    return absoluteTime - Core::inputTime;
 }
 
 
@@ -106,7 +106,7 @@ bool IncInputGetAbsolute(SimulationManager@ sim, ms absoluteTime, InputType type
 
 bool IncInputGetRelative(SimulationManager@ sim, ms relativeTime, InputType type, int &out value = void)
 {
-    return Core::InputGet(sim, Core::tInput + relativeTime, type, value);
+    return Core::InputGet(sim, Core::inputTime + relativeTime, type, value);
 }
 
 
@@ -122,7 +122,7 @@ void IncInputSetAbsolute(SimulationManager@ sim, ms absoluteTime, InputType type
 
 void IncInputSetRelative(SimulationManager@ sim, ms relativeTime, InputType type, int value)
 {
-    Core::InputSet(sim, Core::tInput + relativeTime, type, value);
+    Core::InputSet(sim, Core::inputTime + relativeTime, type, value);
 }
 
 
@@ -138,7 +138,7 @@ void IncInputRemoveAbsolute(SimulationManager@ sim, ms absoluteTime, InputType t
 
 void IncInputRemoveRelative(SimulationManager@ sim, ms relativeTime, InputType type)
 {
-    Core::InputRemove(sim, Core::tInput + relativeTime, type);
+    Core::InputRemove(sim, Core::inputTime + relativeTime, type);
 }
 
 

@@ -38,7 +38,7 @@ void OnSimulationBegin(SimulationManager@ sim)
 
     Core::Initialize(sim, sim.EventsDuration);
 
-    const uint iebIndex = IEBSearchTime(ieb, Core::tInit);
+    const uint iebIndex = IEBSearchTime(ieb, Core::initTime);
     Core::PostInitInputEventsInitialize(ieb, iebIndex);
     IEBRemoveFromIndex(ieb, iebIndex);
 
@@ -110,13 +110,17 @@ void OnRunStep(SimulationManager@ sim)
     switch (runState)
     {
     case RunState::NONE:
-        // Not active.
-    break;
+        if (!Core::activateRunMode)
+            break;
+
+        Core::activateRunMode = false;
+    // fallthrough
     case RunState::INIT1:
         DrawGame(false);
         sim.GiveUp();
         contextMode = ContextMode::Run;
 
+        // Initialize calls VarsInit, but we already need this one to call Initialize with the correct alternative time limit.
         Core::varRunReplayTime = VarGetTime(Core::VAR_RUN_REPLAY_TIME);
         Core::Initialize(sim, Core::varRunReplayTime);
         runState = RunState::INIT2;
@@ -135,7 +139,7 @@ void OnRunStep(SimulationManager@ sim)
 
         {
             const auto@ const ieb = sim.InputEvents;
-            const uint iebIndex = IEBSearchTime(ieb, Core::tInit);
+            const uint iebIndex = IEBSearchTime(ieb, Core::initTime);
 
             preInitInputEvents.Resize(iebIndex);
             for (uint i = 0; i < iebIndex; ++i)

@@ -118,7 +118,9 @@ void Draw()
     {
         const Strategy strategy = varOrderedStrategyIndices[i];
 
-        const bool pressed = UI::Button("Move Down##" + i);
+        const bool down = UI::Button("-##" + i);
+        UI::SameLine();
+        const bool up = UI::Button("+##" + i);
         UI::SameLine();
         switch (strategy)
         {
@@ -134,16 +136,16 @@ void Draw()
         break;
         }
 
-        if (!pressed)
+        const uint direction = (down ? 1 : 0) - (up ? 1 : 0);
+        if (direction == 0)
             continue;
 
         changed = true;
-        const uint nextIndex = i + 1;
-        if (nextIndex < ORDERED_STRATEGY_LEN)
-        {
-            varOrderedStrategyIndices[i] = varOrderedStrategyIndices[nextIndex];
-            varOrderedStrategyIndices[nextIndex] = strategy;
-        }
+
+        const uint offset = direction + ORDERED_STRATEGY_LEN;
+        const uint index = (i + offset) % ORDERED_STRATEGY_LEN;
+        varOrderedStrategyIndices[i] = varOrderedStrategyIndices[index];
+        varOrderedStrategyIndices[index] = strategy;
     }
 
     if (changed)
@@ -453,7 +455,8 @@ void StepRemoval(SimulationManager@ sim)
     switch (tick)
     {
     case 0:
-        IncInputRemove(sim, InputType::Steer);
+        steer = steer0;
+        IncInputSet(sim, InputType::Steer, steer);
     // fallthrough
     case 1:
         return;
@@ -465,7 +468,7 @@ void StepRemoval(SimulationManager@ sim)
     }
     else if (time == varContextTimespan)
     {
-        IncStageRemove(InputType::Steer);
+        IncStageSet(InputType::Steer, steer);
         Commit(sim);
     }
 }
@@ -512,6 +515,8 @@ void Commit(SimulationManager@ sim)
     case IncCommitState::NONE:
         if (preserveBrake)
             IncStageSet(InputType::Down, 1);
+        else if (brake0 == 0 && IncInputGetRelative(sim, 0, InputType::Down, brake) && brake == 0)
+            IncStageRemove(InputType::Down); // Clean up unbalanced rel down inputs.
     break;
     case IncCommitState::SET:
         Assert(brake == 0);
@@ -535,12 +540,15 @@ void Commit(SimulationManager@ sim)
             IncStageSet(InputType::Steer, preservedSteer);
     break;
     case IncCommitState::SET:
-        if (steer0 == steer)
-            IncStageRemove(InputType::Steer);
+        // NOTE: this does not work in run mode...
+        // Therefore, we rely on ToCommandsText to unfill, which it only seems to do for steer, but that works for us!
+
+        // if (steer0 == steer)
+        //     IncStageRemove(InputType::Steer);
     break;
     case IncCommitState::REMOVE:
-        // Possible; no-op.
-    break;
+        // Unreachable.
+    // fallthrough
     default:
         print("[Input Simplifier] Unexpected state for steer!", Severity::Error);
         IncTerminate(sim);

@@ -359,8 +359,10 @@ void Step(SimulationManager@ sim)
                 steerAway = steer;
 
                 // To try more steering values, we also reset steerTowards here.
-                // This should not repeatedly test the same values, as we stop resetting and commit when steerAway stops moving,
-                // so we might do a couple duplicate attempts at the end in the worst case (not enough to throw in an IntHashSet).
+                // This should not repeatedly test the same values,
+                // as we stop resetting and commit when steerAway stops moving,
+                // so we might do a couple duplicate attempts at the end in the worst case
+                // (not enough to throw in an IntHashSet).
                 steerTowards = varSteerTowards;
                 Rewind(sim);
             }

@@ -27,7 +27,7 @@ void VarsRegister()
 {
     RegisterVariable(VAR_QUALITY_THRESHOLD, 0.25);
     RegisterVariable(VAR_LOOKAHEAD_QUALITY, 60);
-    RegisterVariable(VAR_LOOKAHEAD_NORMAL, 120);
+    RegisterVariable(VAR_LOOKAHEAD_NORMAL,  120);
 }
 
 const ms CAUSALITY = 20;

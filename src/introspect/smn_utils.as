@@ -112,9 +112,9 @@ void print(const vec4 value, Severity severity = Severity::Info) { print(value.T
 void print(const quat value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
 
 
-CommandList@ CommandListOpen(const string &in filename)
+CommandList@ CommandListOpen(const string &in scriptRelativePath)
 {
-    CommandList cmdlist(filename);
+    CommandList cmdlist(scriptRelativePath);
     return cmdlist;
 }
 

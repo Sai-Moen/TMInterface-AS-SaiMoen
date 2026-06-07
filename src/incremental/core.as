@@ -123,12 +123,14 @@ void TerminalTitleAppendIterationInfo(string& s)
 void TerminalTitleAppendCommitInfo(string& s)
 {
     s += " | Commit: ";
-    s += tInput;
+    s += inputTime;
     s += "ms / ";
-    s += tLimit;
+    s += limitTime;
     s += "ms";
 }
 
+
+bool activateRunMode;
 
 void Draw()
 {
@@ -223,8 +225,13 @@ void Draw()
             " will be re-loaded after the Run-Mode Bruteforce finished running.\n"
             "By enabling this setting, the result file will be loaded instead (if possible).");
 
-        if (UI::Button("Start Run-Mode Bruteforce"))
-            runState = RunState::INIT1;
+        const CommandList@ const cmdlist = GetCurrentCommandList();
+        UI::BeginDisabled(cmdlist is null);
+
+        activateRunMode = UI::Checkbox("Activate Run-Mode Bruteforce", activateRunMode) && cmdlist !is null;
+        TooltipOnHover("If this is checked while in run-mode, the plugin will start.");
+
+        UI::EndDisabled();
     }
 
     if (UI::CollapsingHeader("Misc"))
@@ -281,15 +288,15 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
         evalEnd       = varEvalEnd;
     }
 
-    tInit = evalIterBegin;
-    tInput = -10; // Detecting uninitialized usage.
-    tLimit = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
+    initTime = evalIterBegin;
+    inputTime = -1;
+    limitTime = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
 
     stepState = varUseSaveState ? StepState::SAVE_STATE : StepState::INIT;
     preventSimulationFinish = true;
     handleFinish = true;
 
-    postInitIndex = uint(-1); // Detecting uninitialized usage.
+    postInitIndex = ~0;
     excludedEventIndicesMask = EventIndicesMakeInputTypesBitmask(sim.InputEvents.EventIndices, mode.excludedInputTypes);
 
     int resultsLen;
@@ -316,8 +323,8 @@ void Begin(SimulationManager@ sim)
     s += modeNames[modeIndex];
     s += "\n";
 
-    s += "Init Time: "; s += tInit; s += "ms\n";
-    s += "Limit Time: "; s += tLimit; s += "ms\n";
+    s += "Init Time: "; s += initTime; s += "ms\n";
+    s += "Limit Time: "; s += limitTime; s += "ms\n";
     s += "Iterations: "; s += results.Length; s += "\n\n";
 
     s += "Use Save State: "; s += varUseSaveState; s += "\n";
@@ -342,7 +349,7 @@ void Begin(SimulationManager@ sim)
 
 void Iteration(SimulationManager@ sim)
 {
-    tInput = tInit + resultIndex * 10;
+    inputTime = initTime + resultIndex * 10;
     postInitIndex = 0;
     PostInitInputEventsAdvance(sim.InputEvents);
 
@@ -360,9 +367,9 @@ void Iteration(SimulationManager@ sim)
     s += results.Length;
     s += "\n";
 
-    s += tInput;
+    s += inputTime;
     s += "ms -> ";
-    s += tLimit;
+    s += limitTime;
     s += "ms\n";
 
     s += "\n";
@@ -402,13 +409,13 @@ void Step(SimulationManager@ sim)
             }
 
             const ms stateFileTime = stateFile.ToState().PlayerInfo.RaceTime;
-            if (stateFileTime > tInit)
+            if (stateFileTime > initTime)
             {
                 string s;
                 s += "Attempted to load state that occurs too late! ";
                 s += Time::Format(stateFileTime);
                 s += " > ";
-                s += Time::Format(tInit);
+                s += Time::Format(initTime);
                 print(s, Severity::Error);
 
                 Finish(sim);
@@ -424,10 +431,10 @@ void Step(SimulationManager@ sim)
     case StepState::INIT:
         {
             const ms time = sim.TickTime;
-            if (time < tInit)
+            if (time < initTime)
                 break;
 
-            Assert(time == tInit);
+            Assert(time == initTime);
         }
 
         if (results.Length > 1)
@@ -440,14 +447,17 @@ void Step(SimulationManager@ sim)
         for (;;)
         {
             const ms time = sim.TickTime;
-            if (tInput <= tLimit)
+            if (inputTime <= limitTime)
             {
-                if (time < tInput)
+                if (time < inputTime)
                     return;
 
-                if (time == tInput)
+                if (time == inputTime)
                 {
-                    if (sim.PlayerInfo.RaceFinished)
+                    // Since save states use RaceTime, if there's a desync at inputTime, we just stop.
+                    // We assume this is due to the car passing the finish,
+                    // despite using PreventSimulationFinish to not lose control.
+                    if (time != sim.RaceTime)
                         break;
 
                     @inputState = sim.SaveState();
@@ -466,7 +476,7 @@ void Step(SimulationManager@ sim)
                 return;
             }
 
-            const ms checkTime = tLimit + 20;
+            const ms checkTime = limitTime + 20;
             Assert(time <= checkTime);
             if (time != checkTime)
                 return;
@@ -512,7 +522,7 @@ void End(SimulationManager@ sim)
 
     CommandList script;
 
-    Result@ bestResult = results[0];
+    const Result@ bestResult = results[0];
     if (bestResult is null)
     {
         script.Content = "# Incremental did not complete a pass.";
@@ -522,11 +532,11 @@ void End(SimulationManager@ sim)
         const uint len = results.Length;
         for (uint i = 1; i < len; ++i)
         {
-            Result@ result = results[i];
+            const Result@ const result = results[i];
             if (result is null)
                 break;
 
-            if (bestResult.time > result.time || bestResult.metric < result.metric)
+            if (bestResult.time > result.time || bestResult.time == result.time && bestResult.metric < result.metric)
                 @bestResult = result;
         }
         script.Content = bestResult.inputs;
@@ -608,9 +618,9 @@ bool ModeIndexTrySet(const uint index)
 }
 
 
-ms tInit;  // The time required to ensure that we can run all iterations.
-ms tInput; // The time currently being evaluated.
-ms tLimit; // The time that triggers the end of the iteration when the input time exceeds it.
+ms initTime;  // The time required to ensure that we can run all iterations.
+ms inputTime; // The time currently being evaluated.
+ms limitTime; // The time that triggers the end of the iteration when the input time exceeds it.
 
 SimulationState@ initState;
 SimulationState@ inputState;
@@ -624,18 +634,18 @@ void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint i
 {
     const uint iebLen = ieb.Length;
     Assert(iebLen >= iebIndex);
-
     postInitInputEvents.Resize(iebLen - iebIndex);
     for (uint i = iebIndex; i < iebLen; ++i)
         postInitInputEvents[i - iebIndex] = ieb[i];
 }
 
-// Move 'postInitIndex' up to and including input events where time < tInput, and adds those input events (without exclusion).
-// Any input events where time >= tInput are filled like normal.
+// Move 'postInitIndex' up to and including input events where time < inputTime,
+// and adds those input events (without exclusion).
+// Any input events where time >= inputTime are filled like normal.
 void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
 {
     const uint len = postInitInputEvents.Length;
-    const ums timestamp = IEB_TIME_OFFSET + tInput;
+    const ums timestamp = IEB_TIME_OFFSET + inputTime;
     for (; postInitIndex < len; ++postInitIndex)
     {
         const TM::InputEvent inputEvent = postInitInputEvents[postInitIndex];
@@ -647,7 +657,7 @@ void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
     PostInitInputEventsFill(ieb);
 }
 
-// Add input events that are not excluded, from the remainder of 'postInitInputEvents' (>= tInput).
+// Add input events that are not excluded, from the remainder of 'postInitInputEvents' (>= inputTime).
 void PostInitInputEventsFill(TM::InputEventBuffer@ ieb)
 {
     const uint len = postInitInputEvents.Length;
@@ -776,8 +786,8 @@ void Commit(SimulationManager@ sim, const ms advance)
 {
     AssertLog(advance % 10 == 0 && advance > 0, "Advance time must be a multiple of 10 greater than 0.");
 
-    const ms time = tInput;
-    tInput += advance;
+    const ms time = inputTime;
+    inputTime += advance;
 
     Rewind(sim, inputState, RewindFlags::REMOVE);
     PostInitInputEventsAdvance(sim.InputEvents);
@@ -845,14 +855,14 @@ void Commit(SimulationManager@ sim, const ms advance)
 class Result
 {
     ms time;
-    string inputs;
     float metric;
+    string inputs;
 
     Result(SimulationManager@ sim)
     {
-        time = tInput;
-        inputs = sim.InputEvents.ToCommandsText();
+        time = sim.TickTime;
         metric = sim.Dyna.RefStateCurrent.LinearSpeed.LengthSquared();
+        inputs = sim.InputEvents.ToCommandsText();
     }
 }
 
