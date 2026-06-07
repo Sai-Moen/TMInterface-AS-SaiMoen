@@ -7,6 +7,7 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v3.1.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.1/incremental.zip)
 - [v3.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.0/incremental.zip)
 
 - [v3.0.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.0.1/incremental.zip)
@@ -38,6 +39,11 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 - [v1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
 ## Patch Notes
+
+### v3.1.1
+
+- Added min/max sliding wheels constraint to SteerMax ('No Sliding' default value is now false).
+- Added 'Single Iteration' option to set both ends of the iteration timerange more easily (with UI improvements).
 
 ### v3.1.0
 
