@@ -7,6 +7,8 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v3.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.0/incremental.zip)
+
 - [v3.0.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.0.1/incremental.zip)
 - [v3.0.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.0.0/incremental.zip)
 
@@ -36,6 +38,16 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 - [v1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
 ## Patch Notes
+
+### v3.1.0
+
+- Added mode: SteerMax.
+- Removed mode: Wallhugger.
+- Rewrote large parts of the core logic (especially w.r.t. run-mode bruteforce).
+- Fixed a bug in SD Railgun where a steering value would be skipped.
+- Fixed bugs in Input Simplifier relating to inputs not being filled correctly (especially with brake minimization).
+- Changed default context timespan of Input Simplifier from 250ms to 400ms.
+- Many other small changes/fixes...
 
 ### v3.0.1
 
