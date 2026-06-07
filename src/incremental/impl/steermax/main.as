@@ -25,8 +25,12 @@ const string VAR_STEER_OFFSET  = VAR + "steer_offset";
 
 const string VAR_MAX_SPEED_LOSS  = VAR + "max_speed_loss";
 const string VAR_MAX_SPEED_BLEED = VAR + "max_speed_bleed";
-const string VAR_NO_WALLBANG     = VAR + "no_wallbang";
-const string VAR_NO_SLIDE        = VAR + "no_slide";
+
+const string VAR_NO_WALLBANG = VAR + "no_wallbang";
+
+const string VAR_NO_SLIDE           = VAR + "no_slide";
+const string VAR_SLIDING_WHEELS_MIN = VAR + "sliding_wheels_min";
+const string VAR_SLIDING_WHEELS_MAX = VAR + "sliding_wheels_max";
 
 void VarsRegister()
 {
@@ -38,8 +42,12 @@ void VarsRegister()
 
     RegisterVariable(VAR_MAX_SPEED_LOSS,  36);
     RegisterVariable(VAR_MAX_SPEED_BLEED, 0.1);
-    RegisterVariable(VAR_NO_WALLBANG,     true);
-    RegisterVariable(VAR_NO_SLIDE,        true);
+
+    RegisterVariable(VAR_NO_WALLBANG, true);
+
+    RegisterVariable(VAR_NO_SLIDE,           false);
+    RegisterVariable(VAR_SLIDING_WHEELS_MIN, 0);
+    RegisterVariable(VAR_SLIDING_WHEELS_MAX, 0);
 }
 
 const ms CAUSALITY = 20;
@@ -52,8 +60,12 @@ int varSteerOffset;
 
 float varMaxSpeedLoss;
 float varMaxSpeedBleed;
+
 bool varNoWallbang;
+
 bool varNoSlide;
+uint varSlidingWheelsMin;
+uint varSlidingWheelsMax;
 
 void VarsInit()
 {
@@ -96,8 +108,23 @@ void VarsInit()
 
     varMaxSpeedLoss  = VarGetFloat(VAR_MAX_SPEED_LOSS);
     varMaxSpeedBleed = VarGetFloat(VAR_MAX_SPEED_BLEED);
-    varNoWallbang    = VarGetBool(VAR_NO_WALLBANG);
-    varNoSlide       = VarGetBool(VAR_NO_SLIDE);
+
+    varNoWallbang = VarGetBool(VAR_NO_WALLBANG);
+    varNoSlide    = VarGetBool(VAR_NO_SLIDE);
+
+    varSlidingWheelsMin = VarGetUint(VAR_SLIDING_WHEELS_MIN);
+    varSlidingWheelsMax = VarGetUint(VAR_SLIDING_WHEELS_MAX);
+    if (varSlidingWheelsMax > 4)
+    {
+        varSlidingWheelsMax = 0;
+        VarSetUint(VAR_SLIDING_WHEELS_MAX, varSlidingWheelsMax);
+    }
+
+    if (varSlidingWheelsMin > varSlidingWheelsMax)
+    {
+        varSlidingWheelsMin = varSlidingWheelsMax;
+        VarSetUint(VAR_SLIDING_WHEELS_MIN, varSlidingWheelsMin);
+    }
 }
 
 void Draw()
@@ -186,7 +213,25 @@ void Draw()
     TooltipOnHover("Enabling this will count any lateral contact as an immediate failure.");
 
     varNoSlide = UI::CheckboxVar("No Slide", VAR_NO_SLIDE);
-    TooltipOnHover("Enabling this will count any sliding as an immediate failure.");
+    TooltipOnHover(
+        "Enabling this will count any sliding as an immediate failure.\n"
+        "NOTE: this property checks the car's sliding state, which will very quickly report the car as sliding,"
+        " even if none of the wheels are sliding.\n"
+        "For this reason it will be better (in most cases) to leave this turned off,"
+        " and to set the sliding wheels constraints.");
+
+    varSlidingWheelsMin = UI::SliderInt("Min Sliding Wheels", varSlidingWheelsMin, 0, 4);
+    TooltipOnHover("The minimum amount of sliding wheels allowed (default: 0).");
+
+    varSlidingWheelsMax = UI::SliderInt("Max Sliding Wheels", varSlidingWheelsMax, 0, 4);
+    if (varSlidingWheelsMax > 4)
+        varSlidingWheelsMax = 0;
+    VarSetUint(VAR_SLIDING_WHEELS_MAX, varSlidingWheelsMax);
+    TooltipOnHover("The maximum amount of sliding wheels allowed (default: 0).");
+
+    if (varSlidingWheelsMin > varSlidingWheelsMax)
+        varSlidingWheelsMin = varSlidingWheelsMax;
+    VarSetUint(VAR_SLIDING_WHEELS_MIN, varSlidingWheelsMin);
 }
 
 int steerMin;
@@ -234,38 +279,48 @@ enum Constraint
     SPEED_BLEED,
     WALLBANG,
     SLIDE,
+    SLIDING_WHEELS,
 }
 
 string GenerateConstraintFailureMessage(const Constraint constraint)
 {
-    string message;
+    string s;
     switch (constraint)
     {
     case Constraint::SPEED_LOSS:
-        message += "Speed Loss: ";
-        message += (velocityMinimumCumulative + maxSpeedLoss) - velocityCurrent;
-        message += " exceeds ";
-        message += maxSpeedLoss;
-        message += " (m/s)";
+        s += "Speed Loss: ";
+        s += (velocityMinimumCumulative + maxSpeedLoss) - velocityCurrent;
+        s += " exceeds ";
+        s += maxSpeedLoss;
+        s += " (m/s)";
     break;
     case Constraint::SPEED_BLEED:
-        message += "Speed Bleed: ";
-        message += (velocityMinimumImmediate + maxSpeedBleed) - velocityCurrent;
-        message += " exceeds ";
-        message += maxSpeedBleed;
-        message += " (m/s)";
+        s += "Speed Bleed: ";
+        s += (velocityMinimumImmediate + maxSpeedBleed) - velocityCurrent;
+        s += " exceeds ";
+        s += maxSpeedBleed;
+        s += " (m/s)";
     break;
     case Constraint::WALLBANG:
-        message = "Wallbang";
+        s = "Wallbang";
     break;
     case Constraint::SLIDE:
-        message = "Slide";
+        s = "Slide";
+    break;
+    case Constraint::SLIDING_WHEELS:
+        s += "Sliding Wheels: ";
+        s += slidingWheels;
+        s += " outside of [";
+        s += varSlidingWheelsMin;
+        s += ", ";
+        s += varSlidingWheelsMax;
+        s += "]";
     break;
     default:
         Unreachable();
     break;
     }
-    return message;
+    return s;
 }
 
 ms targetTime;
@@ -374,6 +429,8 @@ void Step(SimulationManager@ sim)
     } while (rewinding);
 }
 
+uint slidingWheels;
+
 Constraint ConstraintsCheck(SimulationManager@ sim)
 {
     if (velocityCurrent < velocityPrevious)
@@ -407,6 +464,14 @@ Constraint ConstraintsCheck(SimulationManager@ sim)
         if (svc.IsSliding)
             return Constraint::SLIDE;
     }
+
+    slidingWheels = 0;
+    const SimulationWheels@ const wheels = sim.Wheels;
+    for (uint i = 0; i < 4; ++i)
+        slidingWheels += wheels[i].RTState.IsSliding ? 1 : 0;
+
+    if (slidingWheels < varSlidingWheelsMin || slidingWheels > varSlidingWheelsMax)
+        return Constraint::SLIDING_WHEELS;
 
     return Constraint::NONE;
 }

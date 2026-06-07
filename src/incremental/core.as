@@ -4,10 +4,11 @@ namespace Core
 
 const string VAR = "incremental_";
 
-const string VAR_EVAL_FULL_REPLAY = VAR + "eval_full_replay";
-const string VAR_EVAL_ITER_BEGIN  = VAR + "eval_iter_begin";
-const string VAR_EVAL_ITER_END    = VAR + "eval_iter_end";
-const string VAR_EVAL_END         = VAR + "eval_end";
+const string VAR_EVAL_FULL_REPLAY      = VAR + "eval_full_replay";
+const string VAR_EVAL_SINGLE_ITERATION = VAR + "eval_single_iteration";
+const string VAR_EVAL_ITER_BEGIN       = VAR + "eval_iter_begin";
+const string VAR_EVAL_ITER_END         = VAR + "eval_iter_end";
+const string VAR_EVAL_END              = VAR + "eval_end";
 
 const string VAR_USE_SAVE_STATE  = VAR + "use_save_state";
 const string VAR_SAVE_STATE_NAME = VAR + "save_state_name";
@@ -22,24 +23,26 @@ const string VAR_MODE = VAR + "mode";
 
 void VarsRegister()
 {
-    RegisterVariable(VAR_EVAL_FULL_REPLAY, false);
-    RegisterVariable(VAR_EVAL_ITER_BEGIN, 0);
-    RegisterVariable(VAR_EVAL_ITER_END, 0);
-    RegisterVariable(VAR_EVAL_END, 0);
+    RegisterVariable(VAR_EVAL_FULL_REPLAY,      false);
+    RegisterVariable(VAR_EVAL_SINGLE_ITERATION, false);
+    RegisterVariable(VAR_EVAL_ITER_BEGIN,       0);
+    RegisterVariable(VAR_EVAL_ITER_END,         0);
+    RegisterVariable(VAR_EVAL_END,              0);
 
-    RegisterVariable(VAR_USE_SAVE_STATE, false);
+    RegisterVariable(VAR_USE_SAVE_STATE,  false);
     RegisterVariable(VAR_SAVE_STATE_NAME, "");
 
-    RegisterVariable(VAR_PRINT_EXTRA_INFO, true);
+    RegisterVariable(VAR_PRINT_EXTRA_INFO,          true);
     RegisterVariable(VAR_TERMINAL_TITLE_INFO_LEVEL, 0);
 
     RegisterVariable(VAR_OPEN_RESULT_FILE, false);
-    RegisterVariable(VAR_RUN_REPLAY_TIME, 0);
+    RegisterVariable(VAR_RUN_REPLAY_TIME,  0);
 
     RegisterVariable(VAR_MODE, "");
 }
 
 bool varEvalFullReplay;
+bool varEvalSingleIteration;
 ms varEvalIterBegin;
 ms varEvalIterEnd;
 ms varEvalEnd;
@@ -55,10 +58,12 @@ bool varOpenResultFile;
 
 void VarsInit()
 {
-    varEvalFullReplay = VarGetBool(VAR_EVAL_FULL_REPLAY);
+    varEvalFullReplay      = VarGetBool(VAR_EVAL_FULL_REPLAY);
+    varEvalSingleIteration = VarGetBool(VAR_EVAL_SINGLE_ITERATION);
+
     varEvalIterBegin = VarGetTime(VAR_EVAL_ITER_BEGIN);
-    varEvalIterEnd = VarGetTime(VAR_EVAL_ITER_END);
-    if (varEvalIterEnd < varEvalIterBegin)
+    varEvalIterEnd   = VarGetTime(VAR_EVAL_ITER_END);
+    if (varEvalIterEnd < varEvalIterBegin || mode !is null && mode.singleIteration)
     {
         varEvalIterEnd = varEvalIterBegin;
         VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
@@ -83,7 +88,7 @@ void VarsInit()
         VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
     }
 
-    varRunReplayTime = VarGetTime(VAR_RUN_REPLAY_TIME);
+    varRunReplayTime  = VarGetTime(VAR_RUN_REPLAY_TIME);
     varOpenResultFile = VarGetBool(VAR_OPEN_RESULT_FILE);
 }
 
@@ -156,34 +161,49 @@ void Draw()
 
         UI::BeginDisabled(varEvalFullReplay);
 
-        varEvalIterBegin = UI::InputTimeVar("Evaluation Iteration Begin Time", VAR_EVAL_ITER_BEGIN);
-        TooltipOnHover("The lower bound (inclusive) of iteration times.");
-
+        string singleIterationTooltip = "Evaluate a single iteration, rather than having a lower and upper bound.";
         if (mode.singleIteration)
         {
-            varEvalIterEnd = varEvalIterBegin;
-            VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
+            VarSetBool(VAR_EVAL_SINGLE_ITERATION, true);
+            singleIterationTooltip += "\nNOTE: the currently selected mode only supports a single iteration.";
+        }
+        varEvalSingleIteration = UI::CheckboxVar("Evaluate Single Iteration", VAR_EVAL_SINGLE_ITERATION);
+        TooltipOnHover(singleIterationTooltip);
 
-            // Discard return value, just showing actual value.
-            UI::InputTime("Evaluation Iteration End Time", varEvalIterEnd);
-            TooltipOnHover("The currently selected mode only supports a single iteration.");
+        if (varEvalSingleIteration)
+        {
+            varEvalIterBegin = UI::InputTimeVar("Evaluation Begin Time", VAR_EVAL_ITER_BEGIN);
+            varEvalIterEnd = varEvalIterBegin;
+            TooltipOnHover("The first timestamp for which inputs will be determined.");
         }
         else
         {
+            varEvalIterBegin = UI::InputTimeVar("Evaluation Iteration Begin Time", VAR_EVAL_ITER_BEGIN);
+            TooltipOnHover("The lower bound (inclusive) of iteration times.");
+
             varEvalIterEnd = UI::InputTime("Evaluation Iteration End Time", varEvalIterEnd);
+            TooltipOnHover("The upper bound (inclusive) of iteration times.");
+
             if (varEvalIterEnd < varEvalIterBegin)
                 varEvalIterEnd = varEvalIterBegin;
-            VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
-            TooltipOnHover("The upper bound (inclusive) of iteration times.");
         }
+        VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
 
         varEvalEnd = UI::InputTime("Evaluation End Time", varEvalEnd);
         if (varEvalEnd != 0 && varEvalEnd < varEvalIterEnd)
             varEvalEnd = varEvalIterEnd;
         VarSetTime(VAR_EVAL_END, varEvalEnd);
-        TooltipOnHover(
-            "If the input time is beyond this time, a new iteration is started.\n"
-            "Set to 0 to have it be set to the events duration automatically.");
+
+        if (varEvalSingleIteration)
+        {
+            TooltipOnHover("The last timestamp for which inputs will be determined.");
+        }
+        else
+        {
+            TooltipOnHover(
+                "If the input time is beyond this time, a new iteration is started.\n"
+                "Set to 0 to have it be set to the events duration automatically.");
+        }
 
         UI::EndDisabled();
 
