@@ -63,7 +63,7 @@ void VarsInit()
 
     varEvalIterBegin = VarGetTime(VAR_EVAL_ITER_BEGIN);
     varEvalIterEnd   = VarGetTime(VAR_EVAL_ITER_END);
-    if (varEvalIterEnd < varEvalIterBegin || mode !is null && mode.singleIteration)
+    if (varEvalIterEnd < varEvalIterBegin || mode.singleIteration)
     {
         varEvalIterEnd = varEvalIterBegin;
         VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);

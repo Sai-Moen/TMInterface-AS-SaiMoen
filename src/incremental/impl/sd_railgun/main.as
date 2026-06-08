@@ -30,8 +30,6 @@ void VarsRegister()
     RegisterVariable(VAR_LOOKAHEAD_NORMAL,  120);
 }
 
-const ms CAUSALITY = 20;
-
 float varQualityThreshold;
 ms varLookaheadQuality;
 ms varLookaheadNormal;
@@ -47,16 +45,16 @@ void VarsInit()
     }
 
     varLookaheadQuality = VarGetTime(VAR_LOOKAHEAD_QUALITY);
-    if (varLookaheadQuality < CAUSALITY)
+    if (varLookaheadQuality < 0)
     {
-        varLookaheadQuality = CAUSALITY;
+        varLookaheadQuality = 0;
         VarSetTime(VAR_LOOKAHEAD_QUALITY, varLookaheadQuality);
     }
 
     varLookaheadNormal = VarGetTime(VAR_LOOKAHEAD_NORMAL);
-    if (varLookaheadNormal < CAUSALITY)
+    if (varLookaheadNormal < 0)
     {
-        varLookaheadNormal = CAUSALITY;
+        varLookaheadNormal = 0;
         VarSetTime(VAR_LOOKAHEAD_NORMAL, varLookaheadNormal);
     }
 }
@@ -73,21 +71,15 @@ void Draw()
 
     UI::BeginDisabled(varQualityThreshold == 0.f);
 
-    varLookaheadQuality = UI::InputTime("Quality lookahead time", varLookaheadQuality, 10);
+    varLookaheadQuality = UI::InputTimeVar("Quality Lookahead", VAR_LOOKAHEAD_QUALITY, 10);
     TooltipOnHover("Can be set as low as 20ms, but it's a bit shaky, 60ms by default.");
-    if (varLookaheadQuality < CAUSALITY)
-        varLookaheadQuality = CAUSALITY;
-    VarSetTime(VAR_LOOKAHEAD_QUALITY, varLookaheadQuality);
 
     UI::EndDisabled();
 
-    varLookaheadNormal = UI::InputTime("Normal lookahead time", varLookaheadNormal, 10);
+    varLookaheadNormal = UI::InputTimeVar("Normal Lookahead", VAR_LOOKAHEAD_NORMAL, 10);
     TooltipOnHover(
         "Can be set as low as 20ms, but depending on speed you might want up to 130ms-140ms"
         " (lowest working in a test was 50ms-60ms at close to speed cap), 120ms by default.");
-    if (varLookaheadNormal < CAUSALITY)
-        varLookaheadNormal = CAUSALITY;
-    VarSetTime(VAR_LOOKAHEAD_NORMAL, varLookaheadNormal);
 }
 
 void Begin(SimulationManager@)

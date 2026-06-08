@@ -23,8 +23,9 @@ const string VAR_STEER_TOWARDS = VAR + "steer_towards";
 const string VAR_STEER_AWAY    = VAR + "steer_away";
 const string VAR_STEER_OFFSET  = VAR + "steer_offset";
 
-const string VAR_MAX_SPEED_LOSS  = VAR + "max_speed_loss";
-const string VAR_MAX_SPEED_BLEED = VAR + "max_speed_bleed";
+const string VAR_MAX_SPEED_LOSS       = VAR + "max_speed_loss";
+const string VAR_MAX_SPEED_BLEED      = VAR + "max_speed_bleed";
+const string VAR_IGNORE_GEARING_BLEED = VAR + "ignore_gearing_bleed";
 
 const string VAR_NO_WALLBANG = VAR + "no_wallbang";
 
@@ -40,8 +41,9 @@ void VarsRegister()
     RegisterVariable(VAR_STEER_AWAY,    STEER_MIN);
     RegisterVariable(VAR_STEER_OFFSET,  800);
 
-    RegisterVariable(VAR_MAX_SPEED_LOSS,  36);
-    RegisterVariable(VAR_MAX_SPEED_BLEED, 0.1);
+    RegisterVariable(VAR_MAX_SPEED_LOSS,       18);
+    RegisterVariable(VAR_MAX_SPEED_BLEED,      0.18);
+    RegisterVariable(VAR_IGNORE_GEARING_BLEED, true);
 
     RegisterVariable(VAR_NO_WALLBANG, true);
 
@@ -49,8 +51,6 @@ void VarsRegister()
     RegisterVariable(VAR_SLIDING_WHEELS_MIN, 0);
     RegisterVariable(VAR_SLIDING_WHEELS_MAX, 0);
 }
-
-const ms CAUSALITY = 20;
 
 ms varTimeout;
 ms varLookahead;
@@ -60,6 +60,7 @@ int varSteerOffset;
 
 float varMaxSpeedLoss;
 float varMaxSpeedBleed;
+bool varIgnoreGearingBleed;
 
 bool varNoWallbang;
 
@@ -70,16 +71,16 @@ uint varSlidingWheelsMax;
 void VarsInit()
 {
     varTimeout = VarGetTime(VAR_TIMEOUT);
-    if (varTimeout < CAUSALITY)
+    if (varTimeout < 0)
     {
-        varTimeout = CAUSALITY;
+        varTimeout = 0;
         VarSetTime(VAR_TIMEOUT, varTimeout);
     }
 
     varLookahead = VarGetTime(VAR_LOOKAHEAD);
-    if (varLookahead < CAUSALITY)
+    if (varLookahead < 0)
     {
-        varLookahead = CAUSALITY;
+        varLookahead = 0;
         VarSetTime(VAR_LOOKAHEAD, varLookahead);
     }
 
@@ -106,8 +107,9 @@ void VarsInit()
         VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
     }
 
-    varMaxSpeedLoss  = VarGetFloat(VAR_MAX_SPEED_LOSS);
-    varMaxSpeedBleed = VarGetFloat(VAR_MAX_SPEED_BLEED);
+    varMaxSpeedLoss       = VarGetFloat(VAR_MAX_SPEED_LOSS);
+    varMaxSpeedBleed      = VarGetFloat(VAR_MAX_SPEED_BLEED);
+    varIgnoreGearingBleed = VarGetBool(VAR_IGNORE_GEARING_BLEED);
 
     varNoWallbang = VarGetBool(VAR_NO_WALLBANG);
     varNoSlide    = VarGetBool(VAR_NO_SLIDE);
@@ -129,16 +131,10 @@ void VarsInit()
 
 void Draw()
 {
-    varTimeout = UI::InputTime("Timeout", varTimeout, 10);
-    if (varTimeout < CAUSALITY)
-        varTimeout = CAUSALITY;
-    VarSetTime(VAR_TIMEOUT, varTimeout);
+    varTimeout = UI::InputTimeVar("Timeout", VAR_TIMEOUT, 10);
     TooltipOnHover("If the constraints hold for this amount of time, use maximum steering and go to the next tick.");
 
-    varLookahead = UI::InputTime("Lookahead", varLookahead, 10);
-    if (varLookahead < CAUSALITY)
-        varLookahead = CAUSALITY;
-    VarSetTime(VAR_LOOKAHEAD, varLookahead);
+    varLookahead = UI::InputTimeVar("Lookahead", VAR_LOOKAHEAD, 10);
     TooltipOnHover(
         "If the constraints did not hold, look ahead from the constraint failure time by this amount of time.\n"
         "A new steering value will then be determined which does not fail before the lookahead.");
@@ -200,14 +196,16 @@ void Draw()
 
     varMaxSpeedLoss = UI::InputFloatVar("Max Speed Loss", VAR_MAX_SPEED_LOSS);
     TooltipOnHover(
-        "The maximum cumulative speed loss allowed (default: 36 km/h).\n"
-        "This is calculated based on the last time the speed increased, to the tick being measured.\n"
-        "Consider whether you will switch gears, and adjust accordingly.");
+        "The maximum cumulative speed loss allowed (default: 18 km/h).\n"
+        "This is calculated based on the last time the speed increased, to the tick being measured.");
 
     varMaxSpeedBleed = UI::InputFloatVar("Max Speed Bleed", VAR_MAX_SPEED_BLEED);
     TooltipOnHover(
-        "The maximum immediate (between two consecutive ticks) speed loss allowed (default: 0.1 km/h).\n"
-        "Consider whether you will switch gears, and adjust accordingly.");
+        "The maximum immediate (between two consecutive ticks) speed loss allowed (default: 0.18 km/h).\n"
+        "Setting this to a negative value will make it behave like a minimum speed gain.");
+
+    varIgnoreGearingBleed = UI::CheckboxVar("Ignore Speed Bleed while Gearing", VAR_IGNORE_GEARING_BLEED);
+    TooltipOnHover("If the gearbox is not in the default state, but maxing out or gearing, ignore the speed bleed constraint.");
 
     varNoWallbang = UI::CheckboxVar("No Wallbang", VAR_NO_WALLBANG);
     TooltipOnHover("Enabling this will count any lateral contact as an immediate failure.");
@@ -343,7 +341,7 @@ void Step(SimulationManager@ sim)
         velocityPrevious = dyna.RefStatePrevious.LinearSpeed.Length();
         velocityCurrent = dyna.RefStateCurrent.LinearSpeed.Length();
         velocityMinimumImmediate = velocityPrevious - maxSpeedBleed;
-        if (time == 0)
+        if (time == 0 || velocityCurrent > velocityPrevious)
             velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
 
         switch (evalState)
@@ -433,40 +431,32 @@ uint slidingWheels;
 
 Constraint ConstraintsCheck(SimulationManager@ sim)
 {
-    if (velocityCurrent < velocityPrevious)
-    {
-        if (velocityCurrent < velocityMinimumCumulative)
-            return Constraint::SPEED_LOSS;
-
-        if (velocityCurrent < velocityMinimumImmediate)
-            return Constraint::SPEED_BLEED;
-    }
-    else
-    {
-        // Velocity no longer dropping: set new minimum.
-        velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
-    }
+    if (velocityCurrent < velocityMinimumCumulative)
+        return Constraint::SPEED_LOSS;
 
     const auto@ const svc = sim.SceneVehicleCar;
+
+    if (velocityCurrent < velocityMinimumImmediate)
+    {
+        if (!varIgnoreGearingBleed || svc.GearboxState == 0)
+            return Constraint::SPEED_BLEED;
+    }
 
     if (varNoWallbang)
     {
         // The bool version does not always go to true despite a collision, yet the time still updates.
-        // Unfortunately I cannot find the replay in which this happened anymore...
         if (svc.HasAnyLateralContact || svc.LastHasAnyLateralContactTime != lastHasAnyLateralContactTime)
             return Constraint::WALLBANG;
     }
 
     if (varNoSlide)
     {
-        // Ask Dona to also add the timed slide fields,
-        // maybe this field has the same issue where the bool does not always go to true...
         if (svc.IsSliding)
             return Constraint::SLIDE;
     }
 
     slidingWheels = 0;
-    const SimulationWheels@ const wheels = sim.Wheels;
+    const auto@ const wheels = sim.Wheels;
     for (uint i = 0; i < 4; ++i)
         slidingWheels += wheels[i].RTState.IsSliding ? 1 : 0;
 

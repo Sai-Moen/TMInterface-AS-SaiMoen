@@ -13,11 +13,13 @@ const string ID = "incremental";
 void Main()
 {
     Core::VarsRegister();
-    Core::VarsInit();
 
     IncMode@ const home = Core::Home();
     IncRegisterMode("Home", home);
     @Core::mode = home;
+
+    // Relies on 'mode' being set.
+    Core::VarsInit();
 
     InputSimplifier::Main();
     SpeedDrift::Main();

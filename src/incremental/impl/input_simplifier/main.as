@@ -34,8 +34,6 @@ void VarsRegister()
     RegisterVariable(VAR_ORDERED_STRATEGY_INDICES, "");
 }
 
-const ms CAUSALITY = 20;
-
 ms varContextTimespan;
 int varAirMagnitude;
 bool varMinimizeBrake;
@@ -45,9 +43,9 @@ array<Strategy> varOrderedStrategyIndices(ORDERED_STRATEGY_LEN);
 void VarsInit()
 {
     varContextTimespan = VarGetTime(VAR_CONTEXT_TIMESPAN);
-    if (varContextTimespan < CAUSALITY)
+    if (varContextTimespan < 0)
     {
-        varContextTimespan = CAUSALITY;
+        varContextTimespan = 0;
         VarSetTime(VAR_CONTEXT_TIMESPAN, varContextTimespan);
     }
 
@@ -91,10 +89,7 @@ bool DeserializeStrategyIndicesFromVar()
 
 void Draw()
 {
-    varContextTimespan = UI::InputTime("Context Timespan", varContextTimespan, 10);
-    if (varContextTimespan < CAUSALITY)
-        varContextTimespan = CAUSALITY;
-    VarSetTime(VAR_CONTEXT_TIMESPAN, varContextTimespan);
+    varContextTimespan = UI::InputTimeVar("Context Timespan", VAR_CONTEXT_TIMESPAN, 10);
     TooltipOnHover(
         "Lower timespan is faster, but may desync in an unrecoverable way (default " + DEF_CONTEXT_TIMESPAN + "ms).");
 
