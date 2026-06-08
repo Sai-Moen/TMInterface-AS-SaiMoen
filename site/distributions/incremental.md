@@ -7,6 +7,7 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v3.1.2](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.2/incremental.zip)
 - [v3.1.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.1/incremental.zip)
 - [v3.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.0/incremental.zip)
 
@@ -39,6 +40,12 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 - [v1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
 ## Patch Notes
+
+### v3.1.2
+
+- Added a setting to ignore the speed bleed constraint while gearing.
+- Removed the condition for speed constraints to be checked only if speed decreased (thus allowing negative values to work).
+- Changed all time vars to be >= 0ms, rather than some time vars being >= 20ms.
 
 ### v3.1.1
 
