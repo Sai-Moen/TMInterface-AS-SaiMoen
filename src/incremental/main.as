@@ -4,7 +4,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "Incremental";
     info.Description = "Incremental Controller (Input Simplifier, SD, SteerMaximizer)";
-    info.Version = "v3.1.1";
+    info.Version = "v3.1.2";
     return info;
 }
 
