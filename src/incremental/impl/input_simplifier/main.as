@@ -13,7 +13,7 @@ void Main()
     @mode.begin = Begin;
     @mode.step  = Step;
     @mode.end   = End;
-    IncRegisterMode("Input Simplifier", mode);
+    IncModeRegister("Input Simplifier", mode);
 }
 
 const string VAR = ::Core::VAR + "input_simplifier_";
@@ -550,7 +550,7 @@ void Commit(SimulationManager@ sim)
         return;
     }
 
-    IncCommit(sim);
+    IncForwards(sim);
 }
 
 

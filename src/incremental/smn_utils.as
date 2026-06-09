@@ -1,6 +1,6 @@
 /*
 
-v3.0.0
+v3.1.0
 smn_utils, useful code snippets, by SaiMoen.
 
 To find contents, search for "# [name]", where [name] is one of the items below.
@@ -151,7 +151,7 @@ void ApplyInputEvents(SimulationManager@ sim, const uint index)
     if (ieb[index].Time != timestamp)
         return;
 
-    const array<InputType>@ mapping = EventIndicesMakeMapping(ieb.EventIndices);
+    const array<InputType>@ mapping = EventIndicesMappingMake(ieb.EventIndices);
     for (uint i = index; i < iebLen; ++i)
     {
         const TM::InputEvent inputEvent = ieb[i];
@@ -582,6 +582,11 @@ array<uint>@ IEBFindInTimestampRange(
     return IEBFindInTimestampRange(ieb, timestampFrom, timestampTo, mask);
 }
 
+void IEBRemoveFromTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp)
+{
+    IEBRemoveFromIndex(ieb, IEBSearchTimestamp(ieb, timestamp));
+}
+
 // Removes input events with the given timestamp and event index, after 'index'.
 // The input event at 'index' is expected (and asserted) to be the first input event in the IEB with those properties.
 void IEBRemoveDuplicatesAtTimestamp(TM::InputEventBuffer@ ieb, const ums timestamp, const int eventIndex, const uint index)
@@ -739,6 +744,11 @@ array<uint>@ IEBFindInTimeRange(
     return IEBFindInTimestampRange(ieb, timestampFrom, timestampTo, mask);
 }
 
+void IEBRemoveFromTime(TM::InputEventBuffer@ ieb, const ms time)
+{
+    IEBRemoveFromTimestamp(ieb, IEB_TIME_OFFSET + time);
+}
+
 // Removes input events with the given time and event index, after 'index'.
 // The input event at 'index' is expected (and asserted) to be the first input event in the IEB with those properties.
 void IEBRemoveDuplicatesAtTime(TM::InputEventBuffer@ ieb, const ms time, const int eventIndex, const uint index)
@@ -867,7 +877,7 @@ InputType EventIndicesDecode(const EventIndices &in eventIndices, const int even
 }
 
 // NOTE: This mapping assumes there are no unknown event indices in the IEB.
-array<InputType>@ EventIndicesMakeMapping(const EventIndices &in eventIndices)
+array<InputType>@ EventIndicesMappingMake(const EventIndices &in eventIndices)
 {
     // To make it really safe, we list all the ids (sorted by corresponding InputType),
     // and we determine the necessary capacity dynamically.

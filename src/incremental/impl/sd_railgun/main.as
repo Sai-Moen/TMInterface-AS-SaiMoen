@@ -9,12 +9,11 @@ void Main()
 
     IncMode mode;
     mode.excludedInputTypes = { InputType::Left, InputType::Right, InputType::Steer };
-
     @mode.draw = Draw;
     @mode.begin = Begin;
     @mode.step = Step;
     @mode.end = End;
-    IncRegisterMode("SD Railgun", mode);
+    IncModeRegister("SD Railgun", mode);
 }
 
 const string VAR = ::Core::VAR + "sd_";
@@ -202,7 +201,7 @@ void Step(SimulationManager@ sim)
                 if (!useQuality || bestResult <= varQualityThreshold)
                 {
                     IncStageSet(InputType::Steer, bestSteer);
-                    IncCommit(sim);
+                    IncForwards(sim);
                     return;
                 }
 

@@ -4,6 +4,8 @@ namespace Core
 
 const string VAR = "incremental_";
 
+const string VAR_MODE = VAR + "mode";
+
 const string VAR_EVAL_FULL_REPLAY      = VAR + "eval_full_replay";
 const string VAR_EVAL_SINGLE_ITERATION = VAR + "eval_single_iteration";
 const string VAR_EVAL_ITER_BEGIN       = VAR + "eval_iter_begin";
@@ -19,10 +21,10 @@ const string VAR_TERMINAL_TITLE_INFO_LEVEL = VAR + "terminal_title_info_level";
 const string VAR_RUN_REPLAY_TIME  = VAR + "run_replay_time";
 const string VAR_OPEN_RESULT_FILE = VAR + "open_result_file";
 
-const string VAR_MODE = VAR + "mode";
-
 void VarsRegister()
 {
+    RegisterVariable(VAR_MODE, "");
+
     RegisterVariable(VAR_EVAL_FULL_REPLAY,      false);
     RegisterVariable(VAR_EVAL_SINGLE_ITERATION, false);
     RegisterVariable(VAR_EVAL_ITER_BEGIN,       0);
@@ -37,9 +39,9 @@ void VarsRegister()
 
     RegisterVariable(VAR_OPEN_RESULT_FILE, false);
     RegisterVariable(VAR_RUN_REPLAY_TIME,  0);
-
-    RegisterVariable(VAR_MODE, "");
 }
+
+string varMode;
 
 bool varEvalFullReplay;
 bool varEvalSingleIteration;
@@ -58,12 +60,23 @@ bool varOpenResultFile;
 
 void VarsInit()
 {
+    varMode = VarGetString(VAR_MODE);
+    bool singleIteration = false;
+    if (ModeDispatch())
+        singleIteration = mode.singleIteration;
+
     varEvalFullReplay      = VarGetBool(VAR_EVAL_FULL_REPLAY);
     varEvalSingleIteration = VarGetBool(VAR_EVAL_SINGLE_ITERATION);
 
     varEvalIterBegin = VarGetTime(VAR_EVAL_ITER_BEGIN);
-    varEvalIterEnd   = VarGetTime(VAR_EVAL_ITER_END);
-    if (varEvalIterEnd < varEvalIterBegin || mode.singleIteration)
+    if (varEvalIterBegin < 0)
+    {
+        varEvalIterBegin = 0;
+        VarSetTime(VAR_EVAL_ITER_BEGIN, varEvalIterBegin);
+    }
+
+    varEvalIterEnd = VarGetTime(VAR_EVAL_ITER_END);
+    if (varEvalIterEnd < varEvalIterBegin || singleIteration)
     {
         varEvalIterEnd = varEvalIterBegin;
         VarSetTime(VAR_EVAL_ITER_END, varEvalIterEnd);
@@ -97,7 +110,7 @@ enum TerminalTitleInfoLevel
 {
     NONE,
     ITERATION,
-    COMMIT,
+    TIME,
 
     COUNT
 }
@@ -106,13 +119,42 @@ const array<string> TERMINAL_TITLE_INFO_LEVEL_NAMES =
 {
     "None",
     "Iteration",
-    "Commit"
+    "Time"
 };
 
 void TerminalTitleInfoLevelCallback(const uint index)
 {
     varTerminalTitleInfoLevel = index;
     VarSetUint(VAR_TERMINAL_TITLE_INFO_LEVEL, varTerminalTitleInfoLevel);
+}
+
+void TerminalTitleHandleNone()
+{
+    if (varTerminalTitleInfoLevel != TerminalTitleInfoLevel::NONE)
+        return;
+
+    SetConsoleWindowTitle(TERMINAL_TITLE_TAG);
+}
+
+void TerminalTitleHandleIteration()
+{
+    if (varTerminalTitleInfoLevel != TerminalTitleInfoLevel::ITERATION)
+        return;
+
+    string s = TERMINAL_TITLE_TAG;
+    TerminalTitleAppendIterationInfo(s);
+    SetConsoleWindowTitle(s);
+}
+
+void TerminalTitleHandleTime()
+{
+    if (varTerminalTitleInfoLevel != TerminalTitleInfoLevel::TIME)
+        return;
+
+    string s = TERMINAL_TITLE_TAG;
+    TerminalTitleAppendIterationInfo(s);
+    TerminalTitleAppendTimeInfo(s);
+    SetConsoleWindowTitle(s);
 }
 
 const string TERMINAL_TITLE_TAG = "Incremental";
@@ -125,11 +167,13 @@ void TerminalTitleAppendIterationInfo(string& s)
     s += results.Length;
 }
 
-void TerminalTitleAppendCommitInfo(string& s)
+void TerminalTitleAppendTimeInfo(string& s)
 {
-    s += " | Commit: ";
+    s += " | Time: ";
+    s += baseTime;
+    s += "ms <= ";
     s += inputTime;
-    s += "ms / ";
+    s += "ms <= ";
     s += limitTime;
     s += "ms";
 }
@@ -139,19 +183,6 @@ bool activateRunMode;
 
 void Draw()
 {
-    if (modeIndex == 0)
-    {
-        const uint index = ModeIndexDetermineByName();
-        if (index != 0 && !ModeIndexTrySet(index))
-        {
-            string s;
-            s += "Loading: ";
-            s += modeNames[index];
-            s += CharRepeat(Time::Now % 4, '.');
-            UI::TextWrapped(s);
-        }
-    }
-
     if (UI::CollapsingHeader("General"))
     {
         varEvalFullReplay = UI::CheckboxVar("Evaluate Full Replay", VAR_EVAL_FULL_REPLAY);
@@ -217,12 +248,13 @@ void Draw()
 
     if (UI::CollapsingHeader("Modes"))
     {
-        ComboSelectIndex("Mode", modeNames, modeIndex, ModeIndexCallback);
+        ComboSelectName("Mode", modes.GetKeys(), varMode, ModeNameCallback);
 
         UI::Separator();
         UI::Separator();
 
-        mode.draw();
+        if (mode.draw !is null || ModeDispatch())
+            mode.draw();
     }
 
     if (UI::CollapsingHeader("Run-Mode"))
@@ -267,36 +299,21 @@ void Draw()
     }
 }
 
-IncMode@ Home()
-{
-    IncMode home;
-    @home.draw = HomeDraw;
-    return home;
-}
-
-void HomeDraw()
-{
-    UI::TextWrapped("Currently loaded modes:");
-
-    UI::Separator();
-
-    for (uint i = 0; i < modeNames.Length; ++i)
-        UI::TextWrapped(modeNames[i]);
-
-    UI::Separator();
-}
-
 
 bool handleFinish;
 
 void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
 {
-    const uint index = ModeIndexDetermineByName();
-    if (index == 0)
-        log("Mode resolved to Home...?", Severity::Warning);
-    ModeIndexTrySet(index);
-
     VarsInit();
+    if (!ModeDispatch())
+    {
+        print("[Incremental] Could not dispatch to mode: " + varMode, Severity::Error);
+        varMode = "";
+        VarSetString(VAR_MODE, varMode);
+        @mode = IncMode();
+        Finish(sim);
+        return;
+    }
 
     ms evalIterBegin = 0;
     ms evalIterEnd   = 0;
@@ -308,7 +325,8 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
         evalEnd       = varEvalEnd;
     }
 
-    initTime = evalIterBegin;
+    baseTime = evalIterBegin;
+    trailTime = evalIterBegin;
     inputTime = -1;
     limitTime = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
 
@@ -335,15 +353,14 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
 
 void Begin(SimulationManager@ sim)
 {
-    if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::NONE)
-        SetConsoleWindowTitle(TERMINAL_TITLE_TAG);
+    TerminalTitleHandleNone();
 
     string s;
     s += "\n\n-------- Incremental w/ ";
-    s += modeNames[modeIndex];
+    s += varMode;
     s += "\n";
 
-    s += "Init Time: "; s += initTime; s += "ms\n";
+    s += "Init Time: "; s += baseTime; s += "ms\n";
     s += "Limit Time: "; s += limitTime; s += "ms\n";
     s += "Iterations: "; s += results.Length; s += "\n\n";
 
@@ -369,16 +386,26 @@ void Begin(SimulationManager@ sim)
 
 void Iteration(SimulationManager@ sim)
 {
-    inputTime = initTime + resultIndex * 10;
-    postInitIndex = 0;
-    PostInitInputEventsAdvance(sim.InputEvents);
+    trailTime = baseTime;
+    @trailState = null;
 
-    if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::ITERATION)
+    inputTime = baseTime + resultIndex * 10;
+
+    auto@ const ieb = sim.InputEvents;
+    const ums timestamp = IEB_TIME_OFFSET + inputTime;
+    const uint len = postInitInputEvents.Length;
+    for (postInitIndex = 0; postInitIndex < len; ++postInitIndex)
     {
-        string s = TERMINAL_TITLE_TAG;
-        TerminalTitleAppendIterationInfo(s);
-        SetConsoleWindowTitle(s);
+        const TM::InputEvent inputEvent = postInitInputEvents[postInitIndex];
+        if (inputEvent.Time >= timestamp)
+            break;
+
+        ieb.Add(inputEvent);
     }
+
+    PostInitInputEventsFill(ieb);
+
+    TerminalTitleHandleIteration();
 
     string s;
     s += "\n---- Iteration ";
@@ -429,13 +456,13 @@ void Step(SimulationManager@ sim)
             }
 
             const ms stateFileTime = stateFile.ToState().PlayerInfo.RaceTime;
-            if (stateFileTime > initTime)
+            if (stateFileTime > baseTime)
             {
                 string s;
                 s += "Attempted to load state that occurs too late! ";
                 s += Time::Format(stateFileTime);
                 s += " > ";
-                s += Time::Format(initTime);
+                s += Time::Format(baseTime);
                 print(s, Severity::Error);
 
                 Finish(sim);
@@ -451,14 +478,13 @@ void Step(SimulationManager@ sim)
     case StepState::INIT:
         {
             const ms time = sim.TickTime;
-            if (time < initTime)
+            if (time < baseTime)
                 break;
 
-            Assert(time == initTime);
+            Assert(time == baseTime);
         }
 
-        if (results.Length > 1)
-            @initState = sim.SaveState();
+        @baseState = sim.SaveState();
 
         Iteration(sim);
         stepState = StepState::STEP;
@@ -470,7 +496,12 @@ void Step(SimulationManager@ sim)
             if (inputTime <= limitTime)
             {
                 if (time < inputTime)
+                {
+                    if (time == trailTime)
+                        @trailState = sim.SaveState();
+
                     return;
+                }
 
                 if (time == inputTime)
                 {
@@ -508,7 +539,7 @@ void Step(SimulationManager@ sim)
         @results[resultIndex++] = Result(sim);
         if (resultIndex != results.Length)
         {
-            Rewind(sim, initState, RewindFlags::REMOVE);
+            Rewind(sim, baseState, RewindFlags::REMOVE);
             Iteration(sim);
             break;
         }
@@ -530,11 +561,11 @@ void Step(SimulationManager@ sim)
 
 void End(SimulationManager@ sim)
 {
-    @initState = null;
+    @baseState = null;
+    @trailState = null;
     @inputState = null;
     postInitInputEvents.Clear();
-    commitStates.Clear();
-    commitAnalog.Clear();
+    StageClear();
 
     stepState = StepState::NONE;
     preventSimulationFinish = false;
@@ -600,49 +631,81 @@ void PrintException(const string &in identifier)
 }
 
 
-array<string> modeNames;
-array<IncMode@> modes;
-uint modeIndex;
-IncMode@ mode;
+dictionary modes;
+const IncMode@ mode = IncMode();
 
-void ModeIndexCallback(const uint index)
+bool ModeRegister(const string &in name, IncIMode@ imode)
 {
-    if (ModeIndexTrySet(index))
-        return;
-
-    string s;
-    s += "Mode Index went out of bounds... (";
-    s += index;
-    s += " >= ";
-    s += modes.Length;
-    s += ")";
-    log(s, Severity::Warning);
-}
-
-uint ModeIndexDetermineByName()
-{
-    const uint index = modeNames.Find(VarGetString(VAR_MODE));
-    return index < modes.Length ? index : 0;
-}
-
-bool ModeIndexTrySet(const uint index)
-{
-    if (index >= modes.Length)
+    if (modes.Exists(name))
         return false;
 
-    modeIndex = index;
+    IncMode mode;
 
-    @mode = modes[modeIndex];
-    SetVariable(VAR_MODE, modeNames[modeIndex]);
+    mode.singleIteration    = imode.SingleIteration;
+    mode.excludedInputTypes = imode.ExcludedInputTypes;
+
+    @mode.draw = IncOnDraw(imode.Draw);
+
+    @mode.begin     = IncOnBegin(imode.Begin);
+    @mode.iteration = IncOnIteration(imode.Iteration);
+    @mode.step      = IncOnStep(imode.Step);
+    @mode.end       = IncOnEnd(imode.End);
+
+    @modes[name] = mode;
     return true;
 }
 
+bool ModeRegister(const string &in name, IncMode mode)
+{
+    if (modes.Exists(name))
+        return false;
 
-ms initTime;  // The time required to ensure that we can run all iterations.
+    if (mode.draw is null) @mode.draw = function() {};
+
+    if (mode.begin is null)     @mode.begin     = function(sim) {};
+    if (mode.iteration is null) @mode.iteration = function(sim) {};
+    if (mode.step is null)      @mode.step      = function(sim) {};
+    if (mode.end is null)       @mode.end       = function(sim) {};
+
+    @modes[name] = mode;
+    return true;
+}
+
+void ModeNameCallback(const string &in name)
+{
+    if (ModeDispatch(name))
+    {
+        varMode = name;
+        VarSetString(VAR_MODE, varMode);
+    }
+    else
+    {
+        string s;
+        s += "Failed to dispatch, from mode: ";
+        s += varMode;
+        s += ", to mode: ";
+        s += name;
+        log(s, Severity::Warning);
+    }
+}
+
+bool ModeDispatch(const string &in name = varMode)
+{
+    const IncMode@ m;
+    const bool ok = modes.Get(name, @m);
+    if (ok)
+        @mode = m;
+    return ok;
+}
+
+
+ms baseTime;  // The time required to ensure that we can run all iterations.
+ms trailTime; // The time of a cached save state, to speed up reverts.
 ms inputTime; // The time currently being evaluated.
 ms limitTime; // The time that triggers the end of the iteration when the input time exceeds it.
 
-SimulationState@ initState;
+SimulationState@ baseState;
+SimulationState@ trailState;
 SimulationState@ inputState;
 
 array<TM::InputEvent> postInitInputEvents;
@@ -657,24 +720,6 @@ void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint i
     postInitInputEvents.Resize(iebLen - iebIndex);
     for (uint i = iebIndex; i < iebLen; ++i)
         postInitInputEvents[i - iebIndex] = ieb[i];
-}
-
-// Move 'postInitIndex' up to and including input events where time < inputTime,
-// and adds those input events (without exclusion).
-// Any input events where time >= inputTime are filled like normal.
-void PostInitInputEventsAdvance(TM::InputEventBuffer@ ieb)
-{
-    const uint len = postInitInputEvents.Length;
-    const ums timestamp = IEB_TIME_OFFSET + inputTime;
-    for (; postInitIndex < len; ++postInitIndex)
-    {
-        const TM::InputEvent inputEvent = postInitInputEvents[postInitIndex];
-        if (inputEvent.Time >= timestamp)
-            break;
-
-        ieb.Add(inputEvent);
-    }
-    PostInitInputEventsFill(ieb);
 }
 
 // Add input events that are not excluded, from the remainder of 'postInitInputEvents' (>= inputTime).
@@ -749,9 +794,9 @@ void InputRemove(SimulationManager@ sim, const ms time, const InputType type)
 }
 
 
-// NOTE: 'commitStates' is monotonically longer than 'commitAnalog'.
-array<IncCommitState> commitStates;
-array<int> commitAnalog;
+// NOTE: 'stagedStates' is monotonically longer than 'stagedAnalog'.
+array<IncCommitState> stagedStates;
+array<int> stagedAnalog;
 
 IncCommitState StageGet(const InputType inputType, int &out analogValue)
 {
@@ -760,12 +805,12 @@ IncCommitState StageGet(const InputType inputType, int &out analogValue)
         return IncCommitState::NONE;
 
     const uint index = inputType;
-    if (index >= commitStates.Length)
+    if (index >= stagedStates.Length)
         return IncCommitState::NONE;
 
-    const IncCommitState state = commitStates[index];
+    const IncCommitState state = stagedStates[index];
     if (state == IncCommitState::SET)
-        analogValue = commitAnalog[index];
+        analogValue = stagedAnalog[index];
     return state;
 }
 
@@ -777,15 +822,15 @@ void StageSet(const InputType inputType, const int analogValue)
     AssertLog(inputType >= 0, "Tried to allocate a few GiB, do not pass negative values for inputType.");
 
     const uint index = inputType;
-    if (index >= commitAnalog.Length)
+    if (index >= stagedAnalog.Length)
     {
-        commitAnalog.Resize(index + 1);
-        if (index >= commitStates.Length)
-            commitStates.Resize(index + 1);
+        stagedAnalog.Resize(index + 1);
+        if (index >= stagedStates.Length)
+            stagedStates.Resize(index + 1);
     }
 
-    commitStates[index] = IncCommitState::SET;
-    commitAnalog[index] = analogValue;
+    stagedStates[index] = IncCommitState::SET;
+    stagedAnalog[index] = analogValue;
 }
 
 void StageRemove(const InputType inputType)
@@ -796,46 +841,44 @@ void StageRemove(const InputType inputType)
     AssertLog(inputType >= 0, "Tried to allocate a few GiB, do not pass negative values for inputType.");
 
     const uint index = inputType;
-    if (index >= commitStates.Length)
-        commitStates.Resize(index + 1);
+    if (index >= stagedStates.Length)
+        stagedStates.Resize(index + 1);
 
-    commitStates[index] = IncCommitState::REMOVE;
+    stagedStates[index] = IncCommitState::REMOVE;
 }
 
-void Commit(SimulationManager@ sim, const ms advance)
+void StageClear()
 {
-    AssertLog(advance % 10 == 0 && advance > 0, "Advance time must be a multiple of 10 greater than 0.");
+    stagedStates.Clear();
+    stagedAnalog.Clear();
+}
 
+void Forwards(SimulationManager@ sim, const ms forwards)
+{
     const ms time = inputTime;
-    inputTime += advance;
+    inputTime += forwards;
 
     Rewind(sim, inputState, RewindFlags::REMOVE);
-    PostInitInputEventsAdvance(sim.InputEvents);
 
-    if (varTerminalTitleInfoLevel == TerminalTitleInfoLevel::COMMIT)
+    auto@ const ieb = sim.InputEvents;
+    PostInitInputEventsFill(ieb);
+
+    const ums timestamp = IEB_TIME_OFFSET + inputTime;
+    const uint len = postInitInputEvents.Length;
+    for (; postInitIndex < len; ++postInitIndex)
     {
-        string s = TERMINAL_TITLE_TAG;
-        TerminalTitleAppendIterationInfo(s);
-        TerminalTitleAppendCommitInfo(s);
-        SetConsoleWindowTitle(s);
+        if (postInitInputEvents[postInitIndex].Time >= timestamp)
+            break;
     }
+
+    TerminalTitleHandleTime();
 
     string s;
-    s += time;
-    s += "ms\n";
+    s += "+ ";
+    AppendAdvanceInfo(sim, s, time);
 
-    if (varPrintExtraInfo)
-    {
-        // NOTE: since we already did a rewind to inputState on this tick, we can access SimulationManager directly for stuff.
-        const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
-
-        s += "Speed (km/h): ";
-        s += FormatPrecise(mps * 3.6);
-        s += "\n";
-    }
-
-    const uint len = commitStates.Length;
-    for (uint i = 0; i < len; ++i)
+    const uint statesLen = stagedStates.Length;
+    for (uint i = 0; i < statesLen; ++i)
     {
         const InputType type = InputType(i);
         int value;
@@ -864,11 +907,77 @@ void Commit(SimulationManager@ sim, const ms advance)
         s += cmd.ToString();
         s += "\n";
     }
+    StageClear();
 
     print(s);
+}
 
-    commitStates.Clear();
-    commitAnalog.Clear();
+bool Backwards(SimulationManager@ sim, const ms backwards, const ms cacheHint)
+{
+    bool ok;
+    inputTime -= backwards;
+    if (inputTime < baseTime)
+    {
+        inputTime = baseTime;
+        ok = false;
+    }
+    else
+    {
+        ok = true;
+    }
+
+    StageClear();
+
+    auto@ const ieb = sim.InputEvents;
+    IEBRemoveFromTime(ieb, inputTime);
+
+    const ums timestamp = IEB_TIME_OFFSET + inputTime;
+    while (postInitIndex > 0)
+    {
+        const uint before = postInitIndex - 1;
+        if (postInitInputEvents[before].Time < timestamp)
+            break;
+
+        postInitIndex = before;
+    }
+    PostInitInputEventsFill(ieb);
+
+    SimulationState@ cacheState = baseState;
+    if (trailTime >= inputTime)
+    {
+        trailTime = cacheHint > 10 ? inputTime - cacheHint : baseTime;
+        @trailState = null;
+    }
+    else if (trailState !is null)
+    {
+        @cacheState = trailState;
+    }
+
+    Rewind(sim, cacheState, RewindFlags::PRESERVE);
+
+    TerminalTitleHandleTime();
+
+    string s;
+    s += "- ";
+    AppendAdvanceInfo(sim, s, inputTime);
+
+    print(s);
+    return ok;
+}
+
+void AppendAdvanceInfo(SimulationManager@ sim, string& s, const ms time)
+{
+    s += time;
+    s += "ms\n";
+
+    if (varPrintExtraInfo)
+    {
+        const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
+
+        s += "Speed (km/h): ";
+        s += FormatPrecise(mps * 3.6);
+        s += "\n";
+    }
 }
 
 

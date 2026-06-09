@@ -13,19 +13,13 @@ const string ID = "incremental";
 void Main()
 {
     Core::VarsRegister();
-
-    IncMode@ const home = Core::Home();
-    IncRegisterMode("Home", home);
-    @Core::mode = home;
-
-    // Relies on 'mode' being set.
     Core::VarsInit();
+
+    RegisterValidationHandler(ID, "Incremental", Core::Draw);
 
     InputSimplifier::Main();
     SpeedDrift::Main();
     SteerMax::Main();
-
-    RegisterValidationHandler(ID, "Incremental", Core::Draw);
 }
 
 void OnSimulationBegin(SimulationManager@ sim)
@@ -40,7 +34,7 @@ void OnSimulationBegin(SimulationManager@ sim)
 
     Core::Initialize(sim, sim.EventsDuration);
 
-    const uint iebIndex = IEBSearchTime(ieb, Core::initTime);
+    const uint iebIndex = IEBSearchTime(ieb, Core::baseTime);
     Core::PostInitInputEventsInitialize(ieb, iebIndex);
     IEBRemoveFromIndex(ieb, iebIndex);
 
@@ -141,7 +135,7 @@ void OnRunStep(SimulationManager@ sim)
 
         {
             const auto@ const ieb = sim.InputEvents;
-            const uint iebIndex = IEBSearchTime(ieb, Core::initTime);
+            const uint iebIndex = IEBSearchTime(ieb, Core::baseTime);
 
             preInitInputEvents.Resize(iebIndex);
             for (uint i = 0; i < iebIndex; ++i)

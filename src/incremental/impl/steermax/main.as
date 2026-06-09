@@ -12,7 +12,7 @@ void Main()
     @mode.draw = Draw;
     @mode.begin = Begin;
     @mode.step = Step;
-    IncRegisterMode("SteerMax", mode);
+    IncModeRegister("SteerMax", mode);
 }
 
 const string VAR = ::Core::VAR + "sm_";
@@ -378,7 +378,7 @@ void Step(SimulationManager@ sim)
             else if (time == varTimeout)
             {
                 IncStageSet(InputType::Steer, varSteerTowards);
-                IncCommit(sim);
+                IncForwards(sim);
             }
         break;
         case EvalState::EVALUATE:
@@ -399,7 +399,7 @@ void Step(SimulationManager@ sim)
 
                     const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
                     IncStageSet(InputType::Steer, best);
-                    IncCommit(sim);
+                    IncForwards(sim);
                 }
             }
             else if (ConstraintsCheck(sim) != Constraint::NONE)

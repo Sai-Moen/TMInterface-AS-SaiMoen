@@ -11,59 +11,37 @@ interface IncIMode
     void End(SimulationManager@);
 }
 
-funcdef void OnDraw();
+funcdef void IncOnDraw();
 
-funcdef void OnBegin(SimulationManager@);
-funcdef void OnIteration(SimulationManager@);
-funcdef void OnStep(SimulationManager@);
-funcdef void OnEnd(SimulationManager@);
+funcdef void IncOnBegin(SimulationManager@);
+funcdef void IncOnIteration(SimulationManager@);
+funcdef void IncOnStep(SimulationManager@);
+funcdef void IncOnEnd(SimulationManager@);
 
 class IncMode
 {
     bool singleIteration;
     array<InputType> excludedInputTypes;
 
-    OnDraw@ draw;
+    IncOnDraw@ draw;
 
-    OnBegin@ begin;
-    OnIteration@ iteration;
-    OnStep@ step;
-    OnEnd@ end;
+    IncOnBegin@ begin;
+    IncOnIteration@ iteration;
+    IncOnStep@ step;
+    IncOnEnd@ end;
 }
 
-bool IncRegisterMode(const string &in modeName, IncIMode@ imode)
+bool IncModeRegister(const string &in name, IncIMode@ imode)
 {
-    IncMode mode;
-
-    mode.singleIteration    = imode.SingleIteration;
-    mode.excludedInputTypes = imode.ExcludedInputTypes;
-
-    @mode.draw = OnDraw(imode.Draw);
-
-    @mode.begin     = OnBegin(imode.Begin);
-    @mode.iteration = OnIteration(imode.Iteration);
-    @mode.step      = OnStep(imode.Step);
-    @mode.end       = OnEnd(imode.End);
-
-    return IncRegisterMode(modeName, mode);
-}
-
-bool IncRegisterMode(const string &in modeName, IncMode@ mode)
-{
-    if (Core::modeNames.Find(modeName) != -1)
+    if (imode is null)
         return false;
 
-    Core::modeNames.Add(modeName);
+    return Core::ModeRegister(name, imode);
+}
 
-    if (mode.draw is null) @mode.draw = function() {};
-
-    if (mode.begin is null)     @mode.begin     = function(sim) {};
-    if (mode.iteration is null) @mode.iteration = function(sim) {};
-    if (mode.step is null)      @mode.step      = function(sim) {};
-    if (mode.end is null)       @mode.end       = function(sim) {};
-
-    Core::modes.Add(mode);
-    return true;
+bool IncModeRegister(const string &in name, const IncMode &in mode)
+{
+    return Core::ModeRegister(name, mode);
 }
 
 
@@ -176,7 +154,12 @@ void IncStageRemove(InputType inputType)
     Core::StageRemove(inputType);
 }
 
-void IncCommit(SimulationManager@ sim, ms advance = 10)
+void IncForwards(SimulationManager@ sim, ms forwards = 10)
 {
-    Core::Commit(sim, advance);
+    Core::Forwards(sim, forwards);
+}
+
+bool IncBackwards(SimulationManager@ sim, ms backwards = 10, ms cacheHint = 0)
+{
+    return Core::Backwards(sim, backwards, cacheHint);
 }
