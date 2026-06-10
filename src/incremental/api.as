@@ -154,12 +154,12 @@ void IncStageRemove(InputType inputType)
     Core::StageRemove(inputType);
 }
 
-void IncForwards(SimulationManager@ sim, ms forwards = 10)
+void IncForward(SimulationManager@ sim, ms forward = 10)
 {
-    Core::Forwards(sim, forwards);
+    Core::Forward(sim, forward);
 }
 
-bool IncBackwards(SimulationManager@ sim, ms backwards = 10, ms cacheHint = 0)
+ms IncBackward(SimulationManager@ sim, ms backward = 10, ms cacheHint = 0)
 {
-    return Core::Backwards(sim, backwards, cacheHint);
+    return Core::Backward(sim, backward, cacheHint);
 }

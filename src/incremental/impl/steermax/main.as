@@ -17,8 +17,12 @@ void Main()
 
 const string VAR = ::Core::VAR + "sm_";
 
-const string VAR_TIMEOUT       = VAR + "timeout";
-const string VAR_LOOKAHEAD     = VAR + "lookahead";
+const string VAR_DYNAMIC_LOOKAHEAD = VAR + "dynamic_lookahead";
+const string VAR_BASE_LOOKAHEAD    = VAR + "base_lookahead";
+const string VAR_MAX_ROLLBACK      = VAR + "max_rollback";
+const string VAR_TIMEOUT           = VAR + "timeout";
+const string VAR_LOOKAHEAD         = VAR + "lookahead";
+
 const string VAR_STEER_TOWARDS = VAR + "steer_towards";
 const string VAR_STEER_AWAY    = VAR + "steer_away";
 const string VAR_STEER_OFFSET  = VAR + "steer_offset";
@@ -35,8 +39,12 @@ const string VAR_SLIDING_WHEELS_MAX = VAR + "sliding_wheels_max";
 
 void VarsRegister()
 {
-    RegisterVariable(VAR_TIMEOUT,       200);
-    RegisterVariable(VAR_LOOKAHEAD,     200);
+    RegisterVariable(VAR_DYNAMIC_LOOKAHEAD, false);
+    RegisterVariable(VAR_BASE_LOOKAHEAD,    20);
+    RegisterVariable(VAR_MAX_ROLLBACK,      200);
+    RegisterVariable(VAR_TIMEOUT,           200);
+    RegisterVariable(VAR_LOOKAHEAD,         200);
+
     RegisterVariable(VAR_STEER_TOWARDS, STEER_MAX);
     RegisterVariable(VAR_STEER_AWAY,    STEER_MIN);
     RegisterVariable(VAR_STEER_OFFSET,  800);
@@ -52,8 +60,12 @@ void VarsRegister()
     RegisterVariable(VAR_SLIDING_WHEELS_MAX, 0);
 }
 
+bool varDynamicLookahead;
+ms varBaseLookahead;
+ms varMaxRollback;
 ms varTimeout;
 ms varLookahead;
+
 int varSteerTowards;
 int varSteerAway;
 int varSteerOffset;
@@ -70,6 +82,22 @@ uint varSlidingWheelsMax;
 
 void VarsInit()
 {
+    varDynamicLookahead = VarGetBool(VAR_DYNAMIC_LOOKAHEAD);
+
+    varBaseLookahead = VarGetTime(VAR_BASE_LOOKAHEAD);
+    if (varBaseLookahead < 0)
+    {
+        varBaseLookahead = 0;
+        VarSetTime(VAR_BASE_LOOKAHEAD, varBaseLookahead);
+    }
+
+    varMaxRollback = VarGetTime(VAR_MAX_ROLLBACK);
+    if (varMaxRollback < 0)
+    {
+        varMaxRollback = 0;
+        VarSetTime(VAR_MAX_ROLLBACK, varMaxRollback);
+    }
+
     varTimeout = VarGetTime(VAR_TIMEOUT);
     if (varTimeout < 0)
     {
@@ -131,13 +159,38 @@ void VarsInit()
 
 void Draw()
 {
-    varTimeout = UI::InputTimeVar("Timeout", VAR_TIMEOUT, 10);
-    TooltipOnHover("If the constraints hold for this amount of time, use maximum steering and go to the next tick.");
+    varDynamicLookahead = UI::CheckboxVar("Dynamic Lookahead", VAR_DYNAMIC_LOOKAHEAD);
+    TooltipOnHover("Use a depth-first approach to automatically find out how far to look on a particular tick.");
 
-    varLookahead = UI::InputTimeVar("Lookahead", VAR_LOOKAHEAD, 10);
-    TooltipOnHover(
-        "If the constraints did not hold, look ahead from the constraint failure time by this amount of time.\n"
-        "A new steering value will then be determined which does not fail before the lookahead.");
+    if (varDynamicLookahead)
+    {
+        varBaseLookahead = UI::InputTimeVar("Base Lookahead", VAR_BASE_LOOKAHEAD, 10);
+        TooltipOnHover(
+            "A lookahead value that the search will not go below.\n"
+            "For noslide this can go as low as 20ms, whereas wallhugging might need more than that to be decently smooth.");
+
+        varMaxRollback = UI::InputTimeVar("Max Rollback", VAR_MAX_ROLLBACK, 10);
+        TooltipOnHover(
+            "How far the dynamic lookahead system should be able to go backward in time to try to avoid failing constraints"
+            " (default: 200ms).\n"
+            "Set to 0 for infinite rollback (at least, until it fails at the earliest possible time).");
+    }
+    else
+    {
+        varTimeout = UI::InputTimeVar("Timeout", VAR_TIMEOUT, 10);
+        TooltipOnHover(
+            "If the constraints hold for this amount of time, use maximum steering and go to the next tick"
+            " (default: 200ms).\n"
+            "Should be at least 20ms so there is enough time to react.");
+
+        varLookahead = UI::InputTimeVar("Lookahead", VAR_LOOKAHEAD, 10);
+        TooltipOnHover(
+            "If the constraints did not hold, look ahead from the constraint failure time by this amount of time"
+            " (default: 200ms).\n"
+            "A new steering value will then be determined which does not fail before the lookahead.");
+    }
+
+    UI::Separator();
 
     varSteerTowards = UI::SliderInt("Steer Towards", varSteerTowards, STEER_MIN, STEER_MAX);
     TooltipOnHover(
@@ -241,9 +294,8 @@ float maxSpeedBleed;
 
 enum EvalState
 {
-    NONE,
-
     SEARCH,
+    SCAN,
     EVALUATE,
 }
 
@@ -261,6 +313,17 @@ void Begin(SimulationManager@)
     maxSpeedBleed = varMaxSpeedBleed / 3.6;
 
     evalState = EvalState::SEARCH;
+    if (varDynamicLookahead)
+    {
+        cacheHint = varMaxRollback > 0 ? varMaxRollback : 100;
+        targetTime = varBaseLookahead;
+        peakTime = 0;
+        @onStep = DynamicStep;
+    }
+    else
+    {
+        @onStep = StaticStep;
+    }
 }
 
 float velocityPrevious;
@@ -321,13 +384,30 @@ string GenerateConstraintFailureMessage(const Constraint constraint)
     return s;
 }
 
+void ConstraintFailure(SimulationManager@ sim, const Constraint constraint)
+{
+    string s;
+    s += "[SteerMax] Constraints could not be avoided: ";
+    s += GenerateConstraintFailureMessage(constraint);
+    print(s, Severity::Error);
+
+    IncTerminate(sim);
+}
+
+ms cacheHint;
 ms targetTime;
+ms peakTime;
 
 int steer;
 int steerTowards;
 int steerAway;
+int steerBest;
+int steerPeak;
 
 bool rewinding;
+
+funcdef void OnStep(SimulationManager@ sim, const ms time);
+OnStep@ onStep;
 
 void Step(SimulationManager@ sim)
 {
@@ -341,90 +421,219 @@ void Step(SimulationManager@ sim)
         velocityPrevious = dyna.RefStatePrevious.LinearSpeed.Length();
         velocityCurrent = dyna.RefStateCurrent.LinearSpeed.Length();
         velocityMinimumImmediate = velocityPrevious - maxSpeedBleed;
-        if (time == 0 || velocityCurrent > velocityPrevious)
-            velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
-
-        switch (evalState)
+        if (time == 0)
         {
-        case EvalState::SEARCH:
+            lastHasAnyLateralContactTime = sim.SceneVehicleCar.LastHasAnyLateralContactTime;
+            velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
+        }
+        else if (velocityCurrent > velocityPrevious)
+        {
+            velocityMinimumCumulative = velocityCurrent - maxSpeedLoss;
+        }
+
+        onStep(sim, time);
+    } while (rewinding);
+}
+
+void DynamicStep(SimulationManager@ sim, const ms time)
+{
+    switch (evalState)
+    {
+    case EvalState::SEARCH:
+        {
+            const Constraint constraint = ConstraintsCheck(sim);
             if (time == 0)
             {
-                lastHasAnyLateralContactTime = sim.SceneVehicleCar.LastHasAnyLateralContactTime;
-
-                const Constraint constraint = ConstraintsCheck(sim);
                 if (constraint != Constraint::NONE)
                 {
-                    string s;
-                    s += "[SteerMax] Constraints already violated at input time: ";
-                    s += GenerateConstraintFailureMessage(constraint);
-                    print(s, Severity::Error);
-
-                    IncTerminate(sim);
+                    ConstraintFailure(sim, constraint);
                     return;
                 }
 
                 IncInputSet(sim, InputType::Steer, varSteerTowards);
             }
-            else if (ConstraintsCheck(sim) != Constraint::NONE)
+            else if (constraint != Constraint::NONE)
             {
-                targetTime = time + varLookahead;
-
                 steerTowards = varSteerTowards;
                 steerAway    = varSteerAway;
 
+                evalState = EvalState::SCAN;
+                Rewind(sim);
+            }
+            else if (time == targetTime)
+            {
+                DynamicForward(sim, varSteerTowards);
+            }
+        }
+    break;
+    case EvalState::SCAN:
+        if (time == 0)
+        {
+            const int min = Math::Min(steerTowards, steerAway);
+            const int max = Math::Max(steerTowards, steerAway);
+
+            const int diff = max - min;
+            if (diff >= 2)
+            {
+                steer = min + diff / 2;
+                IncInputSet(sim, InputType::Steer, steer);
+            }
+            else
+            {
+                steerBest = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
+                IncInputSet(sim, InputType::Steer, steerBest);
+
                 evalState = EvalState::EVALUATE;
+                Rewind(sim);
+            }
+        }
+        else if (ConstraintsCheck(sim) != Constraint::NONE)
+        {
+            steerTowards = steer;
+            Rewind(sim);
+        }
+        else if (time == targetTime)
+        {
+            steerAway = steer;
+            steerTowards = varSteerTowards;
+            Rewind(sim);
+        }
+    break;
+    case EvalState::EVALUATE:
+        {
+            const Constraint constraint = ConstraintsCheck(sim);
+            if (constraint != Constraint::NONE)
+            {
+                if (peakTime <= targetTime)
+                {
+                    const ms backward = IncBackward(sim, 10, cacheHint);
+                    if (backward != 10)
+                    {
+                        ConstraintFailure(sim, constraint);
+                        return;
+                    }
+
+                    targetTime += 10;
+                    if (varMaxRollback > 0)
+                    {
+                        const ms rollback = targetTime - varBaseLookahead;
+                        if (rollback > varMaxRollback)
+                        {
+                            print("[SteerMax] Ran out of rollback space!", Severity::Error);
+                            IncTerminate(sim);
+                            return;
+                        }
+                    }
+
+                    peakTime = targetTime;
+                }
+                else
+                {
+                    DynamicForward(sim, steerPeak);
+                }
+            }
+            else if (time == targetTime)
+            {
+                DynamicForward(sim, steerBest);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        evalState = EvalState::SEARCH;
+    break;
+    default:
+        Unreachable();
+    break;
+    }
+}
+
+void DynamicForward(SimulationManager@ sim, const int steer)
+{
+    IncStageSet(InputType::Steer, steer);
+    IncForward(sim);
+
+    if (targetTime > varBaseLookahead)
+    {
+        targetTime -= 10;
+        steerPeak = steer;
+    }
+    else
+    {
+        peakTime = 0;
+    }
+}
+
+void StaticStep(SimulationManager@ sim, const ms time)
+{
+    switch (evalState)
+    {
+    case EvalState::SEARCH:
+        if (time == 0)
+            IncInputSet(sim, InputType::Steer, varSteerTowards);
+
+        {
+            const Constraint constraint = ConstraintsCheck(sim);
+            if (constraint != Constraint::NONE)
+            {
+                if (time < 20)
+                {
+                    ConstraintFailure(sim, constraint);
+                    return;
+                }
+
+                targetTime   = time + varLookahead;
+                steerTowards = varSteerTowards;
+                steerAway    = varSteerAway;
+
+                evalState = EvalState::SCAN;
                 Rewind(sim);
             }
             else if (time == varTimeout)
             {
                 IncStageSet(InputType::Steer, varSteerTowards);
-                IncForwards(sim);
+                IncForward(sim);
             }
-        break;
-        case EvalState::EVALUATE:
-            if (time == 0)
-            {
-                const int min = Math::Min(steerTowards, steerAway);
-                const int max = Math::Max(steerTowards, steerAway);
-
-                const int diff = max - min;
-                if (diff >= 2)
-                {
-                    steer = min + diff / 2;
-                    IncInputSet(sim, InputType::Steer, steer);
-                }
-                else
-                {
-                    evalState = EvalState::SEARCH;
-
-                    const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
-                    IncStageSet(InputType::Steer, best);
-                    IncForwards(sim);
-                }
-            }
-            else if (ConstraintsCheck(sim) != Constraint::NONE)
-            {
-                steerTowards = steer;
-                Rewind(sim);
-            }
-            else if (time == targetTime)
-            {
-                steerAway = steer;
-
-                // To try more steering values, we also reset steerTowards here.
-                // This should not repeatedly test the same values,
-                // as we stop resetting and commit when steerAway stops moving,
-                // so we might do a couple duplicate attempts at the end in the worst case
-                // (not enough to throw in an IntHashSet).
-                steerTowards = varSteerTowards;
-                Rewind(sim);
-            }
-        break;
-        default:
-            Unreachable();
-        break;
         }
-    } while (rewinding);
+    break;
+    case EvalState::SCAN:
+        if (time == 0)
+        {
+            const int min = Math::Min(steerTowards, steerAway);
+            const int max = Math::Max(steerTowards, steerAway);
+
+            const int diff = max - min;
+            if (diff >= 2)
+            {
+                steer = min + diff / 2;
+                IncInputSet(sim, InputType::Steer, steer);
+            }
+            else
+            {
+                const int best = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);
+                IncStageSet(InputType::Steer, best);
+                IncForward(sim);
+                evalState = EvalState::SEARCH;
+            }
+        }
+        else if (ConstraintsCheck(sim) != Constraint::NONE)
+        {
+            steerTowards = steer;
+            Rewind(sim);
+        }
+        else if (time == targetTime)
+        {
+            steerAway = steer;
+            steerTowards = varSteerTowards;
+            Rewind(sim);
+        }
+    break;
+    default:
+        Unreachable();
+    break;
+    }
 }
 
 uint slidingWheels;

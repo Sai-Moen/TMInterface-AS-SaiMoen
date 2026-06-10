@@ -550,7 +550,7 @@ void Commit(SimulationManager@ sim)
         return;
     }
 
-    IncForwards(sim);
+    IncForward(sim);
 }
 
 

@@ -201,7 +201,7 @@ void Step(SimulationManager@ sim)
                 if (!useQuality || bestResult <= varQualityThreshold)
                 {
                     IncStageSet(InputType::Steer, bestSteer);
-                    IncForwards(sim);
+                    IncForward(sim);
                     return;
                 }
 

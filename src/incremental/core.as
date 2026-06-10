@@ -326,7 +326,7 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
     }
 
     baseTime = evalIterBegin;
-    trailTime = evalIterBegin;
+    trailTime = -1;
     inputTime = -1;
     limitTime = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
 
@@ -391,19 +391,21 @@ void Iteration(SimulationManager@ sim)
 
     inputTime = baseTime + resultIndex * 10;
 
-    auto@ const ieb = sim.InputEvents;
-    const ums timestamp = IEB_TIME_OFFSET + inputTime;
-    const uint len = postInitInputEvents.Length;
-    for (postInitIndex = 0; postInitIndex < len; ++postInitIndex)
     {
-        const TM::InputEvent inputEvent = postInitInputEvents[postInitIndex];
-        if (inputEvent.Time >= timestamp)
-            break;
+        auto@ const ieb = sim.InputEvents;
+        const ums timestamp = IEB_TIME_OFFSET + inputTime;
+        const uint len = postInitInputEvents.Length;
+        for (postInitIndex = 0; postInitIndex < len; ++postInitIndex)
+        {
+            const TM::InputEvent inputEvent = postInitInputEvents[postInitIndex];
+            if (inputEvent.Time >= timestamp)
+                break;
 
-        ieb.Add(inputEvent);
+            ieb.Add(inputEvent);
+        }
+
+        PostInitInputEventsFill(ieb);
     }
-
-    PostInitInputEventsFill(ieb);
 
     TerminalTitleHandleIteration();
 
@@ -469,7 +471,7 @@ void Step(SimulationManager@ sim)
                 break;
             }
 
-            // Rewinding forwards, no point in RewindFlags::PRESERVE.
+            // Rewinding forward, no point in RewindFlags::PRESERVE.
             sim.RewindToState(stateFile);
         }
 
@@ -853,32 +855,43 @@ void StageClear()
     stagedAnalog.Clear();
 }
 
-void Forwards(SimulationManager@ sim, const ms forwards)
+void Forward(SimulationManager@ sim, const ms forward)
 {
     const ms time = inputTime;
-    inputTime += forwards;
+    inputTime += forward;
 
     Rewind(sim, inputState, RewindFlags::REMOVE);
 
-    auto@ const ieb = sim.InputEvents;
-    PostInitInputEventsFill(ieb);
-
-    const ums timestamp = IEB_TIME_OFFSET + inputTime;
-    const uint len = postInitInputEvents.Length;
-    for (; postInitIndex < len; ++postInitIndex)
     {
-        if (postInitInputEvents[postInitIndex].Time >= timestamp)
-            break;
+        PostInitInputEventsFill(sim.InputEvents);
+
+        const ums timestamp = IEB_TIME_OFFSET + inputTime;
+        const uint len = postInitInputEvents.Length;
+        for (; postInitIndex < len; ++postInitIndex)
+        {
+            if (postInitInputEvents[postInitIndex].Time >= timestamp)
+                break;
+        }
     }
 
     TerminalTitleHandleTime();
 
     string s;
     s += "+ ";
-    AppendAdvanceInfo(sim, s, time);
+    s += time;
+    s += "ms\n";
 
-    const uint statesLen = stagedStates.Length;
-    for (uint i = 0; i < statesLen; ++i)
+    if (varPrintExtraInfo)
+    {
+        const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
+
+        s += "Speed (km/h): ";
+        s += FormatPrecise(mps * 3.6);
+        s += "\n";
+    }
+
+    const uint len = stagedStates.Length;
+    for (uint i = 0; i < len; ++i)
     {
         const InputType type = InputType(i);
         int value;
@@ -912,37 +925,33 @@ void Forwards(SimulationManager@ sim, const ms forwards)
     print(s);
 }
 
-bool Backwards(SimulationManager@ sim, const ms backwards, const ms cacheHint)
+ms Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
 {
-    bool ok;
-    inputTime -= backwards;
+    const ms time = inputTime;
+    inputTime -= backward;
     if (inputTime < baseTime)
-    {
         inputTime = baseTime;
-        ok = false;
-    }
-    else
-    {
-        ok = true;
-    }
 
     StageClear();
 
-    auto@ const ieb = sim.InputEvents;
-    IEBRemoveFromTime(ieb, inputTime);
-
-    const ums timestamp = IEB_TIME_OFFSET + inputTime;
-    while (postInitIndex > 0)
     {
-        const uint before = postInitIndex - 1;
-        if (postInitInputEvents[before].Time < timestamp)
-            break;
+        auto@ const ieb = sim.InputEvents;
+        const ums timestamp = IEB_TIME_OFFSET + inputTime;
+        IEBRemoveFromTimestamp(ieb, timestamp);
 
-        postInitIndex = before;
+        while (postInitIndex > 0)
+        {
+            const uint before = postInitIndex - 1;
+            if (postInitInputEvents[before].Time < timestamp)
+                break;
+
+            postInitIndex = before;
+        }
+
+        PostInitInputEventsFill(ieb);
     }
-    PostInitInputEventsFill(ieb);
 
-    SimulationState@ cacheState = baseState;
+    SimulationState@ cachedState = baseState;
     if (trailTime >= inputTime)
     {
         trailTime = cacheHint > 10 ? inputTime - cacheHint : baseTime;
@@ -950,34 +959,20 @@ bool Backwards(SimulationManager@ sim, const ms backwards, const ms cacheHint)
     }
     else if (trailState !is null)
     {
-        @cacheState = trailState;
+        @cachedState = trailState;
     }
 
-    Rewind(sim, cacheState, RewindFlags::PRESERVE);
+    Rewind(sim, cachedState, RewindFlags::PRESERVE);
 
     TerminalTitleHandleTime();
 
     string s;
     s += "- ";
-    AppendAdvanceInfo(sim, s, inputTime);
-
-    print(s);
-    return ok;
-}
-
-void AppendAdvanceInfo(SimulationManager@ sim, string& s, const ms time)
-{
-    s += time;
+    s += inputTime;
     s += "ms\n";
+    print(s);
 
-    if (varPrintExtraInfo)
-    {
-        const float mps = sim.Dyna.RefStateCurrent.LinearSpeed.Length();
-
-        s += "Speed (km/h): ";
-        s += FormatPrecise(mps * 3.6);
-        s += "\n";
-    }
+    return time - inputTime;
 }
 
 
