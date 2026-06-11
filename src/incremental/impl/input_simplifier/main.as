@@ -414,7 +414,7 @@ void StepTurningRate(SimulationManager@ sim)
     else if (time == varContextTimespan)
     {
         IncStageSet(InputType::Steer, steer);
-        Commit(sim);
+        Forward(sim);
     }
 }
 
@@ -439,7 +439,7 @@ void StepAir(SimulationManager@ sim)
     else if (time == varContextTimespan)
     {
         IncStageSet(InputType::Steer, steer);
-        Commit(sim);
+        Forward(sim);
     }
 }
 
@@ -464,7 +464,7 @@ void StepRemoval(SimulationManager@ sim)
     else if (time == varContextTimespan)
     {
         IncStageSet(InputType::Steer, steer);
-        Commit(sim);
+        Forward(sim);
     }
 }
 
@@ -490,7 +490,7 @@ void NextStep(SimulationManager@ sim)
     if (++stepIndex == len)
     {
         print("[Input Simplifier] Desynchronized, restoring old inputs...", Severity::Warning);
-        Commit(sim);
+        Forward(sim);
         return;
     }
 
@@ -498,7 +498,7 @@ void NextStep(SimulationManager@ sim)
     Step(sim);
 }
 
-void Commit(SimulationManager@ sim)
+void Forward(SimulationManager@ sim)
 {
     contexts[contextIndex++].initialized = false;
     contextIndex %= contexts.Length;
@@ -507,18 +507,18 @@ void Commit(SimulationManager@ sim)
     int brake;
     switch (IncStageGet(InputType::Down, brake))
     {
-    case IncCommitState::NONE:
+    case IncForwardState::NONE:
         if (preserveBrake)
             IncStageSet(InputType::Down, 1);
         else if (brake0 == 0 && IncInputGetRelative(sim, 0, InputType::Down, brake) && brake == 0)
             IncStageRemove(InputType::Down); // Clean up unbalanced rel down inputs.
     break;
-    case IncCommitState::SET:
+    case IncForwardState::SET:
         Assert(brake == 0);
         if (brake0 == 0)
             IncStageRemove(InputType::Down);
     break;
-    case IncCommitState::REMOVE:
+    case IncForwardState::REMOVE:
         // Unreachable.
     // fallthrough
     default:
@@ -530,18 +530,18 @@ void Commit(SimulationManager@ sim)
     int steer;
     switch (IncStageGet(InputType::Steer, steer))
     {
-    case IncCommitState::NONE:
+    case IncForwardState::NONE:
         if (preserveSteer)
             IncStageSet(InputType::Steer, preservedSteer);
     break;
-    case IncCommitState::SET:
+    case IncForwardState::SET:
         // NOTE: this does not work in run mode...
         // Therefore, we rely on ToCommandsText to unfill, which it only seems to do for steer, but that works for us!
 
         // if (steer0 == steer)
         //     IncStageRemove(InputType::Steer);
     break;
-    case IncCommitState::REMOVE:
+    case IncForwardState::REMOVE:
         // Unreachable.
     // fallthrough
     default:

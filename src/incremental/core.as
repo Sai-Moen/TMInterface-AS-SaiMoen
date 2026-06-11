@@ -797,21 +797,21 @@ void InputRemove(SimulationManager@ sim, const ms time, const InputType type)
 
 
 // NOTE: 'stagedStates' is monotonically longer than 'stagedAnalog'.
-array<IncCommitState> stagedStates;
+array<IncForwardState> stagedStates;
 array<int> stagedAnalog;
 
-IncCommitState StageGet(const InputType inputType, int &out analogValue)
+IncForwardState StageGet(const InputType inputType, int &out analogValue)
 {
     analogValue = 0;
     if (inputType == InputType::None)
-        return IncCommitState::NONE;
+        return IncForwardState::NONE;
 
     const uint index = inputType;
     if (index >= stagedStates.Length)
-        return IncCommitState::NONE;
+        return IncForwardState::NONE;
 
-    const IncCommitState state = stagedStates[index];
-    if (state == IncCommitState::SET)
+    const IncForwardState state = stagedStates[index];
+    if (state == IncForwardState::SET)
         analogValue = stagedAnalog[index];
     return state;
 }
@@ -831,7 +831,7 @@ void StageSet(const InputType inputType, const int analogValue)
             stagedStates.Resize(index + 1);
     }
 
-    stagedStates[index] = IncCommitState::SET;
+    stagedStates[index] = IncForwardState::SET;
     stagedAnalog[index] = analogValue;
 }
 
@@ -846,7 +846,7 @@ void StageRemove(const InputType inputType)
     if (index >= stagedStates.Length)
         stagedStates.Resize(index + 1);
 
-    stagedStates[index] = IncCommitState::REMOVE;
+    stagedStates[index] = IncForwardState::REMOVE;
 }
 
 void StageClear()
@@ -897,14 +897,14 @@ void Forward(SimulationManager@ sim, const ms forward)
         int value;
         switch (StageGet(type, value))
         {
-        case IncCommitState::NONE:
+        case IncForwardState::NONE:
             // Do nothing.
             continue;
-        case IncCommitState::SET:
+        case IncForwardState::SET:
             InputSet(sim, time, type, value);
             s += "+ ";
         break;
-        case IncCommitState::REMOVE:
+        case IncForwardState::REMOVE:
             InputRemove(sim, time, type);
             s += "- ";
         break;

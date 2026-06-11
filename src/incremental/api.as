@@ -132,14 +132,14 @@ void IncRewindPreserve(SimulationManager@ sim)
 }
 
 
-enum IncCommitState
+enum IncForwardState
 {
     NONE,   // No particular change is requested (default).
     SET,    // Sets input type to analog value at input time (adds input event if necessary).
     REMOVE, // Removes (all) input event(s) with the given type at input time.
 }
 
-IncCommitState IncStageGet(InputType inputType, int &out analogValue = void)
+IncForwardState IncStageGet(InputType inputType, int &out analogValue = void)
 {
     return Core::StageGet(inputType, analogValue);
 }
