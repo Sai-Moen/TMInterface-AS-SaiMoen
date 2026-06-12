@@ -384,7 +384,7 @@ void Begin(SimulationManager@ sim)
     }
 }
 
-void Iteration(SimulationManager@ sim)
+void Revert(SimulationManager@ sim)
 {
     trailTime = baseTime;
     @trailState = null;
@@ -406,6 +406,11 @@ void Iteration(SimulationManager@ sim)
 
         PostInitInputEventsFill(ieb);
     }
+}
+
+void Iteration(SimulationManager@ sim)
+{
+    Revert(sim);
 
     TerminalTitleHandleIteration();
 
@@ -471,7 +476,6 @@ void Step(SimulationManager@ sim)
                 break;
             }
 
-            // Rewinding forward, no point in RewindFlags::PRESERVE.
             sim.RewindToState(stateFile);
         }
 
@@ -797,21 +801,21 @@ void InputRemove(SimulationManager@ sim, const ms time, const InputType type)
 
 
 // NOTE: 'stagedStates' is monotonically longer than 'stagedAnalog'.
-array<IncForwardState> stagedStates;
+array<IncStageState> stagedStates;
 array<int> stagedAnalog;
 
-IncForwardState StageGet(const InputType inputType, int &out analogValue)
+IncStageState StageGet(const InputType inputType, int &out analogValue)
 {
     analogValue = 0;
     if (inputType == InputType::None)
-        return IncForwardState::NONE;
+        return IncStageState::NONE;
 
     const uint index = inputType;
     if (index >= stagedStates.Length)
-        return IncForwardState::NONE;
+        return IncStageState::NONE;
 
-    const IncForwardState state = stagedStates[index];
-    if (state == IncForwardState::SET)
+    const IncStageState state = stagedStates[index];
+    if (state == IncStageState::SET)
         analogValue = stagedAnalog[index];
     return state;
 }
@@ -831,7 +835,7 @@ void StageSet(const InputType inputType, const int analogValue)
             stagedStates.Resize(index + 1);
     }
 
-    stagedStates[index] = IncForwardState::SET;
+    stagedStates[index] = IncStageState::SET;
     stagedAnalog[index] = analogValue;
 }
 
@@ -846,7 +850,7 @@ void StageRemove(const InputType inputType)
     if (index >= stagedStates.Length)
         stagedStates.Resize(index + 1);
 
-    stagedStates[index] = IncForwardState::REMOVE;
+    stagedStates[index] = IncStageState::REMOVE;
 }
 
 void StageClear()
@@ -855,7 +859,8 @@ void StageClear()
     stagedAnalog.Clear();
 }
 
-void Forward(SimulationManager@ sim, const ms forward)
+
+IncForwardState Forward(SimulationManager@ sim, const ms forward)
 {
     const ms time = inputTime;
     inputTime += forward;
@@ -897,14 +902,14 @@ void Forward(SimulationManager@ sim, const ms forward)
         int value;
         switch (StageGet(type, value))
         {
-        case IncForwardState::NONE:
+        case IncStageState::NONE:
             // Do nothing.
             continue;
-        case IncForwardState::SET:
+        case IncStageState::SET:
             InputSet(sim, time, type, value);
             s += "+ ";
         break;
-        case IncForwardState::REMOVE:
+        case IncStageState::REMOVE:
             InputRemove(sim, time, type);
             s += "- ";
         break;
@@ -920,9 +925,15 @@ void Forward(SimulationManager@ sim, const ms forward)
         s += cmd.ToString();
         s += "\n";
     }
-    StageClear();
 
     print(s);
+
+    StageClear();
+
+    IncForwardState state = IncForwardState::NONE;
+    if (inputTime > limitTime)
+        state = IncForwardState::BEYOND_LIMIT;
+    return state;
 }
 
 ms Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)

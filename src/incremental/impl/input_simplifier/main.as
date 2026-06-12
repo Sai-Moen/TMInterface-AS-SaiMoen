@@ -507,18 +507,18 @@ void Forward(SimulationManager@ sim)
     int brake;
     switch (IncStageGet(InputType::Down, brake))
     {
-    case IncForwardState::NONE:
+    case IncStageState::NONE:
         if (preserveBrake)
             IncStageSet(InputType::Down, 1);
         else if (brake0 == 0 && IncInputGetRelative(sim, 0, InputType::Down, brake) && brake == 0)
             IncStageRemove(InputType::Down); // Clean up unbalanced rel down inputs.
     break;
-    case IncForwardState::SET:
+    case IncStageState::SET:
         Assert(brake == 0);
         if (brake0 == 0)
             IncStageRemove(InputType::Down);
     break;
-    case IncForwardState::REMOVE:
+    case IncStageState::REMOVE:
         // Unreachable.
     // fallthrough
     default:
@@ -530,18 +530,18 @@ void Forward(SimulationManager@ sim)
     int steer;
     switch (IncStageGet(InputType::Steer, steer))
     {
-    case IncForwardState::NONE:
+    case IncStageState::NONE:
         if (preserveSteer)
             IncStageSet(InputType::Steer, preservedSteer);
     break;
-    case IncForwardState::SET:
+    case IncStageState::SET:
         // NOTE: this does not work in run mode...
         // Therefore, we rely on ToCommandsText to unfill, which it only seems to do for steer, but that works for us!
 
         // if (steer0 == steer)
         //     IncStageRemove(InputType::Steer);
     break;
-    case IncForwardState::REMOVE:
+    case IncStageState::REMOVE:
         // Unreachable.
     // fallthrough
     default:

@@ -23,11 +23,15 @@ const string VAR_LOOKAHEAD_STRATEGY = VAR + "lookahead_strategy";
 const string VAR_LOOKAHEAD        = VAR + "lookahead";
 const string VAR_TIMEOUT          = VAR + "timeout";
 const string VAR_LOOKAHEAD_OFFSET = VAR + "lookahead_offset";
+const string VAR_BASE_LOOKAHEAD   = VAR + "base_lookahead";
 const string VAR_MAX_ROLLBACK     = VAR + "max_rollback";
 
 const string VAR_STEER_TOWARDS = VAR + "steer_towards";
 const string VAR_STEER_AWAY    = VAR + "steer_away";
-const string VAR_STEER_OFFSET  = VAR + "steer_offset";
+
+const string VAR_REFINE_STEER_OFFSET = VAR + "refine_steer_offset";
+const string VAR_MAX_STEER_OFFSET    = VAR + "max_steer_offset";
+const string VAR_STEER_OFFSET        = VAR + "steer_offset";
 
 const string VAR_MAX_SPEED_LOSS       = VAR + "max_speed_loss";
 const string VAR_MAX_SPEED_BLEED      = VAR + "max_speed_bleed";
@@ -46,11 +50,15 @@ void VarsRegister()
     RegisterVariable(VAR_LOOKAHEAD,        200);
     RegisterVariable(VAR_TIMEOUT,          200);
     RegisterVariable(VAR_LOOKAHEAD_OFFSET, 200);
+    RegisterVariable(VAR_BASE_LOOKAHEAD,   20);
     RegisterVariable(VAR_MAX_ROLLBACK,     200);
 
     RegisterVariable(VAR_STEER_TOWARDS, STEER_MAX);
     RegisterVariable(VAR_STEER_AWAY,    STEER_MIN);
-    RegisterVariable(VAR_STEER_OFFSET,  800);
+
+    RegisterVariable(VAR_REFINE_STEER_OFFSET, false);
+    RegisterVariable(VAR_MAX_STEER_OFFSET,    1024);
+    RegisterVariable(VAR_STEER_OFFSET,        800);
 
     RegisterVariable(VAR_MAX_SPEED_LOSS,       18);
     RegisterVariable(VAR_MAX_SPEED_BLEED,      0.18);
@@ -84,10 +92,14 @@ LookaheadStrategy varLookaheadStrategy;
 ms varLookahead;
 ms varTimeout;
 ms varLookaheadOffset;
+ms varBaseLookahead;
 ms varMaxRollback;
 
 int varSteerTowards;
 int varSteerAway;
+
+bool varRefineSteerOffset;
+int varMaxSteerOffset;
 int varSteerOffset;
 
 float varMaxSpeedLoss;
@@ -110,16 +122,16 @@ void VarsInit()
     }
 
     varLookahead = VarGetTime(VAR_LOOKAHEAD);
-    if (varLookahead < 0)
+    if (varLookahead < 10)
     {
-        varLookahead = 0;
+        varLookahead = 10;
         VarSetTime(VAR_LOOKAHEAD, varLookahead);
     }
 
     varTimeout = VarGetTime(VAR_TIMEOUT);
-    if (varTimeout < 0)
+    if (varTimeout < 10)
     {
-        varTimeout = 0;
+        varTimeout = 10;
         VarSetTime(VAR_TIMEOUT, varTimeout);
     }
 
@@ -128,6 +140,13 @@ void VarsInit()
     {
         varLookaheadOffset = 0;
         VarSetTime(VAR_LOOKAHEAD_OFFSET, varLookaheadOffset);
+    }
+
+    varBaseLookahead = VarGetTime(VAR_BASE_LOOKAHEAD);
+    if (varBaseLookahead < 10)
+    {
+        varBaseLookahead = 10;
+        VarSetTime(VAR_BASE_LOOKAHEAD, varBaseLookahead);
     }
 
     varMaxRollback = VarGetTime(VAR_MAX_ROLLBACK);
@@ -151,6 +170,15 @@ void VarsInit()
     {
         varSteerAway = clampedSteerAway;
         VarSetInt(VAR_STEER_AWAY, varSteerAway);
+    }
+
+    varRefineSteerOffset = VarGetBool(VAR_REFINE_STEER_OFFSET);
+
+    varMaxSteerOffset = VarGetInt(VAR_MAX_STEER_OFFSET);
+    if (varMaxSteerOffset < 0)
+    {
+        varMaxSteerOffset = 0;
+        VarSetInt(VAR_MAX_STEER_OFFSET, varMaxSteerOffset);
     }
 
     varSteerOffset = VarGetInt(VAR_STEER_OFFSET);
@@ -215,6 +243,13 @@ void Draw()
             "A new steering value will then be determined which does not fail before the lookahead offset.");
     break;
     case LookaheadStrategy::DYNAMIC:
+        varBaseLookahead = UI::InputTimeVar("Base Lookahead", VAR_BASE_LOOKAHEAD, 10);
+        TooltipOnHover(
+            "The base value to look ahead with,"
+            " which will be increased temporarily when going further back to avoid failing constraints. (default: 20ms)\n"
+            "For noslide, 20ms should be fine.\n"
+            "If you want to use it for wallhugging, it will need to be quite a bit higher than that.");
+
         varMaxRollback = UI::InputTimeVar("Max Rollback", VAR_MAX_ROLLBACK, 10);
         TooltipOnHover(
             "How far the dynamic lookahead system should be able to go backward in time to try to avoid failing constraints"
@@ -271,14 +306,35 @@ void Draw()
     VarSetInt(VAR_STEER_TOWARDS, varSteerTowards);
     VarSetInt(VAR_STEER_AWAY,    varSteerAway);
 
-    varSteerOffset = UI::InputInt("Steer Offset", varSteerOffset);
-    if (varSteerOffset < 0)
-        varSteerOffset = 0;
-    VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
+    varRefineSteerOffset = UI::CheckboxVar("Refine Steer Offset", VAR_REFINE_STEER_OFFSET);
     TooltipOnHover(
-        "After determining a new steering value, offset it (up to) the given offset away.\n"
-        "Where 'away' means less maximal steering, i.e. Steer Away.\n"
-        "This will respect the steering bounds specified above, hence it may not be able to offset by the requested amount.");
+        "This will try to find the lowest steer offset below some particular maximum steer offset.\n"
+        "It could potentially take much longer to run than with a fixed offset.");
+
+    if (varRefineSteerOffset)
+    {
+        varMaxSteerOffset = UI::InputInt("Max Steer Offset", varMaxSteerOffset);
+        if (varMaxSteerOffset < 0)
+            varMaxSteerOffset = 0;
+        VarSetInt(VAR_MAX_STEER_OFFSET, varMaxSteerOffset);
+        TooltipOnHover(
+            "When refining the steer offset,"
+            " this will be used to limit the range of values that can be tried (default: 1024).\n"
+            "A lower maximum can result in reducing the amount of checks,"
+            " but putting it too low could result in not finding any succeeding steer offset.");
+    }
+    else
+    {
+        varSteerOffset = UI::InputInt("Steer Offset", varSteerOffset);
+        if (varSteerOffset < 0)
+            varSteerOffset = 0;
+        VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
+        TooltipOnHover(
+            "After determining a new steering value, offset it (up to) the given offset away.\n"
+            "Where 'away' means less maximal steering, i.e. Steer Away.\n"
+            "This will respect the steering bounds specified above,"
+            " hence it may not be able to offset by the requested amount.");
+    }
 
     UI::Separator();
     UI::Text("Constraints");
@@ -299,10 +355,10 @@ void Draw()
     varNoWallbang = UI::CheckboxVar("No Wallbang", VAR_NO_WALLBANG);
     TooltipOnHover("Enabling this will count any lateral contact as an immediate failure.");
 
-    varNoSlide = UI::CheckboxVar("No Slide", VAR_NO_SLIDE);
+    varNoSlide = UI::CheckboxVar("No Slide (read NOTE before using)", VAR_NO_SLIDE);
     TooltipOnHover(
         "Enabling this will count any sliding as an immediate failure.\n"
-        "NOTE: this property checks the car's sliding state, which will very quickly report the car as sliding,"
+        "NOTE: this setting checks the car's sliding state, which will very quickly report the car as sliding,"
         " even if none of the wheels are sliding.\n"
         "For this reason it will be better (in most cases) to leave this turned off,"
         " and to set the sliding wheels constraints.");
@@ -367,7 +423,7 @@ void Begin(SimulationManager@)
     break;
     case LookaheadStrategy::DYNAMIC:
         cacheHint = varMaxRollback > 0 ? varMaxRollback : 100;
-        targetTime = 20;
+        targetTime = varBaseLookahead;
         @onStep = DynamicStep;
     break;
     default:
@@ -588,22 +644,38 @@ void DynamicStep(SimulationManager@ sim, const ms time)
             const Constraint constraint = ConstraintsCheck(sim);
             if (constraint != Constraint::NONE)
             {
-                if (peakTime <= targetTime)
-                    DynamicBackward(sim, constraint);
-                else
+                if (peakTime > targetTime)
+                {
                     DynamicForward(sim, peakSteer);
+                    break;
+                }
+
+                if (IncBackward(sim, 10, cacheHint) != 10)
+                {
+                    ConstraintFailure(sim, constraint);
+                    return;
+                }
+
+                targetTime += 10;
+                if (varMaxRollback > 0)
+                {
+                    const ms rollback = targetTime - varBaseLookahead;
+                    if (rollback > varMaxRollback)
+                    {
+                        print("[SteerMax] Ran out of rollback space!", Severity::Error);
+                        IncTerminate(sim);
+                        return;
+                    }
+                }
+
+                peakTime = targetTime;
+                evalState = EvalState::SEARCH;
             }
             else if (time == targetTime)
             {
                 DynamicForward(sim, steerBest);
             }
-            else
-            {
-                break;
-            }
         }
-
-        evalState = EvalState::SEARCH;
     break;
     default:
         Unreachable();
@@ -616,7 +688,7 @@ void DynamicForward(SimulationManager@ sim, const int steer)
     IncStageSet(InputType::Steer, steer);
     IncForward(sim);
 
-    if (targetTime > 20)
+    if (targetTime > varBaseLookahead)
     {
         targetTime -= 10;
         peakSteer = steer;
@@ -625,29 +697,8 @@ void DynamicForward(SimulationManager@ sim, const int steer)
     {
         peakTime = 0;
     }
-}
 
-void DynamicBackward(SimulationManager@ sim, const Constraint constraint)
-{
-    if (IncBackward(sim, 10, cacheHint) != 10)
-    {
-        ConstraintFailure(sim, constraint);
-        return;
-    }
-
-    targetTime += 10;
-    if (varMaxRollback > 0)
-    {
-        const ms rollback = targetTime - 20;
-        if (rollback > varMaxRollback)
-        {
-            print("[SteerMax] Ran out of rollback space!", Severity::Error);
-            IncTerminate(sim);
-            return;
-        }
-    }
-
-    peakTime = targetTime;
+    evalState = EvalState::SEARCH;
 }
 
 bool Scan(SimulationManager@ sim, const ms time)
@@ -657,7 +708,7 @@ bool Scan(SimulationManager@ sim, const ms time)
         const int min = Math::Min(steerTowards, steerAway);
         const int max = Math::Max(steerTowards, steerAway);
 
-        const int diff = max - min;
+        const uint diff = max - min;
         if (diff < 2)
         {
             steerBest = Math::Clamp(steerAway + steerOffset, steerMin, steerMax);

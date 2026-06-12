@@ -132,14 +132,14 @@ void IncRewindPreserve(SimulationManager@ sim)
 }
 
 
-enum IncForwardState
+enum IncStageState
 {
     NONE,   // No particular change is requested (default).
     SET,    // Sets input type to analog value at input time (adds input event if necessary).
     REMOVE, // Removes (all) input event(s) with the given type at input time.
 }
 
-IncForwardState IncStageGet(InputType inputType, int &out analogValue = void)
+IncStageState IncStageGet(InputType inputType, int &out analogValue = void)
 {
     return Core::StageGet(inputType, analogValue);
 }
@@ -154,12 +154,25 @@ void IncStageRemove(InputType inputType)
     Core::StageRemove(inputType);
 }
 
-void IncForward(SimulationManager@ sim, ms forward = 10)
+
+enum IncForwardState
 {
-    Core::Forward(sim, forward);
+    NONE,
+    BEYOND_LIMIT,
+}
+
+IncForwardState IncForward(SimulationManager@ sim, ms forward = 10)
+{
+    return Core::Forward(sim, forward);
 }
 
 ms IncBackward(SimulationManager@ sim, ms backward = 10, ms cacheHint = 0)
 {
     return Core::Backward(sim, backward, cacheHint);
+}
+
+void IncRevert(SimulationManager@ sim)
+{
+    Rewind(sim, Core::baseState, RewindFlags::REMOVE);
+    Core::Revert(sim);
 }
