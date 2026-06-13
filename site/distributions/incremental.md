@@ -7,6 +7,8 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v3.2.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.2.0/incremental.zip)
+
 - [v3.1.2](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.2/incremental.zip)
 - [v3.1.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.1/incremental.zip)
 - [v3.1.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.0/incremental.zip)
@@ -40,6 +42,12 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 - [v1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
 ## Patch Notes
+
+### v3.2.0
+
+- Added dynamic and absolute lookahead strategies to SteerMax.
+- Added steer offset refining to SteerMax.
+- Fixed a bug relating to preserving inputs between the base time and the time at which an iteration starts.
 
 ### v3.1.2
 
