@@ -4,7 +4,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = "Incremental";
     info.Description = "Incremental Controller (Input Simplifier, SD, SteerMaximizer)";
-    info.Version = "v3.1.2";
+    info.Version = "v3.2.0";
     return info;
 }
 
@@ -32,6 +32,7 @@ void OnSimulationBegin(SimulationManager@ sim)
     auto@ const ieb = sim.InputEvents;
     IEBRemoveEventIndex(ieb, ieb.EventIndices.FinishLineId);
 
+    Core::VarsInit();
     Core::Initialize(sim, sim.EventsDuration);
 
     const uint iebIndex = IEBSearchTime(ieb, Core::baseTime);
@@ -116,8 +117,7 @@ void OnRunStep(SimulationManager@ sim)
         sim.GiveUp();
         contextMode = ContextMode::Run;
 
-        // Initialize calls VarsInit, but we already need this one to call Initialize with the correct alternative time limit.
-        Core::varRunReplayTime = VarGetTime(Core::VAR_RUN_REPLAY_TIME);
+        Core::VarsInit();
         Core::Initialize(sim, Core::varRunReplayTime);
         runState = RunState::INIT2;
     break;

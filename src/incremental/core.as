@@ -170,11 +170,11 @@ void TerminalTitleAppendIterationInfo(string& s)
 void TerminalTitleAppendTimeInfo(string& s)
 {
     s += " | Time: ";
-    s += baseTime;
+    s += lowerTime;
     s += "ms <= ";
     s += inputTime;
     s += "ms <= ";
-    s += limitTime;
+    s += upperTime;
     s += "ms";
 }
 
@@ -296,6 +296,13 @@ void Draw()
             TERMINAL_TITLE_INFO_LEVEL_NAMES,
             varTerminalTitleInfoLevel,
             TerminalTitleInfoLevelCallback);
+        TooltipOnHover(
+            "The level of information displayed in the (bruteforce) terminal title:\n"
+            "- None: 'Incremental'.\n"
+            "- Iteration: The current iteration number, compared to the total amount.\n"
+            "- Time: The time at which the plugin currently is, compared to the lower and upper bounds.\n"
+            "The TMInterface API documentation contains an ominous note about changing the terminal title too often,"
+            " so perhaps the 'Time' mode has a noticable performance hit.");
     }
 }
 
@@ -304,7 +311,6 @@ bool handleFinish;
 
 void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
 {
-    VarsInit();
     if (!ModeDispatch())
     {
         print("[Incremental] Could not dispatch to mode: " + varMode, Severity::Error);
@@ -325,16 +331,13 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
         evalEnd       = varEvalEnd;
     }
 
-    baseTime = evalIterBegin;
-    trailTime = -1;
-    inputTime = -1;
-    limitTime = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
+    baseTime = evalIterBegin - 10;
+    upperTime = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
 
     stepState = varUseSaveState ? StepState::SAVE_STATE : StepState::INIT;
     preventSimulationFinish = true;
     handleFinish = true;
 
-    postInitIndex = ~0;
     excludedEventIndicesMask = EventIndicesMakeInputTypesBitmask(sim.InputEvents.EventIndices, mode.excludedInputTypes);
 
     int resultsLen;
@@ -360,8 +363,8 @@ void Begin(SimulationManager@ sim)
     s += varMode;
     s += "\n";
 
-    s += "Init Time: "; s += baseTime; s += "ms\n";
-    s += "Limit Time: "; s += limitTime; s += "ms\n";
+    s += "Lower Time: "; s += lowerTime; s += "ms\n";
+    s += "Upper Time: "; s += upperTime; s += "ms\n";
     s += "Iterations: "; s += results.Length; s += "\n\n";
 
     s += "Use Save State: "; s += varUseSaveState; s += "\n";
@@ -384,16 +387,18 @@ void Begin(SimulationManager@ sim)
     }
 }
 
-void Revert(SimulationManager@ sim)
+void Iteration(SimulationManager@ sim)
 {
     trailTime = baseTime;
     @trailState = null;
+    StageClear();
 
-    inputTime = baseTime + resultIndex * 10;
+    lowerTime = (baseTime + 10) + resultIndex * 10;
+    inputTime = lowerTime;
 
     {
         auto@ const ieb = sim.InputEvents;
-        const ums timestamp = IEB_TIME_OFFSET + inputTime;
+        const ums timestamp = IEB_TIME_OFFSET + lowerTime;
         const uint len = postInitInputEvents.Length;
         for (postInitIndex = 0; postInitIndex < len; ++postInitIndex)
         {
@@ -406,11 +411,6 @@ void Revert(SimulationManager@ sim)
 
         PostInitInputEventsFill(ieb);
     }
-}
-
-void Iteration(SimulationManager@ sim)
-{
-    Revert(sim);
 
     TerminalTitleHandleIteration();
 
@@ -421,9 +421,9 @@ void Iteration(SimulationManager@ sim)
     s += results.Length;
     s += "\n";
 
-    s += inputTime;
+    s += lowerTime;
     s += "ms -> ";
-    s += limitTime;
+    s += upperTime;
     s += "ms\n";
 
     s += "\n";
@@ -499,7 +499,7 @@ void Step(SimulationManager@ sim)
         for (;;)
         {
             const ms time = sim.TickTime;
-            if (inputTime <= limitTime)
+            if (inputTime <= upperTime)
             {
                 if (time < inputTime)
                 {
@@ -533,7 +533,7 @@ void Step(SimulationManager@ sim)
                 return;
             }
 
-            const ms checkTime = limitTime + 20;
+            const ms checkTime = upperTime + 20;
             Assert(time <= checkTime);
             if (time != checkTime)
                 return;
@@ -705,10 +705,11 @@ bool ModeDispatch(const string &in name = varMode)
 }
 
 
-ms baseTime;  // The time required to ensure that we can run all iterations.
+ms baseTime;  // The time required to ensure that we can run all iterations and/or revert.
 ms trailTime; // The time of a cached save state, to speed up reverts.
 ms inputTime; // The time currently being evaluated.
-ms limitTime; // The time that triggers the end of the iteration when the input time exceeds it.
+ms lowerTime; // The time at which the current iteration begins.
+ms upperTime; // The time at which the current iteration ends.
 
 SimulationState@ baseState;
 SimulationState@ trailState;
@@ -728,7 +729,7 @@ void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint i
         postInitInputEvents[i - iebIndex] = ieb[i];
 }
 
-// Add input events that are not excluded, from the remainder of 'postInitInputEvents' (>= inputTime).
+// Add input events that are not excluded, from the remainder of 'postInitInputEvents'.
 void PostInitInputEventsFill(TM::InputEventBuffer@ ieb)
 {
     const uint len = postInitInputEvents.Length;
@@ -860,7 +861,12 @@ void StageClear()
 }
 
 
-IncForwardState Forward(SimulationManager@ sim, const ms forward)
+ms ForwardCheck(SimulationManager@ sim, const ms forward)
+{
+    return (inputTime + forward) - upperTime;
+}
+
+void Forward(SimulationManager@ sim, const ms forward)
 {
     const ms time = inputTime;
     inputTime += forward;
@@ -929,19 +935,18 @@ IncForwardState Forward(SimulationManager@ sim, const ms forward)
     print(s);
 
     StageClear();
-
-    IncForwardState state = IncForwardState::NONE;
-    if (inputTime > limitTime)
-        state = IncForwardState::BEYOND_LIMIT;
-    return state;
 }
 
-ms Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
+ms BackwardCheck(SimulationManager@ sim, const ms backward)
 {
-    const ms time = inputTime;
+    return (inputTime - backward) - lowerTime;
+}
+
+void Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
+{
     inputTime -= backward;
-    if (inputTime < baseTime)
-        inputTime = baseTime;
+    if (inputTime < lowerTime)
+        inputTime = lowerTime;
 
     StageClear();
 
@@ -982,8 +987,6 @@ ms Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
     s += inputTime;
     s += "ms\n";
     print(s);
-
-    return time - inputTime;
 }
 
 

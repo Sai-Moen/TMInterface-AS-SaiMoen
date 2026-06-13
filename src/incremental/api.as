@@ -45,12 +45,6 @@ bool IncModeRegister(const string &in name, const IncMode &in mode)
 }
 
 
-void IncTerminate(SimulationManager@ sim)
-{
-    Core::Finish(sim);
-}
-
-
 ms IncTimeGetAbsolute(SimulationManager@ sim)
 {
     return sim.TickTime;
@@ -120,18 +114,6 @@ void IncInputRemoveRelative(SimulationManager@ sim, ms relativeTime, InputType t
 }
 
 
-void IncRewindRemove(SimulationManager@ sim)
-{
-    Rewind(sim, Core::inputState, RewindFlags::REMOVE);
-    Core::PostInitInputEventsFill(sim.InputEvents);
-}
-
-void IncRewindPreserve(SimulationManager@ sim)
-{
-    Rewind(sim, Core::inputState, RewindFlags::PRESERVE);
-}
-
-
 enum IncStageState
 {
     NONE,   // No particular change is requested (default).
@@ -155,24 +137,45 @@ void IncStageRemove(InputType inputType)
 }
 
 
-enum IncForwardState
+ms IncForwardCheck(SimulationManager@ sim, ms forward = 10)
 {
-    NONE,
-    BEYOND_LIMIT,
+    return Core::ForwardCheck(sim, forward);
 }
 
-IncForwardState IncForward(SimulationManager@ sim, ms forward = 10)
+void IncForward(SimulationManager@ sim, ms forward = 10)
 {
-    return Core::Forward(sim, forward);
+    Core::Forward(sim, forward);
 }
 
-ms IncBackward(SimulationManager@ sim, ms backward = 10, ms cacheHint = 0)
+ms IncBackwardCheck(SimulationManager@ sim, ms backward = 10)
 {
-    return Core::Backward(sim, backward, cacheHint);
+    return Core::BackwardCheck(sim, backward);
+}
+
+void IncBackward(SimulationManager@ sim, ms backward = 10, ms cacheHint = 0)
+{
+    Core::Backward(sim, backward, cacheHint);
+}
+
+
+void IncRewindPreserve(SimulationManager@ sim)
+{
+    Rewind(sim, Core::inputState, RewindFlags::PRESERVE);
+}
+
+void IncRewindRemove(SimulationManager@ sim)
+{
+    Rewind(sim, Core::inputState, RewindFlags::REMOVE);
+    Core::PostInitInputEventsFill(sim.InputEvents);
 }
 
 void IncRevert(SimulationManager@ sim)
 {
     Rewind(sim, Core::baseState, RewindFlags::REMOVE);
-    Core::Revert(sim);
+    Core::Iteration(sim);
+}
+
+void IncTerminate(SimulationManager@ sim)
+{
+    Core::Finish(sim);
 }

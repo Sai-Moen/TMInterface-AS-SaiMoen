@@ -43,9 +43,9 @@ array<Strategy> varOrderedStrategyIndices(ORDERED_STRATEGY_LEN);
 void VarsInit()
 {
     varContextTimespan = VarGetTime(VAR_CONTEXT_TIMESPAN);
-    if (varContextTimespan < 0)
+    if (varContextTimespan < 20)
     {
-        varContextTimespan = 0;
+        varContextTimespan = 20;
         VarSetTime(VAR_CONTEXT_TIMESPAN, varContextTimespan);
     }
 

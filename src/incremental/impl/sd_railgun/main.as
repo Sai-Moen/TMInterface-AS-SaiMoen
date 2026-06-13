@@ -44,16 +44,16 @@ void VarsInit()
     }
 
     varLookaheadQuality = VarGetTime(VAR_LOOKAHEAD_QUALITY);
-    if (varLookaheadQuality < 0)
+    if (varLookaheadQuality < 20)
     {
-        varLookaheadQuality = 0;
+        varLookaheadQuality = 20;
         VarSetTime(VAR_LOOKAHEAD_QUALITY, varLookaheadQuality);
     }
 
     varLookaheadNormal = VarGetTime(VAR_LOOKAHEAD_NORMAL);
-    if (varLookaheadNormal < 0)
+    if (varLookaheadNormal < 20)
     {
-        varLookaheadNormal = 0;
+        varLookaheadNormal = 20;
         VarSetTime(VAR_LOOKAHEAD_NORMAL, varLookaheadNormal);
     }
 }
