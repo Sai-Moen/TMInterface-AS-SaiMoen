@@ -1,6 +1,6 @@
 /*
 
-v3.1.0
+v3.1.1
 smn_utils, useful code snippets, by SaiMoen.
 
 To find contents, search for "# [name]", where [name] is one of the items below.
@@ -8,6 +8,7 @@ To find contents, search for "# [name]", where [name] is one of the items below.
 Contents:
 - API overrides/extensions/etc.
   - Global
+  - Math
   - Text
   - Time
   - TM
@@ -62,8 +63,8 @@ bool VarSetInt64( const string &in name, const int64      value) { return SetVar
 bool VarSetTime(  const string &in name, const ms         value) { return SetVariable(name, double(value));           }
 bool VarSetFloat( const string &in name, const float      value) { return SetVariable(name, double(value));           }
 bool VarSetDouble(const string &in name, const double     value) { return SetVariable(name,        value);            }
-bool VarSetVec2(  const string &in name, const vec2       value) { return SetVariable(name,        value.ToString()); }
-bool VarSetVec3(  const string &in name, const vec3       value) { return SetVariable(name,        value.ToString()); }
+bool VarSetVec2(  const string &in name, const vec2   &in value) { return SetVariable(name,        value.ToString()); }
+bool VarSetVec3(  const string &in name, const vec3   &in value) { return SetVariable(name,        value.ToString()); }
 bool VarSetString(const string &in name, const string &in value) { return SetVariable(name,        value);            }
 
 void DrawGame(const bool value)
@@ -86,10 +87,10 @@ void log(const int64  value, Severity severity = Severity::Info) { log("" + valu
 void log(const float  value, Severity severity = Severity::Info) { log("" + value, severity); }
 void log(const double value, Severity severity = Severity::Info) { log("" + value, severity); }
 
-void log(const vec2 value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
-void log(const vec3 value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
-void log(const vec4 value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
-void log(const quat value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
+void log(const vec2 &in value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
+void log(const vec3 &in value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
+void log(const vec4 &in value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
+void log(const quat &in value, Severity severity = Severity::Info) { log(value.ToString(), severity); }
 
 
 void print() { print(""); }
@@ -106,10 +107,10 @@ void print(const int64  value, Severity severity = Severity::Info) { print("" + 
 void print(const float  value, Severity severity = Severity::Info) { print("" + value, severity); }
 void print(const double value, Severity severity = Severity::Info) { print("" + value, severity); }
 
-void print(const vec2 value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
-void print(const vec3 value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
-void print(const vec4 value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
-void print(const quat value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
+void print(const vec2 &in value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
+void print(const vec3 &in value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
+void print(const vec4 &in value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
+void print(const quat &in value, Severity severity = Severity::Info) { print(value.ToString(), severity); }
 
 
 CommandList@ CommandListOpen(const string &in scriptRelativePath)
@@ -259,6 +260,23 @@ void Rewind(SimulationManager@ sim, SimulationState@ state, const uint flags)
         Unreachable();
     break;
     }
+}
+
+
+
+/*
+
+# Math
+
+Features:
+- QuatAngle
+
+*/
+
+
+float QuatAngle(const quat &in p, const quat &in q)
+{
+    return Math::Acos(Math::Abs(p.x * q.x + p.y * q.y + p.z * q.z + p.w * q.w)) * 2;
 }
 
 
@@ -1478,7 +1496,6 @@ StringWrapper@ StringCopyPadLeftBy(StringWrapper@ copy, const uint padBy, const 
     return copy;
 }
 
-// To copy: string copy = StringPadRight(string(s), lengthNew, c);
 void StringPadRight(string& s, const uint lengthNew, const uint8 c = ' ')
 {
     const uint lengthOld = s.Length;

@@ -58,25 +58,25 @@ void RegisterSettings()
     RegisterVariable(VAR_COMMON_SCALARS,    "");
     RegisterVariable(VAR_COMMON_CONDITIONS, "");
 
-    evalFrom = GetConVarTime(VAR_EVAL_FROM);
-    evalTo   = GetConVarTime(VAR_EVAL_TO);
+    evalFrom = VarGetTime(VAR_EVAL_FROM);
+    evalTo   = VarGetTime(VAR_EVAL_TO);
 
-    isTargetGrouped = GetConVarBool(VAR_TARGET_GROUPED);
-    targetScalar    = ScalarKind(GetVariableDouble(VAR_TARGET_SCALAR));
-    targetGroup     = GroupKind(GetVariableDouble(VAR_TARGET_GROUP));
-    targetTowards   = GetConVarInt(VAR_TARGET_TOWARDS);
+    isTargetGrouped = VarGetBool(VAR_TARGET_GROUPED);
+    targetScalar    = ScalarKind(VarGetDouble(VAR_TARGET_SCALAR));
+    targetGroup     = GroupKind(VarGetDouble(VAR_TARGET_GROUP));
+    targetTowards   = VarGetInt(VAR_TARGET_TOWARDS);
 
-    targetValue        = GetConVarDouble(VAR_TARGET_VALUE);
-    targetValueDisplay = GetConVarDouble(VAR_TARGET_VALUE_DISPLAY);
+    targetValue        = VarGetDouble(VAR_TARGET_VALUE);
+    targetValueDisplay = VarGetDouble(VAR_TARGET_VALUE_DISPLAY);
 
-    targetVec3        = GetConVarVec3(VAR_TARGET_VEC3);
-    targetVec3Display = GetConVarVec3(VAR_TARGET_VEC3_DISPLAY);
+    targetVec3        = VarGetVec3(VAR_TARGET_VEC3);
+    targetVec3Display = VarGetVec3(VAR_TARGET_VEC3_DISPLAY);
 
-    printByComponent = GetConVarBool(VAR_PRINT_BY_COMPONENT);
+    printByComponent = VarGetBool(VAR_PRINT_BY_COMPONENT);
 
-    DeserializeGroups(    GetConVarString(VAR_COMMON_GROUPS));
-    DeserializeScalars(   GetConVarString(VAR_COMMON_SCALARS));
-    DeserializeConditions(GetConVarString(VAR_COMMON_CONDITIONS));
+    DeserializeGroups(    VarGetString(VAR_COMMON_GROUPS));
+    DeserializeScalars(   VarGetString(VAR_COMMON_SCALARS));
+    DeserializeConditions(VarGetString(VAR_COMMON_CONDITIONS));
 }
 
 void SaveSettings()
@@ -119,7 +119,7 @@ void RenderSettings()
     isTargetGrouped = UI::CheckboxVar("Grouped Target?", VAR_TARGET_GROUPED);
     if (isTargetGrouped)
     {
-        ComboHelper("Target (Group):", groupNames, targetGroup,
+        ComboSelectIndex("Target (Group):", groupNames, targetGroup,
             function(index)
             {
                 targetGroup = GroupKind(index);
@@ -132,7 +132,7 @@ void RenderSettings()
     }
     else
     {
-        ComboHelper("Target (Scalar):", scalarNames, targetScalar,
+        ComboSelectIndex("Target (Scalar):", scalarNames, targetScalar,
             function(index)
             {
                 targetScalar = ScalarKind(index);
@@ -151,15 +151,15 @@ void RenderSettings()
         case -1:
             disableTarget = true;
             targetTowardsMessage = "Lower value is better.";
-            break;
+        break;
         case 1:
             disableTarget = true;
             targetTowardsMessage = "Higher value is better.";
-            break;
+        break;
         default:
             disableTarget = false;
             targetTowardsMessage = "Custom:";
-            break;
+        break;
         }
         UI::TextDimmed(targetTowardsMessage);
 
@@ -168,9 +168,9 @@ void RenderSettings()
         {
             if (UI::DragFloat3Var("Target Values", VAR_TARGET_VEC3_DISPLAY))
             {
-                targetVec3Display = GetConVarVec3(VAR_TARGET_VEC3_DISPLAY);
+                targetVec3Display = VarGetVec3(VAR_TARGET_VEC3_DISPLAY);
                 targetVec3 = ConvertDisplayToValue3(targetGroup, targetVec3Display);
-                SetVariable(VAR_TARGET_VEC3, targetVec3);
+                VarSetVec3(VAR_TARGET_VEC3, targetVec3);
             }
         }
         else
@@ -375,44 +375,44 @@ void RenderSettings()
         case ConditionKind::MIN_REAL_SPEED:
             condition.display = UI::InputFloat("##min_real_speed", condition.display);
             {
-                StringBuilder builder;
-                builder.Append("The car MUST have a real speed of at least ");
-                builder.Append(condition.display);
-                builder.Append(" km/h in the eval timeframe.");
-                UI::TextDimmed(builder.ToString());
+                string s;
+                s += "The car MUST have a real speed of at least ";
+                s += condition.display;
+                s += " km/h in the eval timeframe.";
+                UI::TextDimmed(s);
             }
             condition.value = condition.display / 3.6;
-            break;
+        break;
         case ConditionKind::FREEWHEELING:
             RenderConditionCheckbox(condition, "##freewheeling", "be free-wheeled");
-            break;
+        break;
         case ConditionKind::SLIDING:
             RenderConditionCheckbox(condition, "##sliding", "be sliding");
-            break;
+        break;
         case ConditionKind::WHEEL_TOUCHING:
             RenderConditionCheckbox(condition, "##wheel_touching", "have wheel(s) crashing into a wall");
-            break;
+        break;
         case ConditionKind::WHEEL_CONTACTS:
             RenderConditionSliderInts(condition, "##wheel_contacts", 0, 4, "wheels contacting the ground");
-            break;
+        break;
         case ConditionKind::CHECKPOINTS:
             RenderConditionInputInt(condition, "##checkpoints", "checkpoints");
-            break;
+        break;
         case ConditionKind::RPM:
         	RenderConditionInputFloats(condition, "##rpm", "RPM");
-        	break;
+    	break;
         case ConditionKind::GEAR:
             RenderConditionSliderInts(condition, "##gear", 0, 5, "gears");
-            break;
+        break;
         case ConditionKind::REAR_GEAR:
             RenderConditionSliderInts(condition, "##rear_gear", 0, 1, "rear gears");
-            break;
+        break;
         case ConditionKind::GLITCHING:
             RenderConditionCheckbox(condition, "##glitching", "be glitching");
-            break;
+        break;
         default:
             UI::TextWrapped("Corrupted condition index: " + conditionInEditor);
-            break;
+        break;
         }
 
         UI::PopID();
@@ -455,8 +455,8 @@ bool CarPosOnClick(const string &in label, vec3 &out position)
 
 void SetTargetVec3(const vec3 &in value)
 {
-    SetVariable(VAR_TARGET_VEC3, targetVec3 = value);
-    SetVariable(VAR_TARGET_VEC3_DISPLAY, targetVec3Display = value);
+    VarSetVec3(VAR_TARGET_VEC3, targetVec3 = value);
+    VarSetVec3(VAR_TARGET_VEC3_DISPLAY, targetVec3Display = value);
 }
 
 void TriggerCombo(int& id, int& index)
@@ -529,12 +529,12 @@ void RenderConditionCheckbox(Condition@ condition, const string &in id, const st
     const bool tempValue = UI::Checkbox(id, condition.display != 0);
     condition.display = tempValue ? 1 : 0;
 
-    StringBuilder builder;
-    builder.Append("The car MUST");
-    builder.Append(tempValue ? " " : " NOT ");
-    builder.Append(what);
-    builder.Append(" in the eval timeframe.");
-    UI::TextDimmed(builder.ToString());
+    string s;
+    s += "The car MUST";
+    s += tempValue ? " " : " NOT ";
+    s += what;
+    s += " in the eval timeframe.";
+    UI::TextDimmed(s);
 
     condition.Transfer();
 }
@@ -543,13 +543,13 @@ void RenderConditionInputInt(Condition@ condition, const string &in id, const st
 {
     condition.display = UI::InputInt(id, int(condition.display));
 
-    StringBuilder builder;
-    builder.Append("The car MUST have exactly ");
-    builder.Append(condition.display);
-    builder.Append(" ");
-    builder.Append(what);
-    builder.Append(" in the eval timeframe.");
-    UI::TextDimmed(builder.ToString());
+    string s;
+    s += "The car MUST have exactly ";
+    s += condition.display;
+    s += " ";
+    s += what;
+    s += " in the eval timeframe.";
+    UI::TextDimmed(s);
 
     condition.Transfer();
 }
@@ -561,9 +561,9 @@ void RenderConditionInputFloats(Condition@ condition, const string &in id, const
 	condition.displayMin = Math::Min(inputMin, inputMax);
 	condition.displayMax = Math::Max(inputMin, inputMax);
 
-	StringBuilder builder;
-	BuildRangeText(builder, condition, what);
-	UI::TextDimmed(builder.ToString());
+	string s;
+	BuildRangeText(s, condition, what);
+	UI::TextDimmed(s);
 
 	condition.TransferRange();
 }
@@ -575,25 +575,25 @@ void RenderConditionSliderInts(Condition@ condition, const string &in id, const 
     condition.displayMin = Math::Min(sliderMin, sliderMax);
     condition.displayMax = Math::Max(sliderMin, sliderMax);
 
-    StringBuilder builder;
-    BuildRangeText(builder, condition, what);
-    UI::TextDimmed(builder.ToString());
+    string s;
+    BuildRangeText(s, condition, what);
+    UI::TextDimmed(s);
 
     condition.TransferRange();
 }
 
-void BuildRangeText(StringBuilder@ builder, const Condition@ condition, const string &in what)
+void BuildRangeText(string& s, const Condition@ condition, const string &in what)
 {
 	const bool inexact = condition.displayMin != condition.displayMax;
-	builder.Append("The car MUST have ");
-	builder.Append(inexact ? "between " : "exactly ");
-	builder.Append(condition.displayMin);
+	s += "The car MUST have ";
+	s += inexact ? "between " : "exactly ";
+	s += condition.displayMin;
 	if (inexact)
 	{
-		builder.Append(" and ");
-		builder.Append(condition.displayMax);
+		s += " and ";
+		s += condition.displayMax;
 	}
-	builder.Append(" ");
-	builder.Append(what);
-	builder.Append(" in the eval timeframe.");
+	s += " ";
+	s += what;
+	s += " in the eval timeframe.";
 }

@@ -522,14 +522,14 @@ double ConvertDisplayToValue(const GroupKind kind, const float display)
     {
     case GroupKind::ROTATION:
         value = Math::ToRad(display);
-        break;
+    break;
     case GroupKind::SPEED_GLOBAL:
     case GroupKind::SPEED_LOCAL:
         value = display / 3.6;
-        break;
+    break;
     default:
         value = display;
-        break;
+    break;
     }
     return value;
 }
@@ -560,14 +560,14 @@ float ConvertValueToDisplay(const GroupKind kind, const double value)
     {
     case GroupKind::ROTATION:
         display = Math::ToDeg(value);
-        break;
+    break;
     case GroupKind::SPEED_GLOBAL:
     case GroupKind::SPEED_LOCAL:
         display = value * 3.6;
-        break;
+    break;
     default:
         display = value;
-        break;
+    break;
     }
     return display;
 }
@@ -629,7 +629,7 @@ array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
             ScalarKind::POSITION_Y,
             ScalarKind::POSITION_Z
         };
-        break;
+    break;
     case ROTATION:
         scalarKinds =
         {
@@ -637,7 +637,7 @@ array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
             ScalarKind::ROTATION_PITCH,
             ScalarKind::ROTATION_ROLL
         };
-        break;
+    break;
     case SPEED_GLOBAL:
         scalarKinds =
         {
@@ -645,7 +645,7 @@ array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
             ScalarKind::SPEED_GLOBAL_Y,
             ScalarKind::SPEED_GLOBAL_Z
         };
-        break;
+    break;
     case SPEED_LOCAL:
         scalarKinds =
         {
@@ -653,7 +653,7 @@ array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
             ScalarKind::SPEED_LOCAL_Y,
             ScalarKind::SPEED_LOCAL_Z
         };
-        break;
+    break;
     case WHEEL_FRONT_LEFT:
         scalarKinds =
         {
@@ -661,7 +661,7 @@ array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
             ScalarKind::WHEEL_FL_Y,
             ScalarKind::WHEEL_FL_Z
         };
-        break;
+    break;
     case WHEEL_FRONT_RIGHT:
         scalarKinds =
         {
@@ -669,7 +669,7 @@ array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
             ScalarKind::WHEEL_FR_Y,
             ScalarKind::WHEEL_FR_Z
         };
-        break;
+    break;
     case WHEEL_BACK_RIGHT:
         scalarKinds =
         {
@@ -677,7 +677,7 @@ array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
             ScalarKind::WHEEL_BR_Y,
             ScalarKind::WHEEL_BR_Z
         };
-        break;
+    break;
     case WHEEL_BACK_LEFT:
         scalarKinds =
         {
@@ -685,7 +685,7 @@ array<ScalarKind>@ GroupKindToScalarKinds(const GroupKind groupKind)
             ScalarKind::WHEEL_BL_Y,
             ScalarKind::WHEEL_BL_Z
         };
-        break;
+    break;
     }
     return scalarKinds;
 }
@@ -699,45 +699,45 @@ GroupKind ScalarKindToGroupKind(const ScalarKind scalarKind)
     case POSITION_Y:
     case POSITION_Z:
         groupKind = GroupKind::POSITION;
-        break;
+    break;
     case ROTATION_YAW:
     case ROTATION_PITCH:
     case ROTATION_ROLL:
         groupKind = GroupKind::ROTATION;
-        break;
+    break;
     case SPEED_GLOBAL_X:
     case SPEED_GLOBAL_Y:
     case SPEED_GLOBAL_Z:
         groupKind = GroupKind::SPEED_GLOBAL;
-        break;
+    break;
     case SPEED_LOCAL_X:
     case SPEED_LOCAL_Y:
     case SPEED_LOCAL_Z:
         groupKind = GroupKind::SPEED_LOCAL;
-        break;
+    break;
     case WHEEL_FL_X:
     case WHEEL_FL_Y:
     case WHEEL_FL_Z:
         groupKind = GroupKind::WHEEL_FRONT_LEFT;
-        break;
+    break;
     case WHEEL_FR_X:
     case WHEEL_FR_Y:
     case WHEEL_FR_Z:
         groupKind = GroupKind::WHEEL_FRONT_RIGHT;
-        break;
+    break;
     case WHEEL_BR_X:
     case WHEEL_BR_Y:
     case WHEEL_BR_Z:
         groupKind = GroupKind::WHEEL_BACK_RIGHT;
-        break;
+    break;
     case WHEEL_BL_X:
     case WHEEL_BL_Y:
     case WHEEL_BL_Z:
         groupKind = GroupKind::WHEEL_BACK_LEFT;
-        break;
+    break;
     default:
         groupKind = GroupKind::NONE;
-        break;
+    break;
     }
     return groupKind;
 }

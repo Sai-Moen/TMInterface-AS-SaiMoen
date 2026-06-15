@@ -6,7 +6,7 @@ PluginInfo@ GetPluginInfo()
     info.Author = "SaiMoen";
     info.Name = ID;
     info.Description = "Finetunes car properties w/ bruteforce";
-    info.Version = "v2.1.1m";
+    info.Version = "v3.0.0";
     return info;
 }
 
@@ -62,26 +62,39 @@ void OnSimulationBegin(SimulationManager@)
                 {
                     return current3.Length() < best3.Length();
                 };
-            break;
+        break;
         case 0:
             @isBetterTowards =
                 function()
                 {
-                    diffCurrent = Math::Distance(current3, targetVec3);
+                    switch (targetGroup)
+                    {
+                    case GroupKind::ROTATION:
+                        {
+                            quat p, q;
+                            p.SetYawPitchRoll(targetVec3.x, targetVec3.y, targetVec3.z);
+                            q.SetYawPitchRoll(current3.x, current3.y, current3.z);
+                            diffCurrent = QuatAngle(p, q);
+                        }
+                    break;
+                    default:
+                        diffCurrent = Math::Distance(current3, targetVec3);
+                    break;
+                    }
                     return diffCurrent < diffBest;
                 };
-            break;
+        break;
         case 1:
             @isBetterTowards =
                 function()
                 {
                     return current3.Length() > best3.Length();
                 };
-            break;
+        break;
         default:
             @isBetterTowards = function() { return false; };
             print("Bug with targetTowards...", Severity::Error);
-            break;
+        break;
         }
 
         @isBetter =
@@ -101,7 +114,7 @@ void OnSimulationBegin(SimulationManager@)
                 {
                     return current < best;
                 };
-            break;
+        break;
         case 0:
             @isBetterTowards =
                 function()
@@ -113,25 +126,25 @@ void OnSimulationBegin(SimulationManager@)
                     case ScalarKind::ROTATION_PITCH:
                     case ScalarKind::ROTATION_ROLL:
                         diffCurrent = Math::Min(Math::Abs(diff), Math::Abs(diff + Math::PI * 2));
-                        break;
+                    break;
                     default:
                         diffCurrent = Math::Abs(diff);
-                        break;
+                    break;
                     }
                     return diffCurrent < diffBest;
                 };
-            break;
+        break;
         case 1:
             @isBetterTowards =
                 function()
                 {
                     return current > best;
                 };
-            break;
+        break;
         default:
             @isBetterTowards = function() { return false; };
             print("Bug with targetTowards...", Severity::Error);
-            break;
+        break;
         }
 
         @isBetter =
@@ -165,58 +178,68 @@ void OnSimulationBegin(SimulationManager@)
             conditionIndices.Add(kind);
     }
 
-    StringBuilder builder;
-    builder
-        .AppendLine()
-        .AppendLine("=========")
-        .AppendLine("Finetuner")
-        .AppendLine("=========")
-        .AppendLine();
+    string s;
+    s += "\n=========\n";
+    s += "Finetuner";
+    s += "\n=========\n\n";
 
     {
-        builder.AppendLine("Target:");
+        s += "Target:\n";
         if (isTargetGrouped)
         {
-            builder.AppendLine({ "Group = ", groupNames[targetGroup] });
+            s += "Group = ";
+            s += groupNames[targetGroup];
+            s += "\n";
             if (customTargetTowards)
-                builder.AppendLine({ "Values = ", FormatPrecise(targetVec3) });
+            {
+                s += "Values = ";
+                s += FormatPrecise(targetVec3);
+                s += "\n";
+            }
         }
         else
         {
-            builder.AppendLine({ "Scalar = ", scalarNames[targetScalar] });
+            s += "Scalar = ";
+            s += scalarNames[targetScalar];
+            s += "\n";
             if (customTargetTowards)
-                builder.AppendLine({ "Value = ", FormatPrecise(targetValue) });
+            {
+                s += "Value = ";
+                s += FormatPrecise(targetValue);
+                s += "\n";
+            }
         }
 
-        builder.Append("Towards = ");
+        s += "Towards = ";
         switch (targetTowards)
         {
         case -1:
-            builder.AppendLine("Lower value is better.");
-            break;
+            s += "Lower value is better.";
+        break;
         case 0:
-            builder.AppendLine("Custom.");
-            break;
+            s += "Custom.";
+        break;
         case 1:
-            builder.AppendLine("Higher value is better.");
-            break;
+            s += "Higher value is better.";
+        break;
         default:
-            builder.AppendLine(targetTowards);
-            break;
+            s += targetTowards;
+        break;
         }
 
-        builder
-            .AppendLine(Repeat(builder.GetLastLineLength(), '-'))
-            .AppendLine();
+        s += "\n";
+        s += CharRepeat(StringGetLastLineLength(s), '-');
+        s += "\n\n";
     }
 
     {
-        builder.AppendLine("Bounds: (actual values, so angles in radians and speeds in m/s)");
+        s += "Bounds: (actual values, so angles in radians and speeds in m/s)\n";
         uint maxScalarNameLength = 0;
         if (scalarIndices.IsEmpty())
         {
             const string NO_SCALARS = "None.";
-            builder.AppendLine(NO_SCALARS);
+            s += NO_SCALARS;
+            s += "\n";
             maxScalarNameLength = NO_SCALARS.Length;
         }
         else
@@ -232,33 +255,40 @@ void OnSimulationBegin(SimulationManager@)
             {
                 const ScalarKind kind = scalarIndices[i];
                 const Scalar@ const scalar = scalars[kind];
-                builder.Append({ PadRight(scalarNames[kind], maxScalarNameLength), " => " });
+                s += StringCopyPadRight(scalarNames[kind], maxScalarNameLength);
+                s += " => ";
 
                 if (scalar.lower)
-                    builder.Append({ "Lower: ", FormatPrecise(scalar.valueLower) });
+                {
+                    s += "Lower: ";
+                    s += FormatPrecise(scalar.valueLower);
+                }
 
                 if (scalar.lower && scalar.upper)
-                    builder.Append(", ");
+                    s += ", ";
 
                 if (scalar.upper)
-                    builder.Append({ "Upper: ", FormatPrecise(scalar.valueUpper) });
+                {
+                    s += "Upper: ";
+                    s += FormatPrecise(scalar.valueUpper);
+                }
 
-                builder.AppendLine();
+                s += "\n";
             }
         }
 
-        builder
-            .AppendLine(Repeat(maxScalarNameLength, '-'))
-            .AppendLine();
+        s += CharRepeat(maxScalarNameLength, '-');
+        s += "\n\n";
     }
 
     {
-        builder.AppendLine("Conditions: (actual values)");
+        s += "Conditions: (actual values)\n";
         uint maxConditionNameLength = 0;
         if (conditionIndices.IsEmpty())
         {
             const string NO_CONDITIONS = "None.";
-            builder.AppendLine(NO_CONDITIONS);
+            s += NO_CONDITIONS;
+            s += "\n";
             maxConditionNameLength = NO_CONDITIONS.Length;
         }
         else
@@ -274,30 +304,39 @@ void OnSimulationBegin(SimulationManager@)
             {
                 const ConditionKind kind = conditionIndices[i];
                 const Condition@ const condition = conditions[kind];
-                builder.Append({ PadRight(conditionNames[kind], maxConditionNameLength), " => " });
+                s += StringCopyPadRight(conditionNames[kind], maxConditionNameLength);
+                s += " => ";
                 switch (kind)
                 {
                 case ConditionKind::WHEEL_CONTACTS:
                 case ConditionKind::GEAR:
                 case ConditionKind::REAR_GEAR:
                     if (condition.valueMin == condition.valueMax)
-                        builder.AppendLine(condition.valueMin);
+                    {
+                        s += condition.valueMin;
+                    }
                     else
-                        builder.AppendLine({ "[", condition.valueMin, ", ", condition.valueMax, "]" });
-                    break;
+                    {
+                        s += "[";
+                        s += condition.valueMin;
+                        s += ", ";
+                        s += condition.valueMax;
+                        s += "]";
+                    }
+                break;
                 default:
-                    builder.AppendLine(condition.value);
-                    break;
+                    s += condition.value;
+                break;
                 }
+                s += "\n";
             }
         }
 
-        builder
-            .AppendLine(Repeat(maxConditionNameLength, '-'))
-            .AppendLine();
+        s += CharRepeat(maxConditionNameLength, '-');
+        s += "\n\n";
     }
 
-    print(builder.ToString());
+    print(s);
 }
 
 void OnSimulationEnd(SimulationManager@, SimulationResult)
@@ -338,19 +377,30 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
         {
             met = true; // prevent memory leak in unmet* arrays
 
-            StringBuilder builder;
+            string s;
             Severity severity;
             if (valid)
             {
                 if (isTargetGrouped)
-                    builder.Append({ groupNames[targetGroup], " | ", FormatVec3ByTargetGroup(best3, 6) });
+                    s += groupNames[targetGroup];
                 else
-                    builder.Append({ scalarNames[targetScalar], " | ", FormatValueByScalar(targetScalar, best, 6) });
+                    s += scalarNames[targetScalar];
 
-                builder.Append({ " | Time: ", Time::Format(impTime) });
+                s += " | ";
+
+                if (isTargetGrouped)
+                    s += FormatVec3ByTargetGroup(best3, 6);
+                else
+                    s += FormatValueByScalar(targetScalar, best, 6);
+
+                s += " | Time: ";
+                s += Time::Format(impTime);
 
                 if (customTargetTowards)
-                    builder.Append({ " | Diff: ", FormatValueByTarget(diffBest) });
+                {
+                    s += " | Diff: ";
+                    s += FormatValueByTarget(diffBest);
+                }
 
                 const uint iterations = info.Iterations;
                 if (iterations == 0)
@@ -359,34 +409,45 @@ BFEvaluationResponse@ OnEvaluate(SimulationManager@ simManager, const BFEvaluati
                 }
                 else
                 {
-                    builder.Append({ " | Iterations: ", iterations });
+                    s += " | Iterations: ";
+                    s += iterations;
                     severity = Severity::Success;
                 }
             }
             else
             {
-                builder.AppendLine("Base Run did not suffice...");
+                s += "Base Run did not suffice...\n";
 
 				const uint unmetConditionLength = unmetConditionIndices.Length;
                 if (unmetConditionLength != 0)
                 {
-                    builder.AppendLine().AppendLine("Unmet conditions:");
+                    s += "\nUnmet conditions:\n";
                     for (uint i = 0; i < unmetConditionLength; i++)
-                        builder.AppendLine({ unmetConditionTimes[i], " ", conditionNames[unmetConditionIndices[i]] });
+                    {
+                        s += unmetConditionTimes[i];
+                        s += " ";
+                        s += conditionNames[unmetConditionIndices[i]];
+                        s += "\n";
+                    }
                 }
 
 				const uint unmetScalarLength = unmetScalarIndices.Length;
                 if (unmetScalarLength != 0)
                 {
-                    builder.AppendLine().AppendLine("Unmet scalars:");
+                    s += "\nUnmet scalars:\n";
                     for (uint i = 0; i < unmetScalarLength; i++)
-                        builder.AppendLine({ unmetScalarTimes[i], " ", scalarNames[unmetScalarIndices[i]] });
+                    {
+                        s += unmetScalarTimes[i];
+                        s += " ";
+                        s += scalarNames[unmetScalarIndices[i]];
+                        s += "\n";
+                    }
                 }
 
                 severity = Severity::Warning;
             }
 
-            print(builder.ToString(), severity);
+            print(s, severity);
             response.Decision = BFEvaluationDecision::Accept;
         }
         break;
@@ -438,16 +499,16 @@ bool IsBetter(SimulationManager@ simManager)
         {
         case ConditionKind::MIN_REAL_SPEED:
             ok = velocity >= condition.value;
-            break;
+        break;
         case ConditionKind::FREEWHEELING:
             ok = condition.MatchBool(svc.IsFreeWheeling);
-            break;
+        break;
         case ConditionKind::SLIDING:
             ok = condition.MatchBool(svc.IsSliding);
-            break;
+        break;
         case ConditionKind::WHEEL_TOUCHING:
             ok = condition.MatchBool(svc.HasAnyLateralContact);
-            break;
+        break;
         case ConditionKind::WHEEL_CONTACTS:
             {
                 int contacts = 0;
@@ -460,19 +521,19 @@ bool IsBetter(SimulationManager@ simManager)
 
                 ok = condition.CompareInt(contacts);
             }
-            break;
+        break;
         case ConditionKind::CHECKPOINTS:
             ok = condition.MatchUInt(playerInfo.CurCheckpointCount);
-            break;
+        break;
         case ConditionKind::RPM:
         	ok = condition.CompareDouble(engine.ActualRPM);
-        	break;
+    	break;
         case ConditionKind::GEAR:
             ok = condition.CompareInt(engine.Gear);
-            break;
+        break;
         case ConditionKind::REAR_GEAR:
             ok = condition.CompareInt(engine.RearGear);
-            break;
+        break;
         case ConditionKind::GLITCHING:
             {
                 const double positionalDifference = Math::Distance(
@@ -481,11 +542,11 @@ bool IsBetter(SimulationManager@ simManager)
                 const bool isGlitching = positionalDifference > 0.1 && velocity / positionalDifference < 50.0;
                 ok = condition.MatchBool(isGlitching);
             }
-            break;
+        break;
         default:
             print("Corrupted condition index: " + kind, Severity::Error);
             ok = false;
-            break;
+        break;
         }
 
         if (!ok)
@@ -535,31 +596,31 @@ vec3 GetGroupValue(SimulationManager@ simManager, const GroupKind kind)
     {
     case GroupKind::POSITION:
         value = location.Position;
-        break;
+    break;
     case GroupKind::ROTATION:
         rotation.GetYawPitchRoll(value.x, value.y, value.z);
-        break;
+    break;
     case GroupKind::SPEED_GLOBAL:
         value = dyna.LinearSpeed;
-        break;
+    break;
     case GroupKind::SPEED_LOCAL:
         value = svc.CurrentLocalSpeed;
-        break;
+    break;
     case GroupKind::WHEEL_FRONT_LEFT:
         value = AddOffsetToLocation(wheels.FrontLeft,  location);
-        break;
+    break;
     case GroupKind::WHEEL_FRONT_RIGHT:
         value = AddOffsetToLocation(wheels.FrontRight, location);
-        break;
+    break;
     case GroupKind::WHEEL_BACK_RIGHT:
         value = AddOffsetToLocation(wheels.BackRight,  location);
-        break;
+    break;
     case GroupKind::WHEEL_BACK_LEFT:
         value = AddOffsetToLocation(wheels.BackLeft,   location);
-        break;
+    break;
     default:
         print("Corrupted group index: " + kind, Severity::Error);
-        break;
+    break;
     }
 
     return value;
@@ -584,79 +645,79 @@ double GetScalarValue(SimulationManager@ simManager, const ScalarKind kind)
     {
     case ScalarKind::POSITION_X:
         value = position.x;
-        break;
+    break;
     case ScalarKind::POSITION_Y:
         value = position.y;
-        break;
+    break;
     case ScalarKind::POSITION_Z:
         value = position.z;
-        break;
+    break;
     case ScalarKind::ROTATION_YAW:
         rotation.GetYawPitchRoll(value, void, void);
-        break;
+    break;
     case ScalarKind::ROTATION_PITCH:
         rotation.GetYawPitchRoll(void, value, void);
-        break;
+    break;
     case ScalarKind::ROTATION_ROLL:
         rotation.GetYawPitchRoll(void, void, value);
-        break;
+    break;
     case ScalarKind::SPEED_GLOBAL_X:
         value = globalSpeed.x;
-        break;
+    break;
     case ScalarKind::SPEED_GLOBAL_Y:
         value = globalSpeed.y;
-        break;
+    break;
     case ScalarKind::SPEED_GLOBAL_Z:
         value = globalSpeed.z;
-        break;
+    break;
     case ScalarKind::SPEED_LOCAL_X:
         value = localSpeed.x;
-        break;
+    break;
     case ScalarKind::SPEED_LOCAL_Y:
         value = localSpeed.y;
-        break;
+    break;
     case ScalarKind::SPEED_LOCAL_Z:
         value = localSpeed.z;
-        break;
+    break;
     case ScalarKind::WHEEL_FL_X:
         value = AddOffsetToLocation(wheels.FrontLeft,  location).x;
-        break;
+    break;
     case ScalarKind::WHEEL_FL_Y:
         value = AddOffsetToLocation(wheels.FrontLeft,  location).y;
-        break;
+    break;
     case ScalarKind::WHEEL_FL_Z:
         value = AddOffsetToLocation(wheels.FrontLeft,  location).z;
-        break;
+    break;
     case ScalarKind::WHEEL_FR_X:
         value = AddOffsetToLocation(wheels.FrontRight, location).x;
-        break;
+    break;
     case ScalarKind::WHEEL_FR_Y:
         value = AddOffsetToLocation(wheels.FrontRight, location).y;
-        break;
+    break;
     case ScalarKind::WHEEL_FR_Z:
         value = AddOffsetToLocation(wheels.FrontRight, location).z;
-        break;
+    break;
     case ScalarKind::WHEEL_BR_X:
         value = AddOffsetToLocation(wheels.BackRight,  location).x;
-        break;
+    break;
     case ScalarKind::WHEEL_BR_Y:
         value = AddOffsetToLocation(wheels.BackRight,  location).y;
-        break;
+    break;
     case ScalarKind::WHEEL_BR_Z:
         value = AddOffsetToLocation(wheels.BackRight,  location).z;
-        break;
+    break;
     case ScalarKind::WHEEL_BL_X:
         value = AddOffsetToLocation(wheels.BackLeft,   location).x;
-        break;
+    break;
     case ScalarKind::WHEEL_BL_Y:
         value = AddOffsetToLocation(wheels.BackLeft,   location).y;
-        break;
+    break;
     case ScalarKind::WHEEL_BL_Z:
         value = AddOffsetToLocation(wheels.BackLeft,   location).z;
-        break;
+    break;
     default:
         print("Corrupted scalar index: " + kind, Severity::Error);
-        break;
+    break;
     }
 
     return value;
