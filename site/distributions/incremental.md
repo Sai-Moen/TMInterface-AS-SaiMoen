@@ -7,6 +7,7 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 
 ## Installation
 
+- [v3.2.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.2.1/incremental.zip)
 - [v3.2.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.2.0/incremental.zip)
 
 - [v3.1.2](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.1.2/incremental.zip)
@@ -42,6 +43,14 @@ instead of the bruteforce way where it indefinitely picks random times to modify
 - [v1.5.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/v1.5.0/Incremental.zip)
 
 ## Patch Notes
+
+### v3.2.1
+
+- SteerMax: Replaced steer offset refining checkbox with a combo of steer offset 'strategies',
+  including a shorthand for 0 offset,
+  which could be useful for noslide without it forgetting your manual steer offset var's value for e.g. wallhugs.
+- Did some small fixes.
+- Changed some var names and the corresponding UI.
 
 ### v3.2.0
 
