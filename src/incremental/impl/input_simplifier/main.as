@@ -18,45 +18,45 @@ void Main()
 
 const string VAR = ::Core::VAR + "input_simplifier_";
 
-const string VAR_CONTEXT_TIMESPAN = VAR + "context_timespan";
-const ms DEF_CONTEXT_TIMESPAN = 400;
+const string VAR_LOOKAHEAD = VAR + "lookahead";
+const ms DEFAULT_LOOKAHEAD = 400;
 
-const string VAR_AIR_MAGNITUDE  = VAR + "air_magnitude";
 const string VAR_MINIMIZE_BRAKE = VAR + "minimize_brake";
+const string VAR_MAGNITUDE      = VAR + "magnitude";
 
 const string VAR_ORDERED_STRATEGY_INDICES = VAR + "ordered_strategy_indices";
 
 void VarsRegister()
 {
-    RegisterVariable(VAR_CONTEXT_TIMESPAN, DEF_CONTEXT_TIMESPAN);
-    RegisterVariable(VAR_AIR_MAGNITUDE, 0);
+    RegisterVariable(VAR_LOOKAHEAD, DEFAULT_LOOKAHEAD);
     RegisterVariable(VAR_MINIMIZE_BRAKE, false);
+    RegisterVariable(VAR_MAGNITUDE, 0);
     RegisterVariable(VAR_ORDERED_STRATEGY_INDICES, "");
 }
 
-ms varContextTimespan;
-int varAirMagnitude;
+ms varLookahead;
 bool varMinimizeBrake;
+int varMagnitude;
 
 array<Strategy> varOrderedStrategyIndices(ORDERED_STRATEGY_LEN);
 
 void VarsInit()
 {
-    varContextTimespan = VarGetTime(VAR_CONTEXT_TIMESPAN);
-    if (varContextTimespan < 20)
+    varLookahead = VarGetTime(VAR_LOOKAHEAD);
+    if (varLookahead < 20)
     {
-        varContextTimespan = 20;
-        VarSetTime(VAR_CONTEXT_TIMESPAN, varContextTimespan);
+        varLookahead = 20;
+        VarSetTime(VAR_LOOKAHEAD, varLookahead);
     }
 
     varMinimizeBrake = VarGetBool(VAR_MINIMIZE_BRAKE);
 
-    varAirMagnitude = VarGetInt(VAR_AIR_MAGNITUDE);
-    const int clampedAirMagnitude = Math::Abs(SteerClamp(varAirMagnitude));
-    if (varAirMagnitude != clampedAirMagnitude)
+    varMagnitude = VarGetInt(VAR_MAGNITUDE);
+    const int clampedMagnitude = Math::Abs(SteerClamp(varMagnitude));
+    if (varMagnitude != clampedMagnitude)
     {
-        varAirMagnitude = clampedAirMagnitude;
-        VarSetInt(VAR_AIR_MAGNITUDE, varAirMagnitude);
+        varMagnitude = clampedMagnitude;
+        VarSetInt(VAR_MAGNITUDE, varMagnitude);
     }
 
     if (!DeserializeStrategyIndicesFromVar())
@@ -89,21 +89,22 @@ bool DeserializeStrategyIndicesFromVar()
 
 void Draw()
 {
-    varContextTimespan = UI::InputTimeVar("Context Timespan", VAR_CONTEXT_TIMESPAN, 10);
+    varLookahead = UI::InputTimeVar("Lookahead", VAR_LOOKAHEAD, 10);
     TooltipOnHover(
-        "Lower timespan is faster, but may desync in an unrecoverable way (default " + DEF_CONTEXT_TIMESPAN + "ms).");
+        "A lower lookahead makes the simplifier run faster,"
+        " but may cause it to desync in an unrecoverable way (default: " + DEFAULT_LOOKAHEAD + "ms).");
 
     varMinimizeBrake = UI::CheckboxVar("Minimize Brake", VAR_MINIMIZE_BRAKE);
     TooltipOnHover(
         "If this is enabled, the amount of time spent braking will be made as small as possible.\n"
         "The trade-off is that this may introduce more brake inputs.");
 
-    varAirMagnitude = UI::InputInt("Air Magnitude", varAirMagnitude);
-    varAirMagnitude = Math::Abs(SteerClamp(varAirMagnitude));
-    VarSetInt(VAR_AIR_MAGNITUDE, varAirMagnitude);
+    varMagnitude = UI::InputInt("Magnitude", varMagnitude);
+    varMagnitude = Math::Abs(SteerClamp(varMagnitude));
+    VarSetInt(VAR_MAGNITUDE, varMagnitude);
     TooltipOnHover(
-        "This is the magnitude used by steering inputs in the air, where only input direction matters.\n"
-        "Setting this to 0 will skip the air input strategy altogether.");
+        "This is the magnitude used by the sign-magnitude strategy, where only input direction matters.\n"
+        "Setting this to 0 will skip this strategy altogether.");
 
     UI::Separator();
 
@@ -120,7 +121,7 @@ void Draw()
         switch (strategy)
         {
         case Strategy::SIGN_MAGNITUDE:
-            if (varAirMagnitude == 0)
+            if (varMagnitude == 0)
             {
                 UI::TextDimmed(ORDERED_STRATEGY_NAMES[strategy]);
                 break;
@@ -234,7 +235,7 @@ funcdef void OnStep(SimulationManager@);
 const array<OnStep@> ORDERED_STRATEGY_CALLBACKS =
 {
     StepTurningRate,
-    StepAir,
+    StepSignMagnitude,
     StepRemoval
 };
 
@@ -245,7 +246,7 @@ void Begin(SimulationManager@)
 {
     VarsInit();
 
-    contexts.Resize(varContextTimespan / 10 - 1);
+    contexts.Resize(varLookahead / 10 - 1);
 
     steps.Add(StepScan);
     if (varMinimizeBrake)
@@ -258,7 +259,7 @@ void Begin(SimulationManager@)
         switch (strategy)
         {
         case Strategy::SIGN_MAGNITUDE:
-            if (varAirMagnitude == 0)
+            if (varMagnitude == 0)
                 continue;
         break;
         }
@@ -356,7 +357,7 @@ void StepScan(SimulationManager@ sim)
     }
 
     RelativeTickToContext(tick).Init(sim.Dyna.RefStateCurrent);
-    if (time == varContextTimespan)
+    if (time == varLookahead)
         NextStep(sim);
 }
 
@@ -384,7 +385,7 @@ void StepMinimizeBrake(SimulationManager@ sim)
         IncInputSetRelative(sim, 0, InputType::Down, 1);
         NextStep(sim);
     }
-    else if (time == varContextTimespan)
+    else if (time == varLookahead)
     {
         IncStageSet(InputType::Down, 0);
         NextStep(sim);
@@ -411,21 +412,21 @@ void StepTurningRate(SimulationManager@ sim)
     {
         NextStep(sim);
     }
-    else if (time == varContextTimespan)
+    else if (time == varLookahead)
     {
         IncStageSet(InputType::Steer, steer);
         Forward(sim);
     }
 }
 
-void StepAir(SimulationManager@ sim)
+void StepSignMagnitude(SimulationManager@ sim)
 {
     const ms time = IncTimeGetRelative(sim);
     const uint tick = time / 10;
     switch (tick)
     {
     case 0:
-        steer = GetSign(steer1) * varAirMagnitude;
+        steer = GetSign(steer1) * varMagnitude;
         IncInputSet(sim, InputType::Steer, steer);
     // fallthrough
     case 1:
@@ -436,7 +437,7 @@ void StepAir(SimulationManager@ sim)
     {
         NextStep(sim);
     }
-    else if (time == varContextTimespan)
+    else if (time == varLookahead)
     {
         IncStageSet(InputType::Steer, steer);
         Forward(sim);
@@ -461,7 +462,7 @@ void StepRemoval(SimulationManager@ sim)
     {
         NextStep(sim);
     }
-    else if (time == varContextTimespan)
+    else if (time == varLookahead)
     {
         IncStageSet(InputType::Steer, steer);
         Forward(sim);

@@ -13,7 +13,6 @@ void Main()
     @mode.begin = Begin;
     @mode.iteration = Iteration;
     @mode.step = Step;
-    @mode.end = End;
     IncModeRegister("SteerMax", mode);
 }
 
@@ -30,9 +29,9 @@ const string VAR_MAX_ROLLBACK     = VAR + "max_rollback";
 const string VAR_STEER_TOWARDS = VAR + "steer_towards";
 const string VAR_STEER_AWAY    = VAR + "steer_away";
 
-const string VAR_REFINE_STEER_OFFSET = VAR + "refine_steer_offset";
-const string VAR_MAX_STEER_OFFSET    = VAR + "max_steer_offset";
-const string VAR_STEER_OFFSET        = VAR + "steer_offset";
+const string VAR_STEER_OFFSET_STRATEGY = VAR + "steer_offset_strategy";
+const string VAR_STEER_OFFSET          = VAR + "steer_offset";
+const string VAR_MAX_STEER_OFFSET      = VAR + "max_steer_offset";
 
 const string VAR_MAX_SPEED_LOSS       = VAR + "max_speed_loss";
 const string VAR_MAX_SPEED_BLEED      = VAR + "max_speed_bleed";
@@ -47,19 +46,18 @@ const string VAR_SLIDING_WHEELS_MAX = VAR + "sliding_wheels_max";
 void VarsRegister()
 {
     RegisterVariable(VAR_LOOKAHEAD_STRATEGY, 0);
-
-    RegisterVariable(VAR_LOOKAHEAD,        200);
-    RegisterVariable(VAR_TIMEOUT,          200);
-    RegisterVariable(VAR_LOOKAHEAD_OFFSET, 200);
-    RegisterVariable(VAR_BASE_LOOKAHEAD,   20);
-    RegisterVariable(VAR_MAX_ROLLBACK,     200);
+    RegisterVariable(VAR_LOOKAHEAD,          200);
+    RegisterVariable(VAR_TIMEOUT,            200);
+    RegisterVariable(VAR_LOOKAHEAD_OFFSET,   200);
+    RegisterVariable(VAR_BASE_LOOKAHEAD,     20);
+    RegisterVariable(VAR_MAX_ROLLBACK,       200);
 
     RegisterVariable(VAR_STEER_TOWARDS, STEER_MAX);
     RegisterVariable(VAR_STEER_AWAY,    STEER_MIN);
 
-    RegisterVariable(VAR_REFINE_STEER_OFFSET, false);
-    RegisterVariable(VAR_MAX_STEER_OFFSET,    1024);
-    RegisterVariable(VAR_STEER_OFFSET,        800);
+    RegisterVariable(VAR_STEER_OFFSET_STRATEGY, 0);
+    RegisterVariable(VAR_STEER_OFFSET,          800);
+    RegisterVariable(VAR_MAX_STEER_OFFSET,      1024);
 
     RegisterVariable(VAR_MAX_SPEED_LOSS,       18);
     RegisterVariable(VAR_MAX_SPEED_BLEED,      0.18);
@@ -89,7 +87,6 @@ const array<string> LOOKAHEAD_STRATEGY_NAMES =
 };
 
 LookaheadStrategy varLookaheadStrategy;
-
 ms varLookahead;
 ms varTimeout;
 ms varLookaheadOffset;
@@ -99,9 +96,25 @@ ms varMaxRollback;
 int varSteerTowards;
 int varSteerAway;
 
-bool varRefineSteerOffset;
-int varMaxSteerOffset;
+enum SteerOffsetStrategy
+{
+    OFF,
+    MANUAL,
+    AUTOMATIC,
+
+    COUNT
+}
+
+const array<string> STEER_OFFSET_STRATEGY_NAMES =
+{
+    "Off",
+    "Manual",
+    "Automatic"
+};
+
+SteerOffsetStrategy varSteerOffsetStrategy;
 int varSteerOffset;
+int varMaxSteerOffset;
 
 float varMaxSpeedLoss;
 float varMaxSpeedBleed;
@@ -173,13 +186,11 @@ void VarsInit()
         VarSetInt(VAR_STEER_AWAY, varSteerAway);
     }
 
-    varRefineSteerOffset = VarGetBool(VAR_REFINE_STEER_OFFSET);
-
-    varMaxSteerOffset = VarGetInt(VAR_MAX_STEER_OFFSET);
-    if (varMaxSteerOffset < 0)
+    varSteerOffsetStrategy = SteerOffsetStrategy(VarGetUint(VAR_STEER_OFFSET_STRATEGY));
+    if (varSteerOffsetStrategy >= SteerOffsetStrategy::COUNT)
     {
-        varMaxSteerOffset = 0;
-        VarSetInt(VAR_MAX_STEER_OFFSET, varMaxSteerOffset);
+        varSteerOffsetStrategy = SteerOffsetStrategy(0);
+        VarSetUint(VAR_STEER_OFFSET_STRATEGY, varSteerOffsetStrategy);
     }
 
     varSteerOffset = VarGetInt(VAR_STEER_OFFSET);
@@ -187,6 +198,13 @@ void VarsInit()
     {
         varSteerOffset = 0;
         VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
+    }
+
+    varMaxSteerOffset = VarGetInt(VAR_MAX_STEER_OFFSET);
+    if (varMaxSteerOffset < 0)
+    {
+        varMaxSteerOffset = 0;
+        VarSetInt(VAR_MAX_STEER_OFFSET, varMaxSteerOffset);
     }
 
     varMaxSpeedLoss       = VarGetFloat(VAR_MAX_SPEED_LOSS);
@@ -307,13 +325,29 @@ void Draw()
     VarSetInt(VAR_STEER_TOWARDS, varSteerTowards);
     VarSetInt(VAR_STEER_AWAY,    varSteerAway);
 
-    varRefineSteerOffset = UI::CheckboxVar("Refine Steer Offset", VAR_REFINE_STEER_OFFSET);
+    ComboSelectIndex("Steer Offset Strategy", STEER_OFFSET_STRATEGY_NAMES, varSteerOffsetStrategy, SteerOffsetStrategyCallback);
     TooltipOnHover(
-        "This will try to find the lowest steer offset below some particular maximum steer offset.\n"
-        "It could potentially take much longer to run than with a fixed offset.");
+        "- Off: No steer offset.\n"
+        "- Manual: Set a fixed steer offset.\n"
+        "- Automatic: Automatically determine a steer offset by narrowing it down with multiple runs of an iteration.\n"
+        "NOTE: the automatic strategy may take a long time to complete.");
 
-    if (varRefineSteerOffset)
+    switch (varSteerOffsetStrategy)
     {
+    case SteerOffsetStrategy::OFF:
+    break;
+    case SteerOffsetStrategy::MANUAL:
+        varSteerOffset = UI::InputInt("Steer Offset", varSteerOffset);
+        if (varSteerOffset < 0)
+            varSteerOffset = 0;
+        VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
+        TooltipOnHover(
+            "After determining a new steering value, offset it (up to) the given offset away (default: 800).\n"
+            "Where 'away' means less maximal steering, i.e. Steer Away.\n"
+            "This will respect the steering bounds specified above,"
+            " hence it may not be able to offset by the requested amount.");
+    break;
+    case SteerOffsetStrategy::AUTOMATIC:
         varMaxSteerOffset = UI::InputInt("Max Steer Offset", varMaxSteerOffset);
         if (varMaxSteerOffset < 0)
             varMaxSteerOffset = 0;
@@ -323,22 +357,13 @@ void Draw()
             " this will be used to limit the range of values that can be tried (default: 1024).\n"
             "A lower maximum can result in reducing the amount of checks,"
             " but putting it too low could result in not finding any succeeding steer offset.");
-    }
-    else
-    {
-        varSteerOffset = UI::InputInt("Steer Offset", varSteerOffset);
-        if (varSteerOffset < 0)
-            varSteerOffset = 0;
-        VarSetInt(VAR_STEER_OFFSET, varSteerOffset);
-        TooltipOnHover(
-            "After determining a new steering value, offset it (up to) the given offset away.\n"
-            "Where 'away' means less maximal steering, i.e. Steer Away.\n"
-            "This will respect the steering bounds specified above,"
-            " hence it may not be able to offset by the requested amount.");
+    break;
+    default:
+        Unreachable();
+    break;
     }
 
     UI::Separator();
-    UI::Text("Constraints");
 
     varMaxSpeedLoss = UI::InputFloatVar("Max Speed Loss", VAR_MAX_SPEED_LOSS);
     TooltipOnHover(
@@ -384,8 +409,15 @@ void LookaheadStrategyCallback(const uint index)
     VarSetUint(VAR_LOOKAHEAD_STRATEGY, varLookaheadStrategy);
 }
 
+void SteerOffsetStrategyCallback(const uint index)
+{
+    varSteerOffsetStrategy = SteerOffsetStrategy(index);
+    VarSetUint(VAR_STEER_OFFSET_STRATEGY, varSteerOffsetStrategy);
+}
+
 int steerMin;
 int steerMax;
+int steerDirection;
 
 bool refineSteerOffset;
 int steerOffset;
@@ -414,15 +446,23 @@ void Begin(SimulationManager@)
     steerMin = Math::Min(varSteerTowards, varSteerAway);
     steerMax = Math::Max(varSteerTowards, varSteerAway);
 
-    const int direction = GetSign(varSteerTowards - varSteerAway);
-    if (varRefineSteerOffset)
+    steerDirection = GetSign(varSteerTowards - varSteerAway);
+    switch (varSteerOffsetStrategy)
     {
-        refineSteerOffset = true;
-        steerOffsetAway = varMaxSteerOffset * direction;
-    }
-    else
-    {
-        steerOffset = varSteerOffset * direction;
+    case SteerOffsetStrategy::OFF:
+        refineSteerOffset = false;
+        steerOffset = 0;
+    break;
+    case SteerOffsetStrategy::MANUAL:
+        refineSteerOffset = false;
+        steerOffset = varSteerOffset * steerDirection;
+    break;
+    case SteerOffsetStrategy::AUTOMATIC:
+        SteerOffsetStrategyAutomaticInit();
+    break;
+    default:
+        Unreachable();
+    break;
     }
 
     maxSpeedLoss  = varMaxSpeedLoss  / 3.6;
@@ -460,14 +500,11 @@ void Iteration(SimulationManager@)
     evalState = EvalState::SEARCH;
 }
 
-void End(SimulationManager@)
+void SteerOffsetStrategyAutomaticInit()
 {
-    refineSteerOffset = false;
-    steerOffset = 0;
+    refineSteerOffset = true;
     steerOffsetTowards = 0;
-
-    evalState = EvalState::SEARCH;
-    peakTime = 0;
+    steerOffsetAway = varMaxSteerOffset * steerDirection;
 }
 
 bool rewinding;
@@ -597,7 +634,7 @@ void DynamicStep(SimulationManager@ sim, const ms time)
                     break;
                 }
 
-                if (IncBackwardCheck(sim) < 0)
+                if (IncBackwardCheck() < 0)
                 {
                     ConstraintFailure(sim, constraint);
                     return;
@@ -649,20 +686,25 @@ void DynamicForward(SimulationManager@ sim, const int value)
 
 bool Forward(SimulationManager@ sim, const int value)
 {
-    const bool needToRefine = refineSteerOffset && IncForwardCheck(sim) > 0;
-    if (needToRefine)
+    const bool iterating = IncForwardCheck() > 0;
+    if (iterating)
     {
-        steerOffsetAway = steerOffset;
-        steerOffsetTowards = 0;
-        RefineSteerOffset(sim);
+        if (refineSteerOffset)
+        {
+            steerOffsetAway = steerOffset;
+            steerOffsetTowards = 0;
+            RefineSteerOffset(sim);
+            return true;
+        }
+
+        if (varSteerOffsetStrategy == SteerOffsetStrategy::AUTOMATIC)
+            SteerOffsetStrategyAutomaticInit();
     }
-    else
-    {
-        IncStageSet(InputType::Steer, value);
-        IncForward(sim);
-        evalState = EvalState::SEARCH;
-    }
-    return needToRefine;
+
+    IncStageSet(InputType::Steer, value);
+    IncForward(sim);
+    evalState = EvalState::SEARCH;
+    return iterating;
 }
 
 void RefineSteerOffset(SimulationManager@ sim)

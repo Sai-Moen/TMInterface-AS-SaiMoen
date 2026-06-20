@@ -137,9 +137,9 @@ void IncStageRemove(InputType inputType)
 }
 
 
-ms IncForwardCheck(SimulationManager@ sim, ms forward = 10)
+ms IncForwardCheck(ms forward = 10)
 {
-    return Core::ForwardCheck(sim, forward);
+    return (Core::inputTime + forward) - Core::upperTime;
 }
 
 void IncForward(SimulationManager@ sim, ms forward = 10)
@@ -147,9 +147,9 @@ void IncForward(SimulationManager@ sim, ms forward = 10)
     Core::Forward(sim, forward);
 }
 
-ms IncBackwardCheck(SimulationManager@ sim, ms backward = 10)
+ms IncBackwardCheck(ms backward = 10)
 {
-    return Core::BackwardCheck(sim, backward);
+    return (Core::inputTime - backward) - Core::lowerTime;
 }
 
 void IncBackward(SimulationManager@ sim, ms backward = 10, ms cacheHint = 0)

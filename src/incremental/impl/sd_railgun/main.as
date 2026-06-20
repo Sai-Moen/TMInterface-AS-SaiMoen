@@ -12,7 +12,6 @@ void Main()
     @mode.draw = Draw;
     @mode.begin = Begin;
     @mode.step = Step;
-    @mode.end = End;
     IncModeRegister("SD Railgun", mode);
 }
 
@@ -84,13 +83,12 @@ void Draw()
 void Begin(SimulationManager@)
 {
     VarsInit();
-    evalState = EvalState::INIT;
-}
 
-void End(SimulationManager@)
-{
+    evalState = EvalState::INIT;
+
     fallback = false;
     last = false;
+
     haveTurningRates = false;
 }
 

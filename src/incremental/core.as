@@ -511,9 +511,6 @@ void Step(SimulationManager@ sim)
 
                 if (time == inputTime)
                 {
-                    // Since save states use RaceTime, if there's a desync at inputTime, we just stop.
-                    // We assume this is due to the car passing the finish,
-                    // despite using PreventSimulationFinish to not lose control.
                     if (time != sim.RaceTime)
                         break;
 
@@ -532,6 +529,9 @@ void Step(SimulationManager@ sim)
 
                 return;
             }
+
+            if (time != sim.RaceTime)
+                break;
 
             const ms checkTime = upperTime + 20;
             Assert(time <= checkTime);
@@ -861,11 +861,6 @@ void StageClear()
 }
 
 
-ms ForwardCheck(SimulationManager@ sim, const ms forward)
-{
-    return (inputTime + forward) - upperTime;
-}
-
 void Forward(SimulationManager@ sim, const ms forward)
 {
     const ms time = inputTime;
@@ -935,11 +930,6 @@ void Forward(SimulationManager@ sim, const ms forward)
     print(s);
 
     StageClear();
-}
-
-ms BackwardCheck(SimulationManager@ sim, const ms backward)
-{
-    return (inputTime - backward) - lowerTime;
 }
 
 void Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
