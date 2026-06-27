@@ -52,17 +52,28 @@ ms IncTimeGetAbsolute(SimulationManager@ sim)
 
 ms IncTimeGetRelative(SimulationManager@ sim)
 {
-    return sim.TickTime - Core::inputTime;
+    return sim.TickTime - Core::evalTime;
 }
 
 ms IncTimeAbsoluteFromRelative(ms relativeTime)
 {
-    return relativeTime + Core::inputTime;
+    return relativeTime + Core::evalTime;
 }
 
 ms IncTimeRelativeFromAbsolute(ms absoluteTime)
 {
-    return absoluteTime - Core::inputTime;
+    return absoluteTime - Core::evalTime;
+}
+
+
+ms IncFetchGet()
+{
+    return Core::FetchGet();
+}
+
+void IncFetchSet(ms timeOffset)
+{
+    Core::FetchSet(timeOffset);
 }
 
 
@@ -78,9 +89,8 @@ bool IncInputGetAbsolute(SimulationManager@ sim, ms absoluteTime, InputType type
 
 bool IncInputGetRelative(SimulationManager@ sim, ms relativeTime, InputType type, int &out value = void)
 {
-    return Core::InputGet(sim, Core::inputTime + relativeTime, type, value);
+    return Core::InputGet(sim, Core::evalTime + relativeTime, type, value);
 }
-
 
 void IncInputSet(SimulationManager@ sim, InputType type, int value)
 {
@@ -94,9 +104,8 @@ void IncInputSetAbsolute(SimulationManager@ sim, ms absoluteTime, InputType type
 
 void IncInputSetRelative(SimulationManager@ sim, ms relativeTime, InputType type, int value)
 {
-    Core::InputSet(sim, Core::inputTime + relativeTime, type, value);
+    Core::InputSet(sim, Core::evalTime + relativeTime, type, value);
 }
-
 
 void IncInputRemove(SimulationManager@ sim, InputType type)
 {
@@ -110,7 +119,7 @@ void IncInputRemoveAbsolute(SimulationManager@ sim, ms absoluteTime, InputType t
 
 void IncInputRemoveRelative(SimulationManager@ sim, ms relativeTime, InputType type)
 {
-    Core::InputRemove(sim, Core::inputTime + relativeTime, type);
+    Core::InputRemove(sim, Core::evalTime + relativeTime, type);
 }
 
 
@@ -139,7 +148,7 @@ void IncStageRemove(InputType inputType)
 
 ms IncForwardCheck(ms forward = 10)
 {
-    return (Core::inputTime + forward) - Core::upperTime;
+    return (Core::evalTime + forward) - Core::upperTime;
 }
 
 void IncForward(SimulationManager@ sim, ms forward = 10)
@@ -149,7 +158,7 @@ void IncForward(SimulationManager@ sim, ms forward = 10)
 
 ms IncBackwardCheck(ms backward = 10)
 {
-    return (Core::inputTime - backward) - Core::lowerTime;
+    return (Core::evalTime - backward) - Core::lowerTime;
 }
 
 void IncBackward(SimulationManager@ sim, ms backward = 10, ms cacheHint = 0)
@@ -160,13 +169,12 @@ void IncBackward(SimulationManager@ sim, ms backward = 10, ms cacheHint = 0)
 
 void IncRewindPreserve(SimulationManager@ sim)
 {
-    Rewind(sim, Core::inputState, RewindFlags::PRESERVE);
+    Rewind(sim, Core::evalState, RewindFlags::PRESERVE);
 }
 
 void IncRewindRemove(SimulationManager@ sim)
 {
-    Rewind(sim, Core::inputState, RewindFlags::REMOVE);
-    Core::PostInitInputEventsFill(sim.InputEvents);
+    Core::RewindRemove(sim);
 }
 
 void IncRevert(SimulationManager@ sim)

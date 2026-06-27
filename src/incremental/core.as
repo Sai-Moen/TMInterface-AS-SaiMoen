@@ -172,14 +172,14 @@ void TerminalTitleAppendTimeInfo(string& s)
     s += " | Time: ";
     s += lowerTime;
     s += "ms <= ";
-    s += inputTime;
+    s += evalTime;
     s += "ms <= ";
     s += upperTime;
     s += "ms";
 }
 
 
-bool activateRunMode;
+bool activateRunModeEvaluation;
 
 void Draw()
 {
@@ -260,7 +260,7 @@ void Draw()
     if (UI::CollapsingHeader("Run-Mode"))
     {
         UI::TextWrapped(
-            "Run-Mode Bruteforce is an alternative to Simulation,"
+            "Run-Mode Evaluation is an alternative to Simulation-Mode Evaluation,"
             " where the plugin runs during a race rather than on a replay file.\n"
             "You should have your inputs loaded when using this.");
 
@@ -268,20 +268,20 @@ void Draw()
 
         varRunReplayTime = UI::InputTimeVar("Replay Time", VAR_RUN_REPLAY_TIME);
         TooltipOnHover(
-            "This is equivalent to the replay time (events duration) in Simulation.\n"
-            "Inputs after this time will not be used!");
+            "This is equivalent to the replay time (events duration) in Simulation-Mode.\n"
+            "Only inputs before this time will be used!");
 
         varOpenResultFile = UI::CheckboxVar("Open Result File", VAR_OPEN_RESULT_FILE);
         TooltipOnHover(
             "Normally, the same script that was loaded before,"
-            " will be re-loaded after the Run-Mode Bruteforce finished running.\n"
+            " will be re-loaded after the Run-Mode Evaluation finished running.\n"
             "By enabling this setting, the result file will be loaded instead (if possible).");
 
         const CommandList@ const cmdlist = GetCurrentCommandList();
         UI::BeginDisabled(cmdlist is null);
 
-        activateRunMode = UI::Checkbox("Activate Run-Mode Bruteforce", activateRunMode) && cmdlist !is null;
-        TooltipOnHover("If this is checked while in run-mode, the plugin will start.");
+        activateRunModeEvaluation = UI::Checkbox("Active", activateRunModeEvaluation) && cmdlist !is null;
+        TooltipOnHover("If this is checked while in a race, the plugin will start.");
 
         UI::EndDisabled();
     }
@@ -289,7 +289,7 @@ void Draw()
     if (UI::CollapsingHeader("Misc"))
     {
         varPrintExtraInfo = UI::CheckboxVar("Print Extra Info", VAR_PRINT_EXTRA_INFO);
-        TooltipOnHover("Print additional information about the simulation to the bruteforce terminal.");
+        TooltipOnHover("Print additional information about the simulation to the terminal.");
 
         ComboSelectIndex(
             "Terminal Title Info Level",
@@ -297,7 +297,7 @@ void Draw()
             varTerminalTitleInfoLevel,
             TerminalTitleInfoLevelCallback);
         TooltipOnHover(
-            "The level of information displayed in the (bruteforce) terminal title:\n"
+            "The level of information displayed in the terminal title:\n"
             "- None: 'Incremental'.\n"
             "- Iteration: The current iteration number, compared to the total amount.\n"
             "- Time: The time at which the plugin currently is, compared to the lower and upper bounds.\n"
@@ -333,6 +333,7 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
 
     baseTime = evalIterBegin - 10;
     upperTime = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
+    fetchTimeOffset = 0;
 
     stepState = varUseSaveState ? StepState::SAVE_STATE : StepState::INIT;
     preventSimulationFinish = true;
@@ -394,11 +395,13 @@ void Iteration(SimulationManager@ sim)
     StageClear();
 
     lowerTime = (baseTime + 10) + resultIndex * 10;
-    inputTime = lowerTime;
+    evalTime = lowerTime;
+
+    const ums timestamp = IEB_TIME_OFFSET + lowerTime;
+    FetchInit(timestamp);
 
     {
         auto@ const ieb = sim.InputEvents;
-        const ums timestamp = IEB_TIME_OFFSET + lowerTime;
         const uint len = postInitInputEvents.Length;
         for (postInitIndex = 0; postInitIndex < len; ++postInitIndex)
         {
@@ -409,7 +412,7 @@ void Iteration(SimulationManager@ sim)
             ieb.Add(inputEvent);
         }
 
-        PostInitInputEventsFill(ieb);
+        PostInitInputEventsFetch(ieb);
     }
 
     TerminalTitleHandleIteration();
@@ -499,9 +502,9 @@ void Step(SimulationManager@ sim)
         for (;;)
         {
             const ms time = sim.TickTime;
-            if (inputTime <= upperTime)
+            if (evalTime <= upperTime)
             {
-                if (time < inputTime)
+                if (time < evalTime)
                 {
                     if (time == trailTime)
                         @trailState = sim.SaveState();
@@ -509,12 +512,12 @@ void Step(SimulationManager@ sim)
                     return;
                 }
 
-                if (time == inputTime)
+                if (time == evalTime)
                 {
                     if (time != sim.RaceTime)
                         break;
 
-                    @inputState = sim.SaveState();
+                    @evalState = sim.SaveState();
                 }
 
                 try
@@ -569,7 +572,7 @@ void End(SimulationManager@ sim)
 {
     @baseState = null;
     @trailState = null;
-    @inputState = null;
+    @evalState = null;
     postInitInputEvents.Clear();
     StageClear();
 
@@ -705,21 +708,38 @@ bool ModeDispatch(const string &in name = varMode)
 }
 
 
-ms baseTime;  // The time required to ensure that we can run all iterations and/or revert.
-ms trailTime; // The time of a cached save state, to speed up reverts.
-ms inputTime; // The time currently being evaluated.
+ms baseTime;  // The time required to ensure that we can run all iterations and/or revert without cache.
 ms lowerTime; // The time at which the current iteration begins.
+ms trailTime; // The time of a cached save state, to speed up reverts.
+ms evalTime;  // The time currently being evaluated.
 ms upperTime; // The time at which the current iteration ends.
 
 SimulationState@ baseState;
 SimulationState@ trailState;
-SimulationState@ inputState;
+SimulationState@ evalState;
+
+ums fetchTimestamp;  // The timestamp beyond which the original inputs no longer need to be added.
+ms fetchTimeOffset; // The timestamp offset set by the user, that will be used to update the fetchTimestamp.
+
+void FetchInit(const ums timestamp)
+{
+    fetchTimestamp = fetchTimeOffset != 0 ? fetchTimeOffset + timestamp : ~0;
+}
+
+ms FetchGet()
+{
+    return fetchTimeOffset;
+}
+
+void FetchSet(const ms timeOffset)
+{
+    fetchTimeOffset = timeOffset;
+}
 
 array<TM::InputEvent> postInitInputEvents;
 uint postInitIndex;
 uint excludedEventIndicesMask;
 
-// Collect input events from IEB starting at the given index.
 void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint iebIndex)
 {
     const uint iebLen = ieb.Length;
@@ -729,13 +749,15 @@ void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint i
         postInitInputEvents[i - iebIndex] = ieb[i];
 }
 
-// Add input events that are not excluded, from the remainder of 'postInitInputEvents'.
-void PostInitInputEventsFill(TM::InputEventBuffer@ ieb)
+void PostInitInputEventsFetch(TM::InputEventBuffer@ ieb)
 {
     const uint len = postInitInputEvents.Length;
     for (uint i = postInitIndex; i < len; ++i)
     {
         const TM::InputEvent inputEvent = postInitInputEvents[i];
+        if (inputEvent.Time > fetchTimestamp)
+            break;
+
         if (excludedEventIndicesMask & 1 << inputEvent.Value.EventIndex == 0)
             ieb.Add(inputEvent);
     }
@@ -861,24 +883,30 @@ void StageClear()
 }
 
 
+void RewindRemove(SimulationManager@ sim)
+{
+    Rewind(sim, evalState, RewindFlags::REMOVE);
+    PostInitInputEventsFetch(sim.InputEvents);
+}
+
 void Forward(SimulationManager@ sim, const ms forward)
 {
-    const ms time = inputTime;
-    inputTime += forward;
+    const ms time = evalTime;
+    evalTime += forward;
 
-    Rewind(sim, inputState, RewindFlags::REMOVE);
+    const ums evalTimestamp = IEB_TIME_OFFSET + evalTime;
+    FetchInit(evalTimestamp);
 
     {
-        PostInitInputEventsFill(sim.InputEvents);
-
-        const ums timestamp = IEB_TIME_OFFSET + inputTime;
         const uint len = postInitInputEvents.Length;
         for (; postInitIndex < len; ++postInitIndex)
         {
-            if (postInitInputEvents[postInitIndex].Time >= timestamp)
+            if (postInitInputEvents[postInitIndex].Time >= evalTimestamp)
                 break;
         }
     }
+
+    RewindRemove(sim);
 
     TerminalTitleHandleTime();
 
@@ -934,33 +962,35 @@ void Forward(SimulationManager@ sim, const ms forward)
 
 void Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
 {
-    inputTime -= backward;
-    if (inputTime < lowerTime)
-        inputTime = lowerTime;
-
     StageClear();
+
+    evalTime -= backward;
+    if (evalTime < lowerTime)
+        evalTime = lowerTime;
+
+    const ums evalTimestamp = IEB_TIME_OFFSET + evalTime;
+    FetchInit(evalTimestamp);
 
     {
         auto@ const ieb = sim.InputEvents;
-        const ums timestamp = IEB_TIME_OFFSET + inputTime;
-        IEBRemoveFromTimestamp(ieb, timestamp);
+        IEBRemoveFromTimestamp(ieb, evalTimestamp);
 
         while (postInitIndex > 0)
         {
             const uint before = postInitIndex - 1;
-            if (postInitInputEvents[before].Time < timestamp)
+            if (postInitInputEvents[before].Time < evalTimestamp)
                 break;
 
             postInitIndex = before;
         }
 
-        PostInitInputEventsFill(ieb);
+        PostInitInputEventsFetch(ieb);
     }
 
     SimulationState@ cachedState = baseState;
-    if (trailTime >= inputTime)
+    if (trailTime >= evalTime)
     {
-        trailTime = cacheHint > 10 ? inputTime - cacheHint : baseTime;
+        trailTime = cacheHint > 10 ? evalTime - cacheHint : baseTime;
         @trailState = null;
     }
     else if (trailState !is null)
@@ -974,7 +1004,7 @@ void Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
 
     string s;
     s += "- ";
-    s += inputTime;
+    s += evalTime;
     s += "ms\n";
     print(s);
 }

@@ -619,7 +619,6 @@ void DynamicStep(SimulationManager@ sim, const ms time)
         if (Scan(sim, time))
         {
             IncInputSet(sim, InputType::Steer, steerBest);
-            Rewind(sim);
             evalState = EvalState::EVALUATE;
         }
     break;

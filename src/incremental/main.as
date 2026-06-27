@@ -92,7 +92,7 @@ enum RunState
 {
     NONE,
 
-    INIT1, INIT2, COLLECT,
+    INIT, COLLECT,
     BEGIN, STEP, END
 }
 
@@ -107,27 +107,27 @@ void OnRunStep(SimulationManager@ sim)
     switch (runState)
     {
     case RunState::NONE:
-        if (!Core::activateRunMode)
+        if (!Core::activateRunModeEvaluation)
             break;
 
-        Core::activateRunMode = false;
-    // fallthrough
-    case RunState::INIT1:
+        Core::activateRunModeEvaluation = false;
+
         DrawGame(false);
         sim.GiveUp();
         contextMode = ContextMode::Run;
 
         Core::VarsInit();
         Core::Initialize(sim, Core::varRunReplayTime);
-        runState = RunState::INIT2;
+        runState = RunState::INIT;
     break;
-    case RunState::INIT2:
+    case RunState::INIT:
         // Messes with some game functionality like GiveUp, so it happens on a separate tick.
         sim.SimulationOnly = true;
         runState = RunState::COLLECT;
     break;
     case RunState::COLLECT:
-        if (time <= Core::varRunReplayTime)
+        Assert(time <= Core::varRunReplayTime);
+        if (time != Core::varRunReplayTime)
             break;
 
         @userCommandList = GetCurrentCommandList();
@@ -163,13 +163,7 @@ void OnRunStep(SimulationManager@ sim)
     break;
     case RunState::STEP:
         Core::Step(sim);
-
-        // Apply input events sitting in the Input Event Buffer (IEB).
-        // Although the game would execute the input events normally, just like in Simulation Mode,
-        // TMInterface doesn't understand what is going on if we just put them in the IEB in Run Mode (unfortunately).
-        // We use SetInputState on all inputs at the current timestamp to ensure the inputs are actually played by TMInterface.
         ApplyInputEvents(sim);
-
         // The state changes when Core::Finish is called.
     break;
     case RunState::END:
