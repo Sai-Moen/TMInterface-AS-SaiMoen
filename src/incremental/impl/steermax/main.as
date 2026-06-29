@@ -471,6 +471,7 @@ void Begin(SimulationManager@)
     switch (varLookaheadStrategy)
     {
     case LookaheadStrategy::ABSOLUTE:
+        IncFetchSet(varLookahead);
         targetTime = varLookahead;
         timeout = varLookahead;
         @onStep = StaticStep;
@@ -491,10 +492,21 @@ void Begin(SimulationManager@)
 
 void Iteration(SimulationManager@)
 {
-    if (varLookaheadStrategy == LookaheadStrategy::DYNAMIC)
+    switch (varLookaheadStrategy)
     {
+    case LookaheadStrategy::ABSOLUTE:
+    break;
+    case LookaheadStrategy::RELATIVE:
+        IncFetchSet(varTimeout);
+    break;
+    case LookaheadStrategy::DYNAMIC:
         targetTime = varBaseLookahead;
+        IncFetchSet(targetTime);
         peakTime = 0;
+    break;
+    default:
+        Unreachable();
+    break;
     }
 
     evalState = EvalState::SEARCH;
@@ -564,10 +576,22 @@ void StaticStep(SimulationManager@ sim, const ms time)
                     return;
                 }
 
-                if (varLookaheadStrategy == LookaheadStrategy::RELATIVE)
+                switch (varLookaheadStrategy)
+                {
+                case LookaheadStrategy::ABSOLUTE:
+                    RewindPreserve(sim);
+                break;
+                case LookaheadStrategy::RELATIVE:
                     targetTime = time + varLookaheadOffset;
+                    IncFetchSet(targetTime);
+                    RewindRemove(sim);
+                break;
+                default:
+                    Unreachable();
+                break;
+                }
 
-                RewindToScan(sim);
+                ScanInit();
             }
             else if (time == timeout)
             {
@@ -607,11 +631,12 @@ void DynamicStep(SimulationManager@ sim, const ms time)
             }
             else if (constraint != Constraint::NONE)
             {
-                RewindToScan(sim);
+                RewindPreserve(sim);
+                ScanInit();
             }
             else if (time == targetTime)
             {
-                DynamicForward(sim, varSteerTowards);
+                Forward(sim, varSteerTowards);
             }
         }
     break;
@@ -629,7 +654,7 @@ void DynamicStep(SimulationManager@ sim, const ms time)
             {
                 if (peakTime > targetTime)
                 {
-                    DynamicForward(sim, peakSteer);
+                    Forward(sim, peakSteer);
                     break;
                 }
 
@@ -638,26 +663,27 @@ void DynamicStep(SimulationManager@ sim, const ms time)
                     ConstraintFailure(sim, constraint);
                     return;
                 }
-                IncBackward(sim, 10, cacheHint);
 
                 targetTime += 10;
+                IncFetchSet(targetTime);
                 if (varMaxRollback > 0)
                 {
                     const ms rollback = targetTime - varBaseLookahead;
                     if (rollback > varMaxRollback)
                     {
-                        print("[SteerMax] Ran out of rollback space!", Severity::Error);
-                        IncTerminate(sim);
+                        print("[SteerMax] Ran out of rollback space!", Severity::Warning);
+                        IncTerminate();
                         return;
                     }
                 }
-
                 peakTime = targetTime;
+
+                IncBackward(sim, 10, cacheHint);
                 evalState = EvalState::SEARCH;
             }
             else if (time == targetTime)
             {
-                DynamicForward(sim, steerBest);
+                Forward(sim, steerBest);
             }
         }
     break;
@@ -667,33 +693,40 @@ void DynamicStep(SimulationManager@ sim, const ms time)
     }
 }
 
-void DynamicForward(SimulationManager@ sim, const int value)
+void Forward(SimulationManager@ sim, const int value)
 {
-    if (Forward(sim, value))
-        return;
-
-    if (targetTime > varBaseLookahead)
+    switch (varLookaheadStrategy)
     {
-        targetTime -= 10;
-        peakSteer = value;
+    case LookaheadStrategy::ABSOLUTE:
+    break;
+    case LookaheadStrategy::RELATIVE:
+        IncFetchSet(varTimeout);
+    break;
+    case LookaheadStrategy::DYNAMIC:
+        if (targetTime > varBaseLookahead)
+        {
+            targetTime -= 10;
+            IncFetchSet(targetTime);
+            peakSteer = value;
+        }
+        else
+        {
+            peakTime = 0;
+        }
+    break;
+    default:
+        Unreachable();
+    break;
     }
-    else
-    {
-        peakTime = 0;
-    }
-}
 
-bool Forward(SimulationManager@ sim, const int value)
-{
-    const bool iterating = IncForwardCheck() > 0;
-    if (iterating)
+    if (IncForwardCheck() > 0)
     {
         if (refineSteerOffset)
         {
             steerOffsetAway = steerOffset;
             steerOffsetTowards = 0;
             RefineSteerOffset(sim);
-            return true;
+            return;
         }
 
         if (varSteerOffsetStrategy == SteerOffsetStrategy::AUTOMATIC)
@@ -703,7 +736,6 @@ bool Forward(SimulationManager@ sim, const int value)
     IncStageSet(InputType::Steer, value);
     IncForward(sim);
     evalState = EvalState::SEARCH;
-    return iterating;
 }
 
 void RefineSteerOffset(SimulationManager@ sim)
@@ -732,12 +764,11 @@ void RefineSteerOffset(SimulationManager@ sim)
 int steerTowards;
 int steerAway;
 
-void RewindToScan(SimulationManager@ sim)
+void ScanInit()
 {
     steerTowards = varSteerTowards;
     steerAway    = varSteerAway;
 
-    Rewind(sim);
     evalState = EvalState::SCAN;
 }
 
@@ -764,21 +795,27 @@ bool Scan(SimulationManager@ sim, const ms time)
     else if (ConstraintsCheck(sim) != Constraint::NONE)
     {
         steerTowards = steer;
-        Rewind(sim);
+        RewindPreserve(sim);
     }
     else if (time == targetTime)
     {
         steerAway = steer;
         steerTowards = varSteerTowards;
-        Rewind(sim);
+        RewindPreserve(sim);
     }
 
     return false;
 }
 
-void Rewind(SimulationManager@ sim)
+void RewindPreserve(SimulationManager@ sim)
 {
     IncRewindPreserve(sim);
+    rewinding = true;
+}
+
+void RewindRemove(SimulationManager@ sim)
+{
+    IncRewindRemove(sim);
     rewinding = true;
 }
 
@@ -878,9 +915,9 @@ void ConstraintFailure(SimulationManager@ sim, const Constraint constraint)
         Unreachable();
     break;
     }
-    print(s, Severity::Error);
+    print(s, Severity::Warning);
 
-    IncTerminate(sim);
+    IncTerminate();
 }
 
 

@@ -183,7 +183,12 @@ void IncRevert(SimulationManager@ sim)
     Core::Iteration(sim);
 }
 
-void IncTerminate(SimulationManager@ sim)
+void IncTerminate()
+{
+    Core::evalTime = Math::INT_MAX;
+}
+
+void IncPanic(SimulationManager@ sim)
 {
     Core::Finish(sim);
 }

@@ -84,6 +84,8 @@ void Begin(SimulationManager@)
 {
     VarsInit();
 
+    IncFetchSet(Math::Max(varLookaheadQuality, varLookaheadNormal));
+
     evalState = EvalState::INIT;
 
     fallback = false;

@@ -397,24 +397,6 @@ void Iteration(SimulationManager@ sim)
     lowerTime = (baseTime + 10) + resultIndex * 10;
     evalTime = lowerTime;
 
-    const ums timestamp = IEB_TIME_OFFSET + lowerTime;
-    FetchInit(timestamp);
-
-    {
-        auto@ const ieb = sim.InputEvents;
-        const uint len = postInitInputEvents.Length;
-        for (postInitIndex = 0; postInitIndex < len; ++postInitIndex)
-        {
-            const TM::InputEvent inputEvent = postInitInputEvents[postInitIndex];
-            if (inputEvent.Time >= timestamp)
-                break;
-
-            ieb.Add(inputEvent);
-        }
-
-        PostInitInputEventsFetch(ieb);
-    }
-
     TerminalTitleHandleIteration();
 
     string s;
@@ -440,6 +422,24 @@ void Iteration(SimulationManager@ sim)
     {
         PrintException("mode.iteration");
         Finish(sim);
+    }
+
+    {
+        const ums timestamp = IEB_TIME_OFFSET + lowerTime;
+        FetchInit(timestamp);
+
+        auto@ const ieb = sim.InputEvents;
+        const uint len = postInitInputEvents.Length;
+        for (postInitIndex = 0; postInitIndex < len; ++postInitIndex)
+        {
+            const TM::InputEvent inputEvent = postInitInputEvents[postInitIndex];
+            if (inputEvent.Time >= timestamp)
+                break;
+
+            ieb.Add(inputEvent);
+        }
+
+        PostInitInputEventsFetch(ieb);
     }
 }
 
@@ -533,7 +533,7 @@ void Step(SimulationManager@ sim)
                 return;
             }
 
-            if (time != sim.RaceTime)
+            if (evalTime == Math::INT_MAX || time != sim.RaceTime)
                 break;
 
             const ms checkTime = upperTime + 20;
@@ -778,7 +778,6 @@ bool InputGet(SimulationManager@ sim, const ms time, const InputType type, int &
         return false;
     }
 
-    IEBRemoveDuplicatesAtTimestamp(ieb, timestamp, eventIndex, index);
     value = InputEventGetInt(ieb[index], type);
     return true;
 }
@@ -808,10 +807,6 @@ void InputSet(SimulationManager@ sim, const ms time, const InputType type, const
             }
         }
         Assert(index != 0);
-    }
-    else
-    {
-        IEBRemoveDuplicatesAtTimestamp(ieb, timestamp, eventIndex, index);
     }
 
     InputEventSetInt(ieb[index], type, value);
@@ -1012,13 +1007,13 @@ void Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
 
 class Result
 {
-    ms time;
-    float metric;
+    ms     time;
+    float  metric;
     string inputs;
 
     Result(SimulationManager@ sim)
     {
-        time = sim.TickTime;
+        time   = evalTime != Math::INT_MAX ? sim.TickTime : Math::INT_MAX;
         metric = sim.Dyna.RefStateCurrent.LinearSpeed.LengthSquared();
         inputs = sim.InputEvents.ToCommandsText();
     }

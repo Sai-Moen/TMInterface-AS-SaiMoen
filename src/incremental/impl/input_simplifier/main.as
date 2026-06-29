@@ -114,6 +114,8 @@ void Draw()
     {
         const Strategy strategy = varOrderedStrategyIndices[i];
 
+        UI::TextWrapped((i + 1) + ".");
+        UI::SameLine();
         const bool down = UI::Button("-##" + i);
         UI::SameLine();
         const bool up = UI::Button("+##" + i);
@@ -246,6 +248,7 @@ void Begin(SimulationManager@)
 {
     VarsInit();
 
+    IncFetchSet(varLookahead);
     contexts.Resize(varLookahead / 10 - 1);
 
     steps.Add(StepScan);
@@ -524,7 +527,7 @@ void Forward(SimulationManager@ sim)
     // fallthrough
     default:
         print("[Input Simplifier] Unexpected state for brake!", Severity::Error);
-        IncTerminate(sim);
+        IncPanic(sim);
         return;
     }
 
@@ -547,7 +550,7 @@ void Forward(SimulationManager@ sim)
     // fallthrough
     default:
         print("[Input Simplifier] Unexpected state for steer!", Severity::Error);
-        IncTerminate(sim);
+        IncPanic(sim);
         return;
     }
 

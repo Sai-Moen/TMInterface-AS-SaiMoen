@@ -1,6 +1,6 @@
 /*
 
-v3.1.1
+v3.1.2
 smn_utils, useful code snippets, by SaiMoen.
 
 To find contents, search for "# [name]", where [name] is one of the items below.
@@ -475,6 +475,53 @@ void IEBRemoveIndices(TM::InputEventBuffer@ ieb, const array<uint>@ indices, con
         else
             ieb[index++] = ieb[i];
     }
+    IEBRemoveFromIndex(ieb, index);
+}
+
+// Applies the following simplifications:
+// - Removes FinishLineId.
+// - De-duplicates input events at the same time that have the same event index.
+void IEBSimplify(TM::InputEventBuffer@ ieb)
+{
+    const uint len = ieb.Length;
+    if (len == 0)
+        return;
+
+    uint index = 0;
+
+    ums timestampOld = ieb[0].Time;
+    const uint finishLineId = ieb.EventIndices.FinishLineId;
+    uint presence = 0;
+    array<uint> indices(32);
+    for (uint i = 0; i < len; ++i)
+    {
+        const TM::InputEvent ie = ieb[i];
+        const ums timestampNew = ie.Time;
+        if (timestampOld != timestampNew)
+        {
+            timestampOld = timestampNew;
+            presence = 0;
+        }
+
+        const uint eventIndex = ie.Value.EventIndex;
+        if (eventIndex == finishLineId)
+            continue;
+
+        uint iebIndex;
+        const uint mask = 1 << eventIndex;
+        if (presence & mask == 0)
+        {
+            presence |= mask;
+            indices[eventIndex] = index;
+            iebIndex = index++;
+        }
+        else
+        {
+            iebIndex = indices[eventIndex];
+        }
+        ieb[iebIndex] = ie;
+    }
+
     IEBRemoveFromIndex(ieb, index);
 }
 

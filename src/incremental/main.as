@@ -29,12 +29,11 @@ void OnSimulationBegin(SimulationManager@ sim)
 
     sim.RemoveStateValidation();
 
-    auto@ const ieb = sim.InputEvents;
-    IEBRemoveEventIndex(ieb, ieb.EventIndices.FinishLineId);
-
     Core::VarsInit();
     Core::Initialize(sim, sim.EventsDuration);
 
+    auto@ const ieb = sim.InputEvents;
+    IEBSimplify(ieb);
     const uint iebIndex = IEBSearchTime(ieb, Core::baseTime);
     Core::PostInitInputEventsInitialize(ieb, iebIndex);
     IEBRemoveFromIndex(ieb, iebIndex);
@@ -134,7 +133,8 @@ void OnRunStep(SimulationManager@ sim)
         SetCurrentCommandList(null);
 
         {
-            const auto@ const ieb = sim.InputEvents;
+            auto@ const ieb = sim.InputEvents;
+            IEBSimplify(ieb);
             const uint iebIndex = IEBSearchTime(ieb, Core::baseTime);
 
             preInitInputEvents.Resize(iebIndex);
