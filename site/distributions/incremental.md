@@ -7,6 +7,8 @@ unlike bruteforce, which indefinitely tries random changes on a run.
 
 ## Installation
 
+- [v3.3.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.3.0/incremental.zip)
+
 - [v3.2.1](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.2.1/incremental.zip)
 - [v3.2.0](https://github.com/Sai-Moen/TMInterface-AS-SaiMoen/releases/download/incremental_v3.2.0/incremental.zip)
 
@@ -241,11 +243,8 @@ to not waste time on entries that do not work well, e.g. at first only seeing ho
 
 ### Run-Mode
 
-Run-Mode Bruteforce is an feature that allows you to run Incremental in a race (i.e. `ContextMode::Run`),
+Run-Mode Evaluation is an feature that allows you to run Incremental in a race (i.e. `ContextMode::Run`),
 rather than the usual validation context (i.e. `ContextMode::Simulation`).
-The 'bruteforce' part is actually a misnomer since Incremental does not really 'bruteforce',
-at least not in the same way as the built-in bruteforce,
-so this name might be changed to something like 'Run-Mode Evaluation' in later versions.
 
 When you want to use this, you will need to have an input file loaded.
 The 'replay time' setting will then be used to determine up to what time the file will be played,
@@ -265,7 +264,7 @@ if clicked by accident outside of an active race.
 The 'print extra info' setting makes it so extra information about the simulation is printed alongside the usual information.
 As of writing, this is just the speed of the car in km/h.
 
-The 'terminal title info level' setting makes it so the title bar of the (bruteforce) terminal displays certain information:
+The 'terminal title info level' setting makes it so the title bar of the terminal displays certain information:
 1. "Incremental".
 2. The previous level, as well as the current iteration compared to the total amount of iterations.
 3. The previous level, as well as the lower/current/upper times in ms.
@@ -273,6 +272,13 @@ According to the TMInterface API documentation, the terminal title should not be
 which implies there could be noticable performance overhead, though in most cases it should not matter that much.
 
 ## Patch Notes
+
+### v3.3.0
+
+- Improved performance in cases where there are a lot of inputs after the given beginning time
+  (e.g. running input simplifier on a replay with a lot of inputs).
+- Renamed Run-Mode Bruteforce to Run-Mode Evaluation.
+- Did some small fixes and performance improvements.
 
 ### v3.2.1
 
