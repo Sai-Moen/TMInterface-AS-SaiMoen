@@ -123,6 +123,17 @@ void IncInputRemoveRelative(SimulationManager@ sim, ms relativeTime, InputType t
 }
 
 
+void IncRewindPreserve(SimulationManager@ sim)
+{
+    Rewind(sim, Core::evalState, RewindFlags::PRESERVE);
+}
+
+void IncRewindRemove(SimulationManager@ sim)
+{
+    Core::RewindRemove(sim);
+}
+
+
 enum IncStageState
 {
     NONE,   // No particular change is requested (default).
@@ -166,16 +177,6 @@ void IncBackward(SimulationManager@ sim, ms backward = 10, ms cacheHint = 0)
     Core::Backward(sim, backward, cacheHint);
 }
 
-
-void IncRewindPreserve(SimulationManager@ sim)
-{
-    Rewind(sim, Core::evalState, RewindFlags::PRESERVE);
-}
-
-void IncRewindRemove(SimulationManager@ sim)
-{
-    Core::RewindRemove(sim);
-}
 
 void IncRevert(SimulationManager@ sim)
 {

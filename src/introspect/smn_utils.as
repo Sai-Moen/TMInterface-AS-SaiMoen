@@ -591,10 +591,10 @@ int IEBFindTimestamp(const TM::InputEventBuffer@ ieb, const ums timestamp, const
 }
 
 // Returns the first index of an input event with the given timestamp and event index.
-// If no such event exists, returns 0, thus if you are looking for RaceRunningId, check ieb[0] first.
+// If no such event exists, returns ~0, i.e. Math::UINT_MAX.
 uint IEBFindFirst(const TM::InputEventBuffer@ ieb, const ums timestamp, const int eventIndex)
 {
-    uint index = 0;
+    uint index = ~0;
 
     const uint iebIndex = IEBSearchTimestamp(ieb, timestamp);
     const uint iebLen = ieb.Length;

@@ -665,7 +665,6 @@ void DynamicStep(SimulationManager@ sim, const ms time)
                 }
 
                 targetTime += 10;
-                IncFetchSet(targetTime);
                 if (varMaxRollback > 0)
                 {
                     const ms rollback = targetTime - varBaseLookahead;
@@ -676,9 +675,11 @@ void DynamicStep(SimulationManager@ sim, const ms time)
                         return;
                     }
                 }
-                peakTime = targetTime;
 
+                IncFetchSet(targetTime);
                 IncBackward(sim, 10, cacheHint);
+
+                peakTime = targetTime;
                 evalState = EvalState::SEARCH;
             }
             else if (time == targetTime)

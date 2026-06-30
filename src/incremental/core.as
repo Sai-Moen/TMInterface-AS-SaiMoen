@@ -253,11 +253,18 @@ void Draw()
         UI::Separator();
         UI::Separator();
 
-        if (mode.draw !is null || ModeDispatch())
-            mode.draw();
+        try
+        {
+            if (mode.draw !is null || ModeDispatch())
+                mode.draw();
+        }
+        catch
+        {
+            UI::TextWrapped("Exception caught when mode attempted to draw...");
+        }
     }
 
-    if (UI::CollapsingHeader("Run-Mode"))
+    if (UI::CollapsingHeader("Run-Mode Evaluation"))
     {
         UI::TextWrapped(
             "Run-Mode Evaluation is an alternative to Simulation-Mode Evaluation,"
@@ -333,7 +340,7 @@ void Initialize(SimulationManager@ sim, const ms alternativeTimeLimit)
 
     baseTime = evalIterBegin - 10;
     upperTime = evalEnd != 0 ? evalEnd : alternativeTimeLimit;
-    fetchTimeOffset = 0;
+    fetchTimeOffset = ~0;
 
     stepState = varUseSaveState ? StepState::SAVE_STATE : StepState::INIT;
     preventSimulationFinish = true;
@@ -425,10 +432,9 @@ void Iteration(SimulationManager@ sim)
     }
 
     {
-        const ums timestamp = IEB_TIME_OFFSET + lowerTime;
-        FetchInit(timestamp);
-
         auto@ const ieb = sim.InputEvents;
+        const ums timestamp = IEB_TIME_OFFSET + lowerTime;
+
         const uint len = postInitInputEvents.Length;
         for (postInitIndex = 0; postInitIndex < len; ++postInitIndex)
         {
@@ -502,20 +508,21 @@ void Step(SimulationManager@ sim)
         for (;;)
         {
             const ms time = sim.TickTime;
+            const bool badRaceTime = time != sim.RaceTime;
             if (evalTime <= upperTime)
             {
-                if (time < evalTime)
+                if (time <= evalTime)
                 {
-                    if (time == trailTime)
-                        @trailState = sim.SaveState();
-
-                    return;
-                }
-
-                if (time == evalTime)
-                {
-                    if (time != sim.RaceTime)
+                    if (badRaceTime)
                         break;
+
+                    if (time < evalTime)
+                    {
+                        if (time == trailTime)
+                            @trailState = sim.SaveState();
+
+                        return;
+                    }
 
                     @evalState = sim.SaveState();
                 }
@@ -533,7 +540,7 @@ void Step(SimulationManager@ sim)
                 return;
             }
 
-            if (evalTime == Math::INT_MAX || time != sim.RaceTime)
+            if (badRaceTime || evalTime == Math::INT_MAX)
                 break;
 
             const ms checkTime = upperTime + 20;
@@ -718,20 +725,14 @@ SimulationState@ baseState;
 SimulationState@ trailState;
 SimulationState@ evalState;
 
-ums fetchTimestamp;  // The timestamp beyond which the original inputs no longer need to be added.
-ms fetchTimeOffset; // The timestamp offset set by the user, that will be used to update the fetchTimestamp.
-
-void FetchInit(const ums timestamp)
-{
-    fetchTimestamp = fetchTimeOffset != 0 ? fetchTimeOffset + timestamp : ~0;
-}
+ums fetchTimeOffset;
 
 ms FetchGet()
 {
     return fetchTimeOffset;
 }
 
-void FetchSet(const ms timeOffset)
+void FetchSet(const ums timeOffset)
 {
     fetchTimeOffset = timeOffset;
 }
@@ -751,6 +752,10 @@ void PostInitInputEventsInitialize(const TM::InputEventBuffer@ ieb, const uint i
 
 void PostInitInputEventsFetch(TM::InputEventBuffer@ ieb)
 {
+    ums fetchTimestamp = fetchTimeOffset;
+    if (fetchTimestamp != ~0)
+        fetchTimestamp += IEB_TIME_OFFSET + evalTime;
+
     const uint len = postInitInputEvents.Length;
     for (uint i = postInitIndex; i < len; ++i)
     {
@@ -772,7 +777,7 @@ bool InputGet(SimulationManager@ sim, const ms time, const InputType type, int &
     const int eventIndex = EventIndicesEncode(ieb.EventIndices, type);
 
     const uint index = IEBFindFirst(ieb, timestamp, eventIndex);
-    if (index == 0)
+    if (index == ~0)
     {
         value = 0;
         return false;
@@ -790,7 +795,7 @@ void InputSet(SimulationManager@ sim, const ms time, const InputType type, const
     const int eventIndex = EventIndicesEncode(ieb.EventIndices, type);
 
     uint index = IEBFindFirst(ieb, timestamp, eventIndex);
-    if (index == 0)
+    if (index == ~0)
     {
         ieb.Add(time, type, value);
 
@@ -806,7 +811,7 @@ void InputSet(SimulationManager@ sim, const ms time, const InputType type, const
                 break;
             }
         }
-        Assert(index != 0);
+        Assert(index != ~0);
     }
 
     InputEventSetInt(ieb[index], type, value);
@@ -889,19 +894,18 @@ void Forward(SimulationManager@ sim, const ms forward)
     const ms time = evalTime;
     evalTime += forward;
 
-    const ums evalTimestamp = IEB_TIME_OFFSET + evalTime;
-    FetchInit(evalTimestamp);
+    RewindRemove(sim);
 
     {
+        const ums timestamp = IEB_TIME_OFFSET + evalTime;
+
         const uint len = postInitInputEvents.Length;
         for (; postInitIndex < len; ++postInitIndex)
         {
-            if (postInitInputEvents[postInitIndex].Time >= evalTimestamp)
+            if (postInitInputEvents[postInitIndex].Time >= timestamp)
                 break;
         }
     }
-
-    RewindRemove(sim);
 
     TerminalTitleHandleTime();
 
@@ -963,17 +967,15 @@ void Backward(SimulationManager@ sim, const ms backward, const ms cacheHint)
     if (evalTime < lowerTime)
         evalTime = lowerTime;
 
-    const ums evalTimestamp = IEB_TIME_OFFSET + evalTime;
-    FetchInit(evalTimestamp);
-
     {
         auto@ const ieb = sim.InputEvents;
-        IEBRemoveFromTimestamp(ieb, evalTimestamp);
+        const ums timestamp = IEB_TIME_OFFSET + evalTime;
+        IEBRemoveFromTimestamp(ieb, timestamp);
 
         while (postInitIndex > 0)
         {
             const uint before = postInitIndex - 1;
-            if (postInitInputEvents[before].Time < evalTimestamp)
+            if (postInitInputEvents[before].Time < timestamp)
                 break;
 
             postInitIndex = before;
